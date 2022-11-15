@@ -26,32 +26,6 @@ struct HMDAError {
   HMDAError::ss.str("");						\
   exit(-1);								
 
-template <char Ident, int Depth, typename LhsIdx, typename...LhsIdxs>
-struct FindIter { 
-  template <typename...Iterations>
-  int operator()(const std::tuple<Iterations...> &iters) const {
-    if constexpr (sizeof...(LhsIdxs) == Depth) {
-      HMDA_FAIL(SS << "Could not find LHS index for RHS Iter " << Ident << ".");
-      return -1; // stub
-    } else {
-      return FindIter<Ident, Depth+1, LhsIdxs...>()(iters);
-    }
-  }
-};
-
-template <char Ident, int Depth, typename...LhsIdxs>
-struct FindIter<Ident, Depth, Iter<Ident>, LhsIdxs...> {
-  template <typename...Iterations>
-  int operator()(const std::tuple<Iterations...> &iters) const { 
-    return std::get<Depth>(iters);
-  }
-};
-
-template <char Ident, typename...Iterations, typename...LhsIdxs>
-int find_iter(const std::tuple<Iterations...> &iters, const std::tuple<LhsIdxs...> &lhs_idxs) {
-  return FindIter<Ident, 0, LhsIdxs...>()(iters);
-}
-
 // make a constant value tuple
 template <int Value, int N>
 auto make_tuple() {

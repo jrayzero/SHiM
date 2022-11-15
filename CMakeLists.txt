@@ -6,15 +6,16 @@ set(CMAKE_CXX_FLAGS "-std=c++17 -Wall -Wextra -Wno-unused-parameter -Wno-missing
 set(CMAKE_CXX_FLAGS_RELEASE "-O3")
 set(CMAKE_CXX_FLAGS_DEBUG "-g -O0")
 
-include_directories(core ${CMAKE_SOURCE_DIR}/buildit/include)
-set(HDR core/format.h
-	core/fwd.h
-	core/hmda.h
-	core/traits.h
-	core/utils.h)
+include_directories(hmda ${CMAKE_SOURCE_DIR}/buildit/include)
+set(STAGED
+		hmda/staged/format.h
+	    hmda/staged/fwd.h
+	    hmda/staged/hmda.h
+	    hmda/staged/traits.h
+	    hmda/staged/utils.h)
 
 link_directories(${CMAKE_SOURCE_DIR}/buildit/build)
+add_compile_definitions(HMDA_VERBOSE)
 
-
-add_executable(driver1 ${HDR} drivers/driver1.cpp)
+add_executable(driver1 ${STAGED} drivers/driver1.cpp)
 target_link_libraries(driver1 buildit)
