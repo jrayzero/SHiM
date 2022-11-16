@@ -193,6 +193,7 @@ struct BaseBlock {
     // TODO you'd create the actual data array in here (if not staged)    
   }
 
+
 //  template <typename...Iters>
 //  auto operator()(const std::tuple<Iters...> &tup);
 
@@ -213,10 +214,18 @@ struct Block<Elem,Rank,false> : public BaseBlock<Elem,Rank> {
   static constexpr bool staged = false;
 
   Block(const std::array<loop_type, Rank> &bextents) :
-    BaseBlock<Elem,Rank>(bextents) { }
+    BaseBlock<Elem,Rank>(bextents) {
+    data = new Elem[100];
+  }
 
   Elem *data;
 
+  // Use these when you just want a single loop
+  template <typename...Iters>
+  Elem &operator()(const std::tuple<Iters...> &);
+
+  template <typename...Iters>
+  Elem &operator()(Iters...iters);
 
   // Take an unstaged block and create one with Staged = true, as well
   // as a dyn_var buffer. This must only be called within the staging context!
@@ -230,27 +239,25 @@ struct Block<Elem,Rank,true> : public BaseBlock<Elem,Rank> {
 
   static constexpr bool staged = true;
 
-//  using data_type = typename decltype(determine_data_type<Elem,Staged>())::type;  
-
-  // The extents in each dimension of this block.
-//  std::array<loop_type,Rank> bextents;
-  // When Staged, this is a dyn_var, which essentially acts as a placeholder.
-  // When not Staged, it's an actual array
   builder::dyn_var<Elem*> data;
 
   Block(const std::array<loop_type, Rank> &bextents, const builder::dyn_var<Elem*> &data) :
     BaseBlock<Elem,Rank>(bextents), data(data) { }
 
+  // Use the square brackets when you want inline indexing
   template <typename Idx>
   auto operator[](Idx idx);
 
+  // Use these when you just want a single item
   template <typename...Iters>
-  auto operator()(const std::tuple<Iters...> &tup);
+  builder::dyn_var<Elem> operator()(const std::tuple<Iters...> &);
+
+  template <typename...Iters>
+  builder::dyn_var<Elem> operator()(Iters...iters);
 
   // TODO make this private and have block ref be a friend
   template <typename Rhs, typename...Iters>
   void assign(Rhs rhs, Iters...iters);
-
 
 };
 
@@ -356,9 +363,33 @@ void Block<Elem,Rank,true>::assign(Rhs rhs, Iters...iters) {
 // for staging, this returns a dyn_var
 template <typename Elem, int Rank>
 template <typename...Iters>
-auto Block<Elem,Rank,true>::operator()(const std::tuple<Iters...> &iters) {
+builder::dyn_var<Elem> Block<Elem,Rank,true>::operator()(const std::tuple<Iters...> &iters) {
+  // TODO verify that no Iters in here
   auto lidx = linearize<0,Rank>(this->bextents, iters);
   return data[lidx];
+}
+
+template <typename Elem, int Rank>
+template <typename...Iters>
+builder::dyn_var<Elem> Block<Elem,Rank,true>::operator()(Iters...iters) {
+  // TODO verify that no Iters in here
+  return this->operator()(std::tuple{iters...});
+}
+
+// for staging, this returns a dyn_var
+template <typename Elem, int Rank>
+template <typename...Iters>
+Elem &Block<Elem,Rank,false>::operator()(const std::tuple<Iters...> &iters) {
+  // TODO verify that no Iters in here
+  auto lidx = linearize<0,Rank>(this->bextents, iters);
+  return data[lidx];
+}
+
+template <typename Elem, int Rank>
+template <typename...Iters>
+Elem &Block<Elem,Rank,false>::operator()(Iters...iters) {
+  // TODO verify that no Iters in here
+  return this->operator()(std::tuple{iters...});
 }
 
 template <typename BlockLike, typename Idxs>
@@ -384,13 +415,6 @@ constexpr bool is_block_or_view() {
   return IsBlockOrView<T>()();
 }
 
-static void foo(builder::dyn_var<int*> B, int a, int b) {
-  auto blockA = Block<int, 2, true>({a,b}, B);
-  Iter<'i'> i;
-  Iter<'j'> j;
-  blockA[i][j] = i+j+blockA[i][j];
-}
-
 static void generate(block::block::Ptr ast, std::ostream &oss) {
   block::eliminate_redundant_vars(ast);	
   block::c_code_generator::generate_code(ast, oss, 0);
@@ -403,34 +427,33 @@ static void my_function_to_stage(builder::dyn_var<int*> data, Block<int,3,false>
   Iter<'i'> i;
   Iter<'j'> j;
   Iter<'k'> k;
-  blockA[i][j][k] = i+j;
+  blockA[i][j][k] = i+j+blockA[i][j][0];
+  blockA(0,1,2);
 }
 
 // stage wrapper for a single unStaged block/view
 // theoretically, this would do the staging and essentially jit it, running the code
-template <typename Func, typename ArgTuple, typename Unstaged>
-void stage(Func func, ArgTuple arg_tuple, Unstaged unstaged, std::string name="") {
-  static_assert(is_block_or_view<Unstaged>());
-  static_assert(!Unstaged::staged, "Trying to stage a staged object!");
+template <typename Func, typename ArgTuple, typename...Unstaged>
+void stage(Func func, ArgTuple arg_tuple, std::string name, Unstaged...unstaged) {
+  // TODO checked that each Unstaged is really unstaged
   if (name.empty()) name = "__my_staged_func";
   if constexpr (std::tuple_size<ArgTuple>() == 0) {
-    auto ast = builder::builder_context().extract_function_ast(func, name, unstaged);
+    auto ast = builder::builder_context().extract_function_ast(func, name, unstaged...);
     block::eliminate_redundant_vars(ast);	
     block::c_code_generator::generate_code(ast, std::cout, 0);
   } else {
-    auto ast = builder::builder_context().extract_function_ast(func, name, arg_tuple, unstaged);
+    auto ast = builder::builder_context().extract_function_ast(func, name, arg_tuple, unstaged...);
     block::eliminate_redundant_vars(ast);	
     block::c_code_generator::generate_code(ast, std::cout, 0);
   }
+  // todo now we'd dynamically load this little codelet and pass in the unstaged buffer into it
 }
 
 
 int main() {
   // Create an unstaged block that you can do whatever with
   auto my_block = Block<int, 3, false>({3,4,5});
-  stage(my_function_to_stage, std::tuple{}, my_block, "fuzzy");
+  stage(my_function_to_stage, std::tuple{}, "foozle", my_block);
 
-//  auto ast = builder::builder_context().extract_function_ast(foo, "foo", 4, 5);
-//  generate(ast, std::cout);
 }
 
