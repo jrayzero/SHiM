@@ -1,6 +1,9 @@
 #pragma once
 
 #include <array>
+#include <sstream>
+
+namespace hmda {
 
 using loop_type = int32_t;
 
@@ -10,15 +13,21 @@ struct BaseBlockLike {
   static const int rank = Rank;
   using elem = Elem;
 
-  // The extents in each dimension of this block.
+  // The extents in each dimension
   std::array<loop_type,Rank> bextents;
+  // The strides in each dimension
+  std::array<loop_type,Rank> bstrides;
+  // The origin 
+  std::array<loop_type,Rank> borigin;
 
   // The extents to use for things such as determining loop sizes, linearizing, etc
   std::array<loop_type,Rank> primary_extents;
 
   BaseBlockLike(const std::array<loop_type,Rank> &bextents,
+		const std::array<loop_type,Rank> &bstrides,
+		const std::array<loop_type,Rank> &borigin,
 		const std::array<loop_type,Rank> &primary_extents) : 
-  bextents(bextents), primary_extents(primary_extents) { }
+  bextents(bextents), bstrides(bstrides), borigin(borigin), primary_extents(primary_extents) { }
 
 protected:
 
@@ -52,3 +61,23 @@ protected:
 template <typename Elem, int Rank, bool Staged>
 struct Block : public BaseBlockLike<Elem, Rank> { };
 
+template <typename T, T Val, int Rank>
+std::array<T,Rank> make_array() {
+  std::array<T, Rank> arr;
+  for (int i = 0; i < Rank; i++) arr[i] = Val;
+  return arr;
+}
+
+template <typename Iterable>
+std::string join(const Iterable &it, std::string joiner=",") {
+  std::stringstream ss;
+  bool first = true;
+  for (auto i : it) {
+    if (!first) ss << joiner;
+    ss << i;
+    first = false;
+  }
+  return ss.str();
+}
+
+}

@@ -1,5 +1,6 @@
 #pragma once
 
+namespace hmda {
 
 struct AddFunctor {
   template <typename L, typename R>
@@ -7,3 +8,5 @@ struct AddFunctor {
     return l + r;
   }
 };
+
+}

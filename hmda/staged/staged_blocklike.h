@@ -1,8 +1,12 @@
 #pragma once
 
+#include <sstream>
+
 #include "builder/dyn_var.h"
 
 #include "base.h"
+
+namespace hmda {
 
 // Notes
 // - realize functions are not const for staged since they may lead to a call to Block::operator(), which
@@ -21,7 +25,8 @@ struct Block<Elem,Rank,true> : public BaseBlockLike<Elem,Rank> {
   builder::dyn_var<Elem*> data;
 
   Block(const std::array<loop_type, Rank> &bextents, const builder::dyn_var<Elem*> &data) :
-    BaseBlockLike<Elem,Rank>(bextents, bextents), data(data) { }
+    BaseBlockLike<Elem,Rank>(bextents, make_array<loop_type,1,Rank>(), 
+			     make_array<loop_type,0,Rank>(), bextents), data(data) { }
 
   // Use the square brackets when you want inline indexing
   template <typename Idx>
@@ -37,6 +42,16 @@ struct Block<Elem,Rank,true> : public BaseBlockLike<Elem,Rank> {
   // TODO make this private and have block ref be a friend
   template <typename Rhs, typename...Iters>
   void assign(Rhs rhs, Iters...iters);
+
+  std::string dump() const {
+    std::stringstream ss;
+    // TODO print out Elem type
+    ss << "Block<" << Rank << ">" << std::endl;
+    ss << "  Extents: " << join(this->bextents) << std::endl;
+    ss << "  Strides: " << join(this->bstrides) << std::endl;
+    ss << "  Origin:  " << join(this->borigin) << std::endl;
+    return ss.str();
+  }
 
 };
 
@@ -156,4 +171,13 @@ auto BlockRef<BlockLike, Idxs>::operator[](Idx idx) {
   auto merged = std::tuple_cat(idxs, std::tuple{idx});
   BlockRef<BlockLike, decltype(merged)> ref(this->block_like, std::move(merged));
   return ref;
+}
+
+namespace staged {
+
+template <typename Elem, int Rank>
+using Block = Block<Elem, Rank, true>;
+
+}
+
 }

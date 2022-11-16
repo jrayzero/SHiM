@@ -1,5 +1,7 @@
 #pragma once
 
+namespace hmda {
+
 template <typename Derived>
 struct Expr;
 template <typename Functor, typename Operand0, typename Operand1>
@@ -116,3 +118,4 @@ constexpr bool is_redux() {
   return IsReduxType<T>()();
 }
 
+}

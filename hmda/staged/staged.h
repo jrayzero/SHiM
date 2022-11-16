@@ -1,6 +1,9 @@
 #pragma once
 
+#include "expr.h"
 #include "staged_blocklike.h"
+
+namespace hmda {
 
 // Call this with your function pointer, non-blocklike args, and unstaged blocklike args.
 // it will generate the code and then run it, acting like a jit (but I feel like JIT has connotations
@@ -23,3 +26,4 @@ void stage(Func func, ArgTuple arg_tuple, std::string name, Unstaged...unstaged)
   // TODO ask Ajay if BuildIt has any code for doing this already?
 }
 
+}
