@@ -192,8 +192,8 @@ template <typename Arg, typename...Args>
 auto gather_origin(Arg arg, Args...args) {
   if constexpr (is_slice<Arg>()) {
     // need to extract the Astart
-    auto start = arg.start;
-    static_assert(!std::is_same<End, decltype(start)>::value, "End only valid for the Stop parameter of Slice");
+    static_assert(!std::is_same<End, decltype(arg.start)>::value, "End only valid for the Stop parameter of Slice");
+    builder::dyn_var<loop_type> start = arg.start;
     if constexpr (sizeof...(Args) > 0) {
       return std::tuple_cat(std::tuple{start}, gather_origin(args...));
     } else {
@@ -202,9 +202,9 @@ auto gather_origin(Arg arg, Args...args) {
   } else {
     // this should be an arithmetic value or a dyn var
     // the start is just the value
-    auto start = std::tuple{arg};
+    builder::dyn_var<loop_type> start = arg;
     if constexpr (sizeof...(Args) > 0) {
-      return std::tuple_cat(start, gather_origin(args...));
+      return std::tuple_cat(std::tuple{start}, gather_origin(args...));
     } else {
       return start;
     }    
@@ -238,8 +238,8 @@ template <typename Arg, typename...Args>
 auto gather_strides(Arg arg, Args...args) {
   if constexpr (is_slice<Arg>()) {
     // need to extract the stride
-    auto stride = arg.stride;
-    static_assert(!std::is_same<End, decltype(stride)>::value, "End only valid for the Stop parameter of Slice");
+    static_assert(!std::is_same<End, decltype(arg.stride)>::value, "End only valid for the Stop parameter of Slice");
+    builder::dyn_var<loop_type> stride = arg.stride;
     if constexpr (sizeof...(Args) > 0) {
       return std::tuple_cat(std::tuple{stride}, gather_strides(args...));
     } else {
@@ -248,11 +248,11 @@ auto gather_strides(Arg arg, Args...args) {
   } else {
     // this should be an arithmetic value or a dyn var
     // the stride is just one
-    auto stride = std::tuple{(loop_type)1};
+    builder::dyn_var<loop_type> stride = (loop_type)1;
     if constexpr (sizeof...(Args) > 0) {
-      return std::tuple_cat(stride, gather_strides(args...));
+      return std::tuple_cat(std::tuple{stride}, gather_strides(args...));
     } else {
-      return stride;
+      return std::tuple{stride};
     }    
   }
 }
@@ -284,14 +284,15 @@ template <int Idx, typename BlockLikeExtents, typename Arg, typename...Args>
 auto gather_stops(BlockLikeExtents extents, Arg arg, Args...args) {
   if constexpr (is_slice<Arg>()) {
     // need to extract the stop
-    auto stop = arg.stop;
-    if constexpr (std::is_same<End, decltype(stop)>::value) {
+    if constexpr (std::is_same<End, decltype(arg.stop)>::value) {
+      builder::dyn_var<loop_type> extent = std::get<Idx>(extents);
       if constexpr (sizeof...(Args) > 0) {
-	return std::tuple_cat(std::tuple{std::get<Idx>(extents)}, gather_stops<Idx+1>(extents, args...));
+	return std::tuple_cat(std::tuple{extent}, gather_stops<Idx+1>(extents, args...));
       } else {
-	return std::tuple{std::get<Idx>(extents)};
+	return std::tuple{extent};
       }      
     } else {
+      builder::dyn_var<loop_type> stop = arg.stop;
       if constexpr (sizeof...(Args) > 0) {
 	return std::tuple_cat(std::tuple{stop}, gather_stops<Idx+1>(extents, args...));
       } else {
@@ -301,11 +302,11 @@ auto gather_stops(BlockLikeExtents extents, Arg arg, Args...args) {
   } else {
     // this should be an arithmetic value or a dyn var
     // the stop is just the value
-    auto stop = std::tuple{arg.stop};
+    builder::dyn_var<loop_type> stop = arg.stop;
     if constexpr (sizeof...(Args) > 0) {
-      return std::tuple_cat(stop, gather_stops<Idx+1>(extents, args...));
+      return std::tuple_cat(std::tuple{stop}, gather_stops<Idx+1>(extents, args...));
     } else {
-      return stop;
+      return std::tuple{stop};
     }    
   }
 }
@@ -346,7 +347,8 @@ auto convert_stops_to_extents(Starts starts, Stops stops, Strides strides) {
   } else {
     // TODO does dyn_var support std math functions like floor? Because
     // that's what I need for this division
-    auto extent = (std::get<Depth>(stops) - std::get<Depth>(starts) - (loop_type)1) / std::get<Depth>(strides) + (loop_type)1;
+    builder::dyn_var<loop_type> extent = 
+      (std::get<Depth>(stops) - std::get<Depth>(starts) - (loop_type)1) / std::get<Depth>(strides) + (loop_type)1;
     return std::tuple_cat(std::tuple{extent}, convert_stops_to_extents<Depth+1>(starts, stops, strides));
   }
 }

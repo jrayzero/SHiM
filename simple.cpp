@@ -54,16 +54,13 @@ static void simple_stage(builder::dyn_var<int*> data, Block<int,2> ublock) {
   //  auto v2 = block.view(slice(0,9,1),slice(0,5,1));
   //  v2[I][J] = 99;
 
-  //  for (builder::dyn_var<int> i = 0; i < 16; i=i+8) {
-  //    for (builder::dyn_var<int> j = 0; j < 16; j=j+8) {
-  builder::dyn_var<int> i = 0;
-  builder::dyn_var<int> j = 0;  
-  auto v = block.view(slice(0,10,1),slice(0,j+8,1));
-  // builder::dyn_var<int> x = i+j+8;
-  //auto v = block.view();
-  v[I][J] = 99;
-      //    }    
-      //  }
+  for (builder::dyn_var<int> i = 0; i < 16; i=i+8) {
+    for (builder::dyn_var<int> j = 0; j < 16; j=j+8) {
+      auto v = block.view(slice(i,i+8,1),slice(j,j+8,1));
+      v[I][J] = I+J+9;
+      callable_foo(i,j);
+    }    
+  }
 }
 
 int main() {

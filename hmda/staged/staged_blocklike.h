@@ -166,7 +166,7 @@ private:
 	return std::tuple_cat(std::tuple{my_idx}, realize_idxs<Depth+1>(lhs_idxs, iters));
       } else {
 	// realize this individual idx
-	auto realized = my_idx.realize(lhs_idxs, iters);
+	builder::dyn_var<loop_type> realized = my_idx.realize(lhs_idxs, iters);
 	return std::tuple_cat(std::tuple{realized}, realize_idxs<Depth+1>(lhs_idxs, iters));	
       }
     }
@@ -240,14 +240,14 @@ auto SBlock<Elem,Rank,BExtents,BStrides,BOrigin>::operator[](Idx idx) {
 template <typename Elem, int Rank, typename BExtents, typename BStrides, typename BOrigin>
 template <typename Rhs, typename...Iters>
 void SBlock<Elem,Rank,BExtents,BStrides,BOrigin>::assign(Rhs rhs, Iters...iters) {
-  auto lidx = this->template linearize<0>(std::tuple{iters...});
+  builder::dyn_var<loop_type> lidx = this->template linearize<0>(std::tuple{iters...});
   data[lidx] = rhs;
 }
 
 template <typename Elem, int Rank, typename BExtents, typename BStrides, typename BOrigin>
 template <typename...Iters>
 builder::dyn_var<Elem> SBlock<Elem,Rank,BExtents,BStrides,BOrigin>::operator()(const std::tuple<Iters...> &iters) {
-  auto lidx = this->template linearize<0>(iters);
+  builder::dyn_var<loop_type> lidx = this->template linearize<0>(iters);
   return data[lidx];
 }
 
@@ -276,7 +276,7 @@ void SView<Elem,Rank,BExtents,BStrides,BOrigin,VExtents,VStrides,VOrigin>::assig
   // bi0 = vi0 * vstride0 + vorigin0
   auto biters = this->template compute_block_relative_iters<0>(std::tuple{iters...});
   // then linearize with respect to the block
-  auto lidx = this->template linearize<0>(this->bextents, biters);  
+  builder::dyn_var<loop_type> lidx = this->template linearize<0>(this->bextents, biters);  
   data[lidx] = rhs;
 }
 
@@ -289,7 +289,7 @@ builder::dyn_var<Elem> SView<Elem,Rank,BExtents,BStrides,BOrigin,VExtents,VStrid
   // bi0 = vi0 * vstride0 + vorigin0
   auto biters = this->template compute_block_relative_iters<0>(iters);
   // then linearize with respect to the block
-  auto lidx = this->template linearize<0>(this->bextents, biters);
+  builder::dyn_var<loop_type> lidx = this->template linearize<0>(this->bextents, biters);
   return data[lidx];
 }
 
