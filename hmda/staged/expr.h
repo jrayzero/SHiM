@@ -17,6 +17,11 @@ struct Expr {
   
 };
 
+template <typename Lhs, typename Rhs, typename std::enable_if<std::is_arithmetic<Lhs>::value, int>::type = 0>
+auto operator+(Lhs lhs, const Rhs &rhs) {
+  return Binary<AddFunctor, Lhs, Rhs>(lhs, rhs);  
+}
+
 template <typename Functor, typename Operand0, typename Operand1>
 struct Binary : public Expr<Binary<Functor, Operand0, Operand1>> {
 
@@ -25,9 +30,19 @@ struct Binary : public Expr<Binary<Functor, Operand0, Operand1>> {
 
   template <typename LhsIdxs, typename Iters>
   auto realize(const LhsIdxs &lhs_idxs, const Iters &iters) {
-    auto o0 = operand0.realize(lhs_idxs, iters);
-    auto o1 = operand1.realize(lhs_idxs, iters);
-    return Functor()(o0, o1);
+    if constexpr (std::is_arithmetic<Operand0>::value && std::is_arithmetic<Operand1>::value) {
+      return Functor()(operand0, operand1);
+    } else if constexpr (std::is_arithmetic<Operand0>::value) {
+      auto op1 = operand1.realize(lhs_idxs, iters);
+      return Functor()(operand0, op1);
+    } else if constexpr (std::is_arithmetic<Operand1>::value) {
+      auto op0 = operand0.realize(lhs_idxs, iters);
+      return Functor()(op0, operand1);
+    } else {
+      auto op0 = operand0.realize(lhs_idxs, iters);
+      auto op1 = operand1.realize(lhs_idxs, iters);
+      return Functor()(op0, op1);
+    }
   }
   
 private:
