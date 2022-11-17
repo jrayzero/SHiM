@@ -176,11 +176,12 @@ private:
   template <int Depth, typename Rhs, typename...Iters>
   void loop(Rhs &rhs, Iters...iters) {
     if constexpr (Depth == BlockLike::rank) {
-      if constexpr (std::is_same<typename BlockLike::elem, Rhs>()) {
-	block_like.assign(rhs, iters...);
-      } else {
-	block_like.assign(rhs.realize(idxs, std::tuple{iters...}), iters...);
-      }
+      block_like.assign(dispatch_realize(rhs, idxs, std::tuple{iters...}), iters...);
+//      if constexpr (std::is_same<typename BlockLike::elem, Rhs>()) {
+//	block_like.assign(rhs, iters...);
+//      } else {
+//	block_like.assign(rhs.realize(idxs, std::tuple{iters...}), iters...);
+//      }
     } else {
       auto cur_idx = std::get<Depth>(idxs);
       if constexpr (is_iter<decltype(cur_idx)>()) {

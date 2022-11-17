@@ -4,8 +4,12 @@ namespace hmda {
 
 template <typename Derived>
 struct Expr;
+template <typename Functor, typename Operand0>
+struct Unary;
 template <typename Functor, typename Operand0, typename Operand1>
 struct Binary;
+template <char Ident>
+struct Iter;
 
 template <typename Derived>
 struct Expr {
@@ -22,6 +26,36 @@ auto operator+(Lhs lhs, const Rhs &rhs) {
   return Binary<AddFunctor, Lhs, Rhs>(lhs, rhs);  
 }
 
+template <typename T>
+struct IsExpr {
+  constexpr bool operator()() { return false; }
+};
+
+template <typename Functor, typename Operand>
+struct IsExpr<Unary<Functor,Operand>> {
+  constexpr bool operator()() { return true; }
+};
+
+template <typename Functor, typename Operand0, typename Operand1>
+struct IsExpr<Binary<Functor,Operand0,Operand1>> {
+  constexpr bool operator()() { return true; }
+};
+
+template <char Ident>
+struct IsExpr<Iter<Ident>> {
+  constexpr bool operator()() { return true; }
+};
+
+template <typename T, typename LhsIdxs, typename Iters>
+builder::dyn_var<loop_type> dispatch_realize(T to_realize, const LhsIdxs &lhs_idxs, const Iters &iters) {
+  if constexpr (IsExpr<T>()()) {
+    return to_realize.realize(lhs_idxs, iters);
+  } else {
+    // loop_type or another builder
+    return to_realize;
+  }
+}
+
 template <typename Functor, typename Operand0, typename Operand1>
 struct Binary : public Expr<Binary<Functor, Operand0, Operand1>> {
 
@@ -33,14 +67,14 @@ struct Binary : public Expr<Binary<Functor, Operand0, Operand1>> {
     if constexpr (std::is_arithmetic<Operand0>::value && std::is_arithmetic<Operand1>::value) {
       return Functor()(operand0, operand1);
     } else if constexpr (std::is_arithmetic<Operand0>::value) {
-      auto op1 = operand1.realize(lhs_idxs, iters);
+      auto op1 = dispatch_realize(operand1, lhs_idxs, iters);
       return Functor()(operand0, op1);
     } else if constexpr (std::is_arithmetic<Operand1>::value) {
-      auto op0 = operand0.realize(lhs_idxs, iters);
+      auto op0 = dispatch_realize(operand0, lhs_idxs, iters);
       return Functor()(op0, operand1);
     } else {
-      auto op0 = operand0.realize(lhs_idxs, iters);
-      auto op1 = operand1.realize(lhs_idxs, iters);
+      auto op0 = dispatch_realize(operand0, lhs_idxs, iters);
+      auto op1 = dispatch_realize(operand1, lhs_idxs, iters);
       return Functor()(op0, op1);
     }
   }
