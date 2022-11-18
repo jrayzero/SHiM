@@ -2,23 +2,27 @@ cmake_minimum_required(VERSION 3.13)
 project(HMDA)
 set(CMAKE_VERBOSE_MAKEFILE ON)
 
-set(CMAKE_CXX_FLAGS "-std=c++17 -Wall -Wextra -Wno-unused-function -Wno-unused-variable -Wno-unused-parameter -Wno-missing-field-initializers -Wmissing-declarations -Woverloaded-virtual -pedantic-errors -Wno-deprecated -Wdelete-non-virtual-dtor -Werror")
+# clang++ -O3 -S -emit-llvm -I/Users/jray/CLionProjects/HMDA-BuildIt/hmda -I/Users/jray/CLionProjects/HMDA-BuildIt/hmda/unstaged -I/Users/jray/CLionProjects/HMDA-BuildIt/hmda/staged -I/Users/jray/CLionProjects/HMDA-BuildIt/buildit/include -std=c++17 ../examples/example1.cpp -o example.ll
+# other flags
+
+
+
+# TODO use the build options that Ajay pointed me to
+
+set(CMAKE_CXX_FLAGS "-std=c++17 -Wall -Wextra -Wno-unused-function -Wno-unused-variable -Wno-unused-parameter -Wno-missing-field-initializers -Wmissing-declarations -Woverloaded-virtual -pedantic-errors -Wno-deprecated -Wdelete-non-virtual-dtor -Werror -ferror-limit=10")
 set(CMAKE_CXX_FLAGS_RELEASE "-O3")
 set(CMAKE_CXX_FLAGS_DEBUG "-g -O0")
 
-include_directories(hmda ${CMAKE_SOURCE_DIR}/buildit/include)
-set(STAGED
-		hmda/staged/format.h
-	    hmda/staged/fwd.h
-	    hmda/staged/hmda.h
-	    hmda/staged/traits.h
-	    hmda/staged/utils.h)
-
+include_directories(hmda hmda/unstaged hmda/staged ${CMAKE_SOURCE_DIR}/buildit/include)
 link_directories(${CMAKE_SOURCE_DIR}/buildit/build)
-add_compile_definitions(HMDA_VERBOSE)
 
-#add_executable(driver1 ${STAGED} drivers/driver1.cpp)
-#target_link_libraries(driver1 buildit)
+function(example name)
+    add_executable(${name} examples/${name}.cpp)
+    target_link_libraries(${name} buildit)
+endfunction()
 
-add_executable(simple simple.cpp)
-target_link_libraries(simple buildit)
+#add_executable(simple simple.cpp)
+#target_link_libraries(simple buildit)
+example(example0)
+example(example1)
+example(example2)

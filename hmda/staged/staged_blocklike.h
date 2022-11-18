@@ -2,6 +2,8 @@
 
 #include <sstream>
 
+#include "blocks/c_code_generator.h"
+#include "blocks/rce.h"
 #include "builder/dyn_var.h"
 
 #include "base.h"
@@ -145,7 +147,7 @@ struct LhsRhs {
 
 // Expression template for lazy eval of inline functions
 template <typename BlockLike, typename Idxs>
-struct BlockLikeRef {
+struct BlockLikeRef : public Expr<BlockLikeRef<BlockLike,Idxs>> {
 
   template <typename Loop, typename Stmts>
   friend struct schedule::SchedulableHandle;

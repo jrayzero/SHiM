@@ -1,5 +1,10 @@
 #pragma once
 
+#include <type_traits>
+#include "builder/dyn_var.h"
+#include "functors.h"
+#include "base.h"
+
 namespace hmda {
 
 template <typename Derived>
@@ -18,12 +23,22 @@ struct Expr {
   Binary<AddFunctor, Derived, Rhs> operator+(const Rhs &rhs) {
     return Binary<AddFunctor, Derived, Rhs>(*static_cast<Derived*>(this), rhs);
   }
+
+  template <typename Rhs>
+  Binary<MulFunctor, Derived, Rhs> operator*(const Rhs &rhs) {
+    return Binary<MulFunctor, Derived, Rhs>(*static_cast<Derived*>(this), rhs);
+  }
   
 };
 
-template <typename Lhs, typename Rhs, typename std::enable_if<std::is_arithmetic<Lhs>::value, int>::type = 0>
+template <typename Lhs, typename Rhs, typename std::enable_if<std::is_fundamental<Lhs>::value, int>::type = 0>
 auto operator+(Lhs lhs, const Rhs &rhs) {
   return Binary<AddFunctor, Lhs, Rhs>(lhs, rhs);  
+}
+
+template <typename Lhs, typename Rhs, typename std::enable_if<std::is_fundamental<Lhs>::value, int>::type = 0>
+auto operator*(Lhs lhs, const Rhs &rhs) {
+  return Binary<MulFunctor, Lhs, Rhs>(lhs, rhs);  
 }
 
 template <typename BlockLIke, typename Idxs>
@@ -73,12 +88,12 @@ struct Binary : public Expr<Binary<Functor, Operand0, Operand1>> {
 
   template <typename LhsIdxs, typename Iters>
   auto realize(const LhsIdxs &lhs_idxs, const Iters &iters) {
-    if constexpr (std::is_arithmetic<Operand0>::value && std::is_arithmetic<Operand1>::value) {
+    if constexpr (std::is_fundamental<Operand0>::value && std::is_fundamental<Operand1>::value) {
       return Functor()(operand0, operand1);
-    } else if constexpr (std::is_arithmetic<Operand0>::value) {
+    } else if constexpr (std::is_fundamental<Operand0>::value) {
       auto op1 = dispatch_realize(operand1, lhs_idxs, iters);
       return Functor()(operand0, op1);
-    } else if constexpr (std::is_arithmetic<Operand1>::value) {
+    } else if constexpr (std::is_fundamental<Operand1>::value) {
       auto op0 = dispatch_realize(operand0, lhs_idxs, iters);
       return Functor()(op0, operand1);
     } else {

@@ -21,7 +21,15 @@ struct Block : public BaseBlockLike<Elem,Rank> {
     BaseBlockLike<Elem,Rank>(bextents, bstrides, borigin) {
     // TODO allocated ref counter buffer
   }
+
+  Block(const arr_type &bextents) :
+    BaseBlockLike<Elem,Rank>(bextents, make_array<loop_type,1,Rank>(),
+			     make_array<loop_type,1,Rank>()) {
+    // TODO allocated ref counter buffer
+  }
   
+
+  // TODO 
   Elem *data;
 
   // Access a single element
@@ -209,7 +217,7 @@ auto Block<Elem,Rank>::colocate(const View<Elem2,Rank> &view) {
 template <typename Elem, int Rank>
 auto View<Elem,Rank>::stage(builder::dyn_var<Elem*> data) {
   return SView<Elem,Rank>(this->bextents, this->bstrides, this->borigin,
-			  this->vextents, this->vstrides, this->vorigin.
+			  this->vextents, this->vstrides, this->vorigin,
 			  data);
 }
 

@@ -202,7 +202,6 @@ auto gather_origin(Arg arg, Args...args) {
       return std::tuple{start};
     }     
   } else {
-    // this should be an arithmetic value or a dyn var
     // the start is just the value
     builder::dyn_var<loop_type> start = arg;
     if constexpr (sizeof...(Args) > 0) {
@@ -225,7 +224,6 @@ void gather_origin(std::array<loop_type, Rank> &arr, Arg arg, Args...args) {
       gather_origin<Idx+1,Rank>(arr, args...);
     }    
   } else {
-    // this should be an arithmetic value or a dyn var
     // the start is just the value
     auto start = std::tuple{arg};
     arr[Idx] = start;
@@ -248,7 +246,6 @@ auto gather_strides(Arg arg, Args...args) {
       return std::tuple{stride};
     }     
   } else {
-    // this should be an arithmetic value or a dyn var
     // the stride is just one
     builder::dyn_var<loop_type> stride = (loop_type)1;
     if constexpr (sizeof...(Args) > 0) {
@@ -271,7 +268,6 @@ void gather_strides(std::array<loop_type,Rank> &arr, Arg arg, Args...args) {
       gather_strides<Idx+1,Rank>(arr, args...);
     }     
   } else {
-    // this should be an arithmetic value or a dyn var
     // the stride is just one
     auto stride = std::tuple{(loop_type)1};
     arr[Idx] = stride;
@@ -302,7 +298,6 @@ auto gather_stops(BlockLikeExtents extents, Arg arg, Args...args) {
       }
     }
   } else {
-    // this should be an arithmetic value or a dyn var
     // the stop is just the value
     builder::dyn_var<loop_type> stop = arg.stop;
     if constexpr (sizeof...(Args) > 0) {
@@ -331,7 +326,6 @@ void gather_stops(std::array<loop_type,Rank> &arr, BlockLikeExtents extents, Arg
       }
     }
   } else {
-    // this should be an arithmetic value or a dyn var
     // the stop is just the value
     arr[Idx] = arg.stop;
     if constexpr (sizeof...(Args) > 0) {

@@ -517,11 +517,6 @@ struct NaiveFuseSchedule {
     constexpr int offset = max_which + 1; // add this to each of the WhichStmts in LoopB_body
     // update the whichstmt
     using LoopB_body_2 = decltype(offset_which_stmt<offset,LoopB_body>());
-    // do a similar thing witht the DFSOrder
-/*    constexpr int max_dfs_order = get_max_dfs_order<LoopA>();
-    constexpr int dfs_offset = max_dfs_order; // we don't add 1 here b/c we need to account for the fact that we peeled off the first iter, which would've had dfs order 0
-    using LoopB_body_3 = decltype(offset_dfs_order<dfs_offset,LoopB_body_2>());    */
-    // TOOD (need to count stmts in LoopA)
     // connect the bodies of each;
     auto bodies = TransientLevel<LoopA_body, LoopB_body_2>();
     // remake the outer loop and wrap in the loop structure
@@ -541,6 +536,12 @@ auto outer_fuse(HandleA &handleA, HandleB &handleB) {
   auto loop = NaiveFuseSchedule::apply_to(typename HandleA::Loop_T(), typename HandleB::Loop_T());
   // make a new handle
   return SchedulableHandle<decltype(loop),decltype(stmts)>(std::move(stmts));
+}
+
+template <typename LoopA, typename LoopB>
+auto test_fuse() {
+  auto fused = NaiveFuseSchedule::apply_to(LoopStructure<LoopA>(), LoopStructure<LoopB>());
+  return fused;
 }
 
 }

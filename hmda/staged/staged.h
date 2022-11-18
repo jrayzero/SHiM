@@ -24,8 +24,12 @@ void stage(Func func, ArgTuple arg_tuple, std::string name, Unstaged...unstaged)
     block::eliminate_redundant_vars(ast);	
     block::c_code_generator::generate_code(ast, std::cout, 0);
   }
-  // todo now we'd dynamically load this little codelet and pass in the unstaged buffer into it
-  // TODO ask Ajay if BuildIt has any code for doing this already?
+  // TODO now we'd dynamically load this little codelet and pass in the unstaged buffer into it
+}
+
+template <typename Func, typename...Unstaged>
+void stage(Func func, std::string name, Unstaged...unstaged) {
+  stage(func, std::tuple{}, name, unstaged...);
 }
 
 }
