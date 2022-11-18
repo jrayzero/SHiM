@@ -11,37 +11,66 @@ template <typename Elem, int Rank>
 struct View;
 
 // Unstaged version
+// BLOCKS DELETE THEIR DATA WHEN GO OUT OF SCOPE. So don't copy them all willy-nilly
 template <typename Elem, int Rank>
 struct Block : public BaseBlockLike<Elem,Rank> {
 
   using arr_type = std::array<loop_type,Rank>;
+  static constexpr int Rank_T = Rank;
   
   Block(const arr_type &bextents,
 	const arr_type &bstrides,
 	const arr_type &borigin) :
-    BaseBlockLike<Elem,Rank>(bextents, bstrides, borigin),
-  data(reduce<MulFunctor>(bextents)) { }
+    BaseBlockLike<Elem,Rank>(bextents, bstrides, borigin) { 
+    this->data = new Elem[reduce<MulFunctor>(bextents)];
+  }
 
   Block(const arr_type &bextents) :
     BaseBlockLike<Elem,Rank>(bextents, make_array<loop_type,1,Rank>(),
-			     make_array<loop_type,1,Rank>()), 
-    data(reduce<MulFunctor>(bextents)) { }
-  
-  HeapArray<Elem> data;
-
-  // Used for passing unstaged into the dynamically compiled staged function
-  // DO NOT MANUALLY USE THIS. You can screw up the ref counting.
-  operator Elem*() {
-    return data.base->data;
+			     make_array<loop_type,1,Rank>()) { 
+    this->data = new Elem[reduce<MulFunctor>(bextents)];
   }
 
-  // Access a single element
-  template <typename...Iters>
-  Elem &operator()(const std::tuple<Iters...> &);
+  // Create a Block from the specified raw array
+  Block(const arr_type &bextents, Elem values[]) : Block(bextents) {
+    int sz = reduce<MulFunctor>(bextents);
+    memcpy(this->data, values, sz * sizeof(Elem));
+  }
+
+  template <typename Elem2>
+  Block(const Block<Elem2,Rank> &other) : 
+    BaseBlockLike<Elem,Rank>(other.bextents,
+			     other.bstrides,
+			     other.borigin) {
+    this->data = new Elem[reduce<MulFunctor>(this->bextents)];
+  }
+
+  Block<Elem,Rank>& operator=(const Block<Elem,Rank>&) = delete;
+
+  template <typename Elem2>
+  Block(const View<Elem2,Rank> &other);
+
+  ~Block() {
+    delete[] data;
+    data = nullptr;
+  }
+  
+//  HeapArray<Elem> data;
+  Elem *data;
+
+  operator Elem*() { return data; }
+/*  // Be careful with this--lose the ref counting ability
+  operator Elem*() {
+    return data.base->data;
+  }*/
 
   // Access a single element
   template <typename...Iters>
-  Elem &operator()(Iters...iters);
+  Elem &operator()(const std::tuple<Iters...> &) const;
+
+  // Access a single element
+  template <typename...Iters>
+  Elem &operator()(Iters...iters) const;
 
   // Take an unstaged block and create one with Staged = true, as well
   // as a dyn_var buffer. This must only be called within the staging context!
@@ -80,12 +109,23 @@ struct Block : public BaseBlockLike<Elem,Rank> {
   template <typename Elem2>  
   auto colocate(const View<Elem2,Rank> &view);
 
+  std::string dump_data() const {
+    std::stringstream ss;
+    int sz = reduce<MulFunctor>(this->bextents);
+    for (int i = 0; i < sz; i++) {
+      if (i > 0) ss << "," << endl;
+      ss << (*this)(i);
+    }
+    return ss.str();
+  }
+
 };
 
 template <typename Elem, int Rank>
 struct View : public BaseView<Elem, Rank> {
 
   using arr_type = std::array<loop_type,Rank>;
+  static constexpr int Rank_T = Rank;
 
   View(const arr_type &bextents,
        const arr_type &bstrides,
@@ -93,25 +133,26 @@ struct View : public BaseView<Elem, Rank> {
        const arr_type &vextents,
        const arr_type &vstrides,
        const arr_type &vorigin,
-       HeapArray<Elem> data) :
+       Elem *data) :
     BaseView<Elem, Rank>(bextents, bstrides, borigin, vextents, vstrides, vorigin),
     data(data) { }
 
-  HeapArray<Elem> data;
+  //HeapArray<Elem> data;
+  Elem *data;
 
-  // Used for passing unstaged into the dynamically compiled staged function
-  // DO NOT MANUALLY USE THIS. You can screw up the ref counting.
-  operator Elem*() {
-    return data.base->data;
-  }
-
-  // Access a single element
-  template <typename...Iters>
-  Elem &operator()(const std::tuple<Iters...> &);
+  operator Elem*() { return data; }
+  // Be careful with this--lose the ref counting ability
+//  operator Elem*() {
+//    return data.base->data;
+//  }
 
   // Access a single element
   template <typename...Iters>
-  Elem &operator()(Iters...iters);
+  Elem &operator()(const std::tuple<Iters...> &) const;
+
+  // Access a single element
+  template <typename...Iters>
+  Elem &operator()(Iters...iters) const;
 
   // Take an unstaged view and create one with Staged = true, as well
   // as a dyn_var buffer. This must only be called within the staging context!
@@ -157,17 +198,31 @@ auto Block<Elem,Rank>::stage(builder::dyn_var<Elem*> data) {
 }
 
 template <typename Elem, int Rank>
+template <typename Elem2>
+Block<Elem,Rank>::Block(const View<Elem2,Rank> &other) : 
+  BaseBlockLike<Elem,Rank>(other.vextents,
+			   other.vstrides,
+			   other.vorigin) { 
+  this->data = new Elem[reduce<MulFunctor>(this->bextents)];
+}
+
+
+template <typename Elem, int Rank>
 template <typename...Iters>
-Elem &Block<Elem,Rank>::operator()(const std::tuple<Iters...> &iters) {
-  // TODO verify that no Iters in here (only loop_type)
-  auto lidx = this->template linearize<0>(iters);
-  return data[lidx];
+Elem &Block<Elem,Rank>::operator()(const std::tuple<Iters...> &iters) const {
+  static_assert(sizeof...(Iters) == 1 || sizeof...(Iters) == Rank);
+  if constexpr (sizeof...(Iters) == 1) {
+    // pseudo-linear, but don't need to do anythign special since its a block
+    return data[std::get<0>(iters)];
+  } else { // coordinate-based
+    auto lidx = this->template linearize<0>(this->bextents, iters);
+    return data[lidx];
+  }
 }
 
 template <typename Elem, int Rank>
 template <typename...Iters>
-Elem &Block<Elem,Rank>::operator()(Iters...iters) {
-  // TODO verify that no Iters in here (only loop_type)
+Elem &Block<Elem,Rank>::operator()(Iters...iters) const {
   return this->operator()(std::tuple{iters...});
 }
 
@@ -231,7 +286,7 @@ auto View<Elem,Rank>::stage(builder::dyn_var<Elem*> data) {
 
 template <typename Elem, int Rank>
 template <typename...Iters>
-Elem &View<Elem,Rank>::operator()(const std::tuple<Iters...> &iters) {
+Elem &View<Elem,Rank>::operator()(const std::tuple<Iters...> &iters) const {
   // TODO verify that no Iters in here (only loop_type)
   // the iters are relative to the View, so first make them relative to the block
   // bi0 = vi0 * vstride0 + vorigin0
@@ -243,7 +298,7 @@ Elem &View<Elem,Rank>::operator()(const std::tuple<Iters...> &iters) {
 
 template <typename Elem, int Rank>
 template <typename...Iters>
-Elem &View<Elem,Rank>::operator()(Iters...iters) {
+Elem &View<Elem,Rank>::operator()(Iters...iters) const {
   // TODO verify that no Iters in here (only loop_type)
   return this->operator()(std::tuple{iters...});
 }

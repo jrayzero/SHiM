@@ -83,7 +83,7 @@ protected:
 
   // Convert view-relative iters into block-relative onees
   template <int Depth, typename...Iters>
-  auto compute_block_relative_iters(const std::tuple<Iters...> &viters) {
+  auto compute_block_relative_iters(const std::tuple<Iters...> &viters) const {
     if constexpr (Depth == sizeof...(Iters)) {
       return std::tuple{};
     } else {
