@@ -5,6 +5,8 @@
 #include "builder/dyn_var.h"
 
 #include "base.h"
+#include "loops.h"
+#include "schedule.h"
 
 namespace hmda {
 
@@ -16,33 +18,30 @@ namespace hmda {
 template <typename BlockLike, typename Idxs>
 struct BlockLikeRef;
 
-template <typename Elem, int Rank, typename BExtents, typename BStrides, typename BOrigin,
-	  typename VExtents, typename VStrides, typename VOrigin>
+template <typename Elem, int Rank>
 struct SView;
 
 // Staged version
-template <typename Elem, int Rank, typename BExtents, typename BStrides, typename BOrigin>
-struct SBlock : public BaseBlockLike<Elem,Rank,BExtents,BStrides,BOrigin> {
+template <typename Elem, int Rank>
+struct SBlock : public BaseBlockLike<Elem,Rank> {
+
+  template <typename BlockLike, typename Idxs>
+  friend struct BlockLikeRef;
+
+  using arr_type = std::array<loop_type,Rank>;
 
   builder::dyn_var<Elem*> data;
 
-  SBlock(const BExtents &bextents,
-	 const BStrides &bstrides,
-	 const BOrigin &borigin,
+  SBlock(const arr_type &bextents,
+	 const arr_type &bstrides,
+	 const arr_type &borigin,
 	 const builder::dyn_var<Elem*> &data) :
-    BaseBlockLike<Elem,Rank,BExtents,BStrides,BOrigin>(bextents, bstrides, borigin), data(data) { }
+    BaseBlockLike<Elem,Rank>(bextents, bstrides, borigin), data(data) { }
   
   // Use the square brackets when you want inline indexing
   template <typename Idx>
   auto operator[](Idx idx);
   
-  // Use these when you just want a single item
-  template <typename...Iters>
-  builder::dyn_var<Elem> operator()(const std::tuple<Iters...> &);
-
-  template <typename...Iters>
-  builder::dyn_var<Elem> operator()(Iters...iters);
-
   // TODO make this private and have block ref be a friend
   template <typename Rhs, typename...Iters>
   void assign(Rhs rhs, Iters...iters);
@@ -51,49 +50,49 @@ struct SBlock : public BaseBlockLike<Elem,Rank,BExtents,BStrides,BOrigin> {
     std::stringstream ss;
     // TODO print out Elem type
     ss << "SBlock<" << Rank << ">" << std::endl;
-    ss << "  Extents: " << join_tup(this->bextents) << std::endl;
-    ss << "  Strides: " << join_tup(this->bstrides) << std::endl;
-    ss << "  Origin:  " << join_tup(this->borigin) << std::endl;
+    ss << "  Extents: " << join(this->bextents) << std::endl;
+    ss << "  Strides: " << join(this->bstrides) << std::endl;
+    ss << "  Origin:  " << join(this->borigin) << std::endl;
     return ss.str();
   }
 
-  auto view();
+private:
+  
+  // just for BlockLikeRef
+  template <typename...Iters>
+  builder::dyn_var<Elem> operator()(const std::tuple<Iters...> &);
 
-  // Return a slice based on the slice parameters
-  template <typename...Slices>
-  auto view(Slices...slices);  
+  // just for BlockLikeRef
+  template <typename...Iters>
+  builder::dyn_var<Elem> operator()(Iters...iters);
 
 };
 
 // Staged version
-template <typename Elem, int Rank, typename BExtents, typename BStrides, typename BOrigin,
-	  typename VExtents, typename VStrides, typename VOrigin>
-struct SView : public BaseView<Elem, Rank, BExtents, BStrides, BOrigin,
-	  VExtents, VStrides, VOrigin> {
+template <typename Elem, int Rank>
+struct SView : public BaseView<Elem, Rank> {
+
+  template <typename BlockLike, typename Idxs>
+  friend struct BlockLikeRef;
+
+  using arr_type = std::array<loop_type,Rank>;
   
   builder::dyn_var<Elem*> data;
 
-  SView(const BExtents &bextents,
-	const BStrides &bstrides,
-	const BOrigin &borigin,
-	const VExtents &vextents,
-	const VStrides &vstrides,
-	const VOrigin &vorigin,
+  SView(const arr_type &bextents,
+	const arr_type &bstrides,
+	const arr_type &borigin,
+	const arr_type &vextents,
+	const arr_type &vstrides,
+	const arr_type &vorigin,
 	const builder::dyn_var<Elem*> data) :
-    BaseView<Elem, Rank, BExtents, BStrides, BOrigin, VExtents, VStrides, VOrigin>(bextents, bstrides, borigin,
-										   vextents, vstrides, vorigin),
+    BaseView<Elem, Rank>(bextents, bstrides, borigin,
+			 vextents, vstrides, vorigin),
     data(data) { }
-
+  
   // Use the square brackets when you want inline indexing
   template <typename Idx>
   auto operator[](Idx idx);
-
-  // Use these when you just want a single item
-  template <typename...Iters>
-  builder::dyn_var<Elem> operator()(const std::tuple<Iters...> &);
-
-  template <typename...Iters>
-  builder::dyn_var<Elem> operator()(Iters...iters);
 
   // TODO make this private and have block ref be a friend
   template <typename Rhs, typename...Iters>
@@ -103,27 +102,54 @@ struct SView : public BaseView<Elem, Rank, BExtents, BStrides, BOrigin,
     std::stringstream ss;
     // TODO print out Elem type
     ss << "SView<" << Rank << ">" << std::endl;
-    ss << "  VExtents: " << join_tup(this->vextents) << std::endl;
-    ss << "  VStrides: " << join_tup(this->vstrides) << std::endl;
-    ss << "  VOrigin:  " << join_tup(this->vorigin) << std::endl;
-    ss << "  BExtents: " << join_tup(this->bextents) << std::endl;
-    ss << "  BStrides: " << join_tup(this->bstrides) << std::endl;
-    ss << "  BOrigin:  " << join_tup(this->borigin) << std::endl; 
+    ss << "  VExtents: " << join(this->vextents) << std::endl;
+    ss << "  VStrides: " << join(this->vstrides) << std::endl;
+    ss << "  VOrigin:  " << join(this->vorigin) << std::endl;
+    ss << "  BExtents: " << join(this->bextents) << std::endl;
+    ss << "  BStrides: " << join(this->bstrides) << std::endl;
+    ss << "  BOrigin:  " << join(this->borigin) << std::endl; 
     return ss.str();
   }
 
-  auto view();
+private:
 
-  // Return a slice based on the slice parameters
-  template <typename...Slices>
-  auto view(Slices...slices);  
+  // just for BlockLikeRef
+  template <typename...Iters>
+  builder::dyn_var<Elem> operator()(const std::tuple<Iters...> &);
 
+  // just for BlockLikeRef
+  template <typename...Iters>
+  builder::dyn_var<Elem> operator()(Iters...iters);
+
+
+};
+
+template <typename Lhs, typename Rhs>
+struct LhsRhs {
+
+  // lhs should be a ref and rhs some type of Expr!
+  LhsRhs(Lhs lhs, const Rhs &rhs) : lhs(lhs), rhs(rhs) { }
+
+  template <typename Iters>
+  void realize(const Iters &iters) {
+    // need lhs.idxs incase the rhs contains any Iter types.
+    auto realized_rhs = dispatch_realize(rhs, lhs.idxs, iters);
+    // do the write!
+    lhs.block_like.assign(realized_rhs, iters);
+  }
+
+  Lhs lhs;
+  Rhs rhs;
+  
 };
 
 // Expression template for lazy eval of inline functions
 template <typename BlockLike, typename Idxs>
 struct BlockLikeRef {
 
+  template <typename Loop, typename Stmts>
+  friend struct schedule::SchedulableHandle;
+  
   // Underlying block/view used to create this BlockLikeRef
   BlockLike block_like;
   // Indices used to define this BlockLikeRef
@@ -136,17 +162,21 @@ struct BlockLikeRef {
   auto operator[](Idx idx);
 
   void operator=(typename BlockLike::elem x) {
-    // TODO if we have a block, we can just do a memset on the whole thing, or if 
+    // TODO if we have a Block = Block2, we can just do a memset on the whole thing, or if 
     // we statically know that there is a stride of 1
-    loop<0>(x);
+    auto handle = lazy(x);
+    handle.eval();
   }
 
   // some type of expression
   template <typename Rhs>
   void operator=(Rhs rhs) {
-    loop<0>(rhs);
+    auto handle = lazy(rhs);
+    handle.eval();    
   }
 
+  // This takes in the lhs_idxs of the containing LHS. We need this in
+  // case the rhs contains any references to those iters
   template <typename LhsIdxs, typename Iters>
   auto realize(const LhsIdxs &lhs_idxs, const Iters &iters) {
     // realize the individual indices and then use those to access block_like
@@ -154,7 +184,119 @@ struct BlockLikeRef {
     return block_like(ridxs);
   }
 
+  template <typename Rhs>
+  auto lazy(Rhs rhs) {
+    // build the loop structure
+    auto loop = build_loop_structure<BlockLike::rank>();
+    using Loop = decltype(loop);
+    auto stmt = std::tuple{LhsRhs(*this, rhs)};
+    return schedule::SchedulableHandle<Loop, decltype(stmt)>(stmt);
+  }
+
 private:
+  
+  // build a loop and immeditately run (no scheduling)
+  /*  template <typename Rhs>
+  void basic_assign_loop(Rhs rhs) {
+    auto loop = build_loop_structure<BlockLike::rank>();
+    using Loop = decltype(loop);
+    // wrap the statments
+    auto stmts = tuple{LhsRhs(*this, rhs)};
+
+    // we need to realize both the extents and the offsets for the stmt
+    // for the extents, go through idxs and check if its an integral or
+    // an Iter. If integral, the extent is one. If Iter, it's the extent
+    // of the corresponding dimension.
+
+    // Then, we need to compute offsets. This happens in a similar way
+    // to getting the extents. If the idxs is integral, the offset is
+    // the idx. If it's an Iter, the offset is 0.
+  
+    if constexpr (is_any_block<BlockLike>()) {
+      // use bextents
+      auto extents0 = get_extents<0>(block_like.bextents);
+      auto extents1 = tuple<decltype(extents0)>{extents0};
+      auto offsets0 = get_offsets<0>();
+      auto offsets1 = tuple<decltype(offsets0)>{offsets0};      
+      Loop::realize_from_types(extents1, offsets1, stmts);
+    } else {
+      // it's a view, use vextents
+      auto extents0 = get_extents<0>(block_like.vextents);
+      auto extents1 = tuple<decltype(extents0)>{extents0};
+      auto offsets0 = get_offsets<0>();
+      auto offsets1 = tuple<decltype(offsets0)>{offsets0};      
+      Loop::realize_from_types(extents1, offsets1, stmts);
+    }
+    
+  }*/
+
+  template <int Depth, typename Extents>
+  auto get_extents(const Extents &extents) {
+    if constexpr (Depth == BlockLike::rank) {
+      return std::tuple{};
+    } else {
+      if constexpr (std::is_integral<decltype(std::get<Depth>(idxs))>::value) {
+	// extent is 1
+	// TODO static var?
+	builder::dyn_var<loop_type> x = 1;
+	return std::tuple_cat(std::tuple{x}, get_extents<Depth+1>(extents));
+      } else {
+	// extent is whatever is in extents
+	builder::dyn_var<loop_type> x = std::get<Depth>(extents);
+	return std::tuple_cat(std::tuple{x}, get_extents<Depth+1>(extents));	
+      }
+    }
+  }
+
+  template <int Depth>
+  auto get_offsets() {
+    if constexpr (Depth == BlockLike::rank) {
+      return std::tuple{};
+    } else {
+      if constexpr (std::is_integral<decltype(std::get<Depth>(idxs))>::value) {
+	// offset is whatever the idx is
+	// TODO static var?
+	builder::dyn_var<loop_type> x = std::get<Depth>(idxs);
+	return std::tuple_cat(std::tuple{x}, get_offsets<Depth+1>());
+      } else {
+	// offset is 0
+	builder::dyn_var<loop_type> x = 0;
+	return std::tuple_cat(std::tuple{x}, get_offsets<Depth+1>());	
+      }
+    }
+  }
+
+  template <int Depth, int MaxDepth, typename...DFSIters>
+  auto build_stmt_level() {
+    if constexpr (Depth == MaxDepth) {
+      // last level
+      return StmtLevel<0, NullLevel, DFSIters..., LoopDFSIter<Depth>>();
+    } else {
+      return build_stmt_level<Depth+1, MaxDepth, DFSIters..., LoopDFSIter<Depth>>();
+    }
+  }
+
+  template <int Depth, int NLevels>
+  auto build_loop_structure() {
+    if constexpr (Depth == NLevels - 1) {
+      // we are at the innermost level
+      // build the stmt
+      auto level = build_stmt_level<0, Depth>();
+      // then wrap it in a loop level
+      return LoopLevel<Depth, decltype(level), NullLevel, Extent<Depth, 0>>();
+    } else {
+      // another loop level   
+      auto level = build_loop_structure<Depth+1, NLevels>();
+      return LoopLevel<Depth, decltype(level), NullLevel, Extent<Depth, 0>>();
+    }
+  }
+
+  template <int NLevels>
+  auto build_loop_structure() {
+    auto loop = build_loop_structure<0, NLevels>();
+    return LoopStructure<decltype(loop)>();
+  }
+
   
   template <int Depth, typename LhsIdxs, typename Iters>
   auto realize_idxs(const LhsIdxs &lhs_idxs, const Iters &iters) {
@@ -172,120 +314,58 @@ private:
     }
   }
 
-  // a basic loop evaluation that just nests everything at the inner most level
-  template <int Depth, typename Rhs, typename...Iters>
-  void loop(Rhs &rhs, Iters...iters) {
-    if constexpr (Depth == BlockLike::rank) {
-      block_like.assign(dispatch_realize(rhs, idxs, std::tuple{iters...}), iters...);
-//      if constexpr (std::is_same<typename BlockLike::elem, Rhs>()) {
-//	block_like.assign(rhs, iters...);
-//      } else {
-//	block_like.assign(rhs.realize(idxs, std::tuple{iters...}), iters...);
-//      }
-    } else {
-      auto cur_idx = std::get<Depth>(idxs);
-      if constexpr (is_iter<decltype(cur_idx)>()) {
-	// make a loop
-	builder::dyn_var<loop_type> i = 0;
-	if constexpr (is_any_block<BlockLike>()) {
-	  for (; i < std::get<Depth>(block_like.bextents); i=i+1) {
-	    loop<Depth+1>(rhs, iters..., i);
-	  }
-	} else {
-	  // it's a view
-	  for (; i < std::get<Depth>(block_like.vextents); i=i+1) {
-	    loop<Depth+1>(rhs, iters..., i);
-	  }
-	}
-      } else {
-	// this is a single iteration loop with value
-	// cur_idx
-	builder::dyn_var<loop_type> i = cur_idx;
-	loop<Depth+1>(rhs, iters..., i);
-      }
-    }
-  }
-  
 };
 
-template <typename Elem, int Rank, typename BExtents, typename BStrides, typename BOrigin>
-auto SBlock<Elem,Rank,BExtents,BStrides,BOrigin>::view() {
-  return SView<Elem,Rank,BExtents,BStrides,BOrigin,BExtents,BStrides,BOrigin>(this->bextents, this->bstrides, this->borigin,
-									      this->bextents, this->bstrides, this->borigin,
-									      this->data);
-}
-
-template <typename Elem, int Rank, typename BExtents, typename BStrides, typename BOrigin>
-template <typename...Slices>
-auto SBlock<Elem,Rank,BExtents,BStrides,BOrigin>::view(Slices...slices) {
-  auto vstops = gather_stops<0>(this->bextents, slices...);
-  auto vstrides = gather_strides(slices...);  
-  auto vorigin = gather_origin(slices...);
-  // convert vstops into extents
-  auto vextents = convert_stops_to_extents(vorigin, vstops, vstrides);
-  auto v = SView<Elem,Rank,BExtents,BStrides,BOrigin,
-		 decltype(vextents),decltype(vstrides),decltype(vorigin)>(this->bextents, this->bstrides, this->borigin,
-									  vextents, vstrides, vorigin,
-									  this->data);
-  //  v.foo();
-  return v;
-}
-
-template <typename Elem, int Rank, typename BExtents, typename BStrides, typename BOrigin>
+template <typename Elem, int Rank>
 template <typename Idx>
-auto SBlock<Elem,Rank,BExtents,BStrides,BOrigin>::operator[](Idx idx) {
-  BlockLikeRef<SBlock<Elem, Rank, BExtents, BStrides, BOrigin>, std::tuple<Idx>> ref(*this, std::tuple{idx});
+auto SBlock<Elem,Rank>::operator[](Idx idx) {
+  BlockLikeRef<SBlock<Elem, Rank>, std::tuple<Idx>> ref(*this, std::tuple{idx});
   return ref;
 }
 
-template <typename Elem, int Rank, typename BExtents, typename BStrides, typename BOrigin>
+template <typename Elem, int Rank>
 template <typename Rhs, typename...Iters>
-void SBlock<Elem,Rank,BExtents,BStrides,BOrigin>::assign(Rhs rhs, Iters...iters) {
+void SBlock<Elem,Rank>::assign(Rhs rhs, Iters...iters) {
   builder::dyn_var<loop_type> lidx = this->template linearize<0>(std::tuple{iters...});
-  data[lidx] = rhs;
+  builder::dyn_var<Elem> erhs = rhs;
+  data[lidx] = erhs;
 }
 
-template <typename Elem, int Rank, typename BExtents, typename BStrides, typename BOrigin>
+template <typename Elem, int Rank>
 template <typename...Iters>
-builder::dyn_var<Elem> SBlock<Elem,Rank,BExtents,BStrides,BOrigin>::operator()(const std::tuple<Iters...> &iters) {
+builder::dyn_var<Elem> SBlock<Elem,Rank>::operator()(const std::tuple<Iters...> &iters) {
   builder::dyn_var<loop_type> lidx = this->template linearize<0>(iters);
   return data[lidx];
 }
 
-template <typename Elem, int Rank, typename BExtents, typename BStrides, typename BOrigin>
+template <typename Elem, int Rank>
 template <typename...Iters>
-builder::dyn_var<Elem> SBlock<Elem,Rank,BExtents,BStrides,BOrigin>::operator()(Iters...iters) {
+builder::dyn_var<Elem> SBlock<Elem,Rank>::operator()(Iters...iters) {
   return this->operator()(std::tuple{iters...});
 }
 
-template <typename Elem, int Rank,
-	  typename BExtents, typename BStrides, typename BOrigin,
-	  typename VExtents, typename VStrides, typename VOrigin>
+template <typename Elem, int Rank>
 template <typename Idx>
-auto SView<Elem,Rank,BExtents,BStrides,BOrigin,VExtents,VStrides,VOrigin>::operator[](Idx idx) {
-  BlockLikeRef<SView<Elem,Rank,BExtents,BStrides,BOrigin,VExtents,VStrides,VOrigin>,
-	       std::tuple<Idx>> ref(*this, std::tuple{idx});
+auto SView<Elem,Rank>::operator[](Idx idx) {
+  BlockLikeRef<SView<Elem,Rank>, std::tuple<Idx>> ref(*this, std::tuple{idx});
   return ref;
 }
 
-template <typename Elem, int Rank,
-	  typename BExtents, typename BStrides, typename BOrigin,
-	  typename VExtents, typename VStrides, typename VOrigin>
+template <typename Elem, int Rank>
 template <typename Rhs, typename...Iters>
-void SView<Elem,Rank,BExtents,BStrides,BOrigin,VExtents,VStrides,VOrigin>::assign(Rhs rhs, Iters...iters) {
+void SView<Elem,Rank>::assign(Rhs rhs, Iters...iters) {
   // the iters are relative to the View, so first make them relative to the block
   // bi0 = vi0 * vstride0 + vorigin0
   auto biters = this->template compute_block_relative_iters<0>(std::tuple{iters...});
   // then linearize with respect to the block
-  builder::dyn_var<loop_type> lidx = this->template linearize<0>(this->bextents, biters);  
-  data[lidx] = rhs;
+  builder::dyn_var<loop_type> lidx = this->template linearize<0>(this->bextents, biters);
+  builder::dyn_var<Elem> erhs = rhs;
+  data[lidx] = erhs; 
 }
 
-template <typename Elem, int Rank,
-	  typename BExtents, typename BStrides, typename BOrigin,
-	  typename VExtents, typename VStrides, typename VOrigin>
+template <typename Elem, int Rank>
 template <typename...Iters>
-builder::dyn_var<Elem> SView<Elem,Rank,BExtents,BStrides,BOrigin,VExtents,VStrides,VOrigin>::operator()(const std::tuple<Iters...> &iters) {
+builder::dyn_var<Elem> SView<Elem,Rank>::operator()(const std::tuple<Iters...> &iters) {
   // the iters are relative to the View, so first make them relative to the block
   // bi0 = vi0 * vstride0 + vorigin0
   auto biters = this->template compute_block_relative_iters<0>(iters);
@@ -294,38 +374,10 @@ builder::dyn_var<Elem> SView<Elem,Rank,BExtents,BStrides,BOrigin,VExtents,VStrid
   return data[lidx];
 }
 
-template <typename Elem, int Rank,
-	  typename BExtents, typename BStrides, typename BOrigin,
-	  typename VExtents, typename VStrides, typename VOrigin>
+template <typename Elem, int Rank>
 template <typename...Iters>
-builder::dyn_var<Elem> SView<Elem,Rank,BExtents,BStrides,BOrigin,VExtents,VStrides,VOrigin>::operator()(Iters...iters) {
+builder::dyn_var<Elem> SView<Elem,Rank>::operator()(Iters...iters) {
   return this->operator()(std::tuple{iters...});
-}
-
-template <typename Elem, int Rank,
-	  typename BExtents, typename BStrides, typename BOrigin,
-	  typename VExtents, typename VStrides, typename VOrigin
-	  >
-auto SView<Elem,Rank,BExtents,BStrides,BOrigin,VExtents,VStrides,VOrigin>::view() {
-  return SView<Elem,Rank,BExtents,BStrides,BOrigin,VExtents,VStrides,VOrigin>(this->bextents, this->bstrides, this->borigin,
-									      this->vextents, this->vstrides, this->vorigin,
-									      this->data);
-}
-
-template <typename Elem, int Rank,
-	  typename BExtents, typename BStrides, typename BOrigin,
-	  typename VExtents, typename VStrides, typename VOrigin>
-template <typename...Slices>
-auto SView<Elem,Rank,BExtents,BStrides,BOrigin,VExtents,VStrides,VOrigin>::view(Slices...slices) {
-  auto vstops = gather_stops<0>(this->vextents, slices...);
-  auto vstrides = gather_strides(slices...);  
-  auto vorigin = gather_origin(slices...);
-  // convert vstops into extents
-  auto vextents = convert_stops_to_extents(vorigin, vstops, vstrides);
-  return SView<Elem,Rank,BExtents,BStrides,BOrigin,
-	       decltype(vextents),decltype(vstrides),decltype(vorigin)>(this->bextents, this->bstrides, this->borigin,
-									vextents, vstrides, vorigin,
-									this->data);
 }
 
 template <typename BlockLike, typename Idxs>

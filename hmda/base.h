@@ -2,6 +2,7 @@
 
 #include <array>
 #include <sstream>
+#include <cmath>
 
 namespace hmda {
 
@@ -11,21 +12,22 @@ using loop_type = int32_t;
 // why we need a tuple for it instead of a homogeneous structure like an array
 
 // A shared structure between staged and unstaged blocks as well as views
-template <typename Elem, int Rank, typename BExtents, typename BStrides, typename BOrigin>
+template <typename Elem, int Rank>
 struct BaseBlockLike {
   static const int rank = Rank;
   using elem = Elem;
-
-  // The extents in each dimension
-  BExtents bextents;
-  // The strides in each dimension
-  BStrides bstrides;
-  // The origin 
-  BOrigin borigin;
+  using arr_type = std::array<loop_type,Rank>;
   
-  BaseBlockLike(const BExtents &bextents,
-		const BStrides &bstrides,
-		const BOrigin &borigin) :
+  // The extents in each dimension
+  arr_type bextents;
+  // The strides in each dimension
+  arr_type bstrides;
+  // The origin 
+  arr_type borigin;
+  
+  BaseBlockLike(const arr_type &bextents,
+		const arr_type &bstrides,
+		const arr_type &borigin) :
     bextents(bextents), bstrides(bstrides), borigin(borigin) { }
   
 protected:
@@ -56,26 +58,26 @@ protected:
 };
 
 // Base for View that includes the additional parameters needed
-template <typename Elem, int Rank,
-	  typename BExtents, typename BStrides, typename BOrigin,
-	  typename VExtents, typename VStrides, typename VOrigin>
-struct BaseView : public BaseBlockLike<Elem, Rank, BExtents, BStrides, BOrigin> {
+template <typename Elem, int Rank>
+struct BaseView : public BaseBlockLike<Elem, Rank> {
 
-  BaseView(const BExtents &bextents,
-	   const BStrides &bstrides,
-	   const BOrigin &borigin,
-	   const VExtents &vextents,
-	   const VStrides &vstrides,
-	   const VOrigin &vorigin) :
-    BaseBlockLike<Elem, Rank, BExtents, BStrides, BOrigin>(bextents, bstrides, borigin),
+  using arr_type = std::array<loop_type,Rank>;
+  
+  BaseView(const arr_type &bextents,
+	   const arr_type &bstrides,
+	   const arr_type &borigin,
+	   const arr_type &vextents,
+	   const arr_type &vstrides,
+	   const arr_type &vorigin) :
+    BaseBlockLike<Elem, Rank>(bextents, bstrides, borigin),
     vextents(vextents), vstrides(vstrides), vorigin(vorigin) { }
-
+  
   // The extents in each dimension
-  VExtents vextents;
+  arr_type vextents;
   // The strides in each dimension
-  VStrides vstrides;
+  arr_type vstrides;
   // The origin 
-  VOrigin vorigin;
+  arr_type vorigin;
 
 protected:
 
@@ -103,7 +105,7 @@ std::array<T,Rank> make_array() {
 template <typename Elem, int Rank>
 struct Block;
 
-template <typename Elem, int Rank, typename BExtents, typename BStrides, typename BOrigin>
+template <typename Elem, int Rank>
 struct SBlock;
 
 template <typename MaybeBlock>
@@ -111,8 +113,8 @@ struct IsAnyBlock {
   constexpr bool operator()() { return false; }
 };
 
-template <typename Elem, int Rank, typename BExtents, typename BStrides, typename BOrigin>
-struct IsAnyBlock<SBlock<Elem,Rank,BExtents,BStrides,BOrigin>> {
+template <typename Elem, int Rank>
+struct IsAnyBlock<SBlock<Elem,Rank>> {
   constexpr bool operator()() { return true; }
 };
 
@@ -345,10 +347,8 @@ auto convert_stops_to_extents(Starts starts, Stops stops, Strides strides) {
   if constexpr (Depth == std::tuple_size<Starts>()) {
     return std::tuple{};
   } else {
-    // TODO does dyn_var support std math functions like floor? Because
-    // that's what I need for this division
-    builder::dyn_var<loop_type> extent = 
-      (std::get<Depth>(stops) - std::get<Depth>(starts) - (loop_type)1) / std::get<Depth>(strides) + (loop_type)1;
+    builder::dyn_var<loop_type> extent = (std::get<Depth>(stops) - std::get<Depth>(starts) - (loop_type)1) / std::get<Depth>(strides);
+    extent = extent + 1;
     return std::tuple_cat(std::tuple{extent}, convert_stops_to_extents<Depth+1>(starts, stops, strides));
   }
 }
@@ -362,9 +362,7 @@ auto convert_stops_to_extents(Starts starts, Stops stops, Strides strides) {
 template <int Depth, int Rank, typename Starts, typename Stops, typename Strides>
 void convert_stops_to_extents(std::array<loop_type, Rank> &arr, Starts starts, Stops stops, Strides strides) {
   if constexpr (Depth < Rank) {
-    // TODO does dyn_var support std math functions like floor? Because
-    // that's what I need for this division
-    auto extent = (std::get<Depth>(stops) - std::get<Depth>(starts) - (loop_type)1) / std::get<Depth>(strides) + (loop_type)1;
+    auto extent = floor((std::get<Depth>(stops) - std::get<Depth>(starts) - (loop_type)1) / std::get<Depth>(strides)) + (loop_type)1;
     arr[Depth] = extent;
     convert_stops_to_extents<Depth+1,Rank>(arr, starts, stops, strides);
   }

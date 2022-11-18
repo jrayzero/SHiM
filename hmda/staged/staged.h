@@ -2,6 +2,8 @@
 
 #include "expr.h"
 #include "staged_blocklike.h"
+#include "loops.h"
+#include "schedule.h"
 
 namespace hmda {
 

@@ -26,10 +26,19 @@ auto operator+(Lhs lhs, const Rhs &rhs) {
   return Binary<AddFunctor, Lhs, Rhs>(lhs, rhs);  
 }
 
+template <typename BlockLIke, typename Idxs>
+struct BlockLikeRef;
+
 template <typename T>
 struct IsExpr {
   constexpr bool operator()() { return false; }
 };
+
+template <typename BlockLike, typename Idxs>
+struct IsExpr<BlockLikeRef<BlockLike,Idxs>> {
+  constexpr bool operator()() { return true; }
+};
+
 
 template <typename Functor, typename Operand>
 struct IsExpr<Unary<Functor,Operand>> {
@@ -78,6 +87,15 @@ struct Binary : public Expr<Binary<Functor, Operand0, Operand1>> {
       return Functor()(op0, op1);
     }
   }
+
+  // for use with loops
+  template <typename...LoopIters, typename...StmtExtents>
+  static builder::dyn_var<loop_type> realize_from_types(const std::tuple<LoopIters...> &iters, const std::tuple<StmtExtents...> &stmt_extents) {
+    auto op0 = Operand0::realize_from_types(iters, stmt_extents);
+    auto op1 = Operand0::realize_from_types(iters, stmt_extents);
+    return Functor()(op0, op1);
+  }
+
   
 private:
   

@@ -11,20 +11,17 @@ struct View;
 
 // Unstaged version
 template <typename Elem, int Rank>
-struct Block : public BaseBlockLike<Elem,Rank,
-				    std::array<loop_type,Rank>,
-				    std::array<loop_type,Rank>,
-				    std::array<loop_type,Rank>> {
-  
+struct Block : public BaseBlockLike<Elem,Rank> {
+
   using arr_type = std::array<loop_type,Rank>;
   
   Block(const arr_type &bextents,
 	const arr_type &bstrides,
 	const arr_type &borigin) :
-    BaseBlockLike<Elem,Rank,arr_type,arr_type,arr_type>(bextents, bstrides, borigin) {
+    BaseBlockLike<Elem,Rank>(bextents, bstrides, borigin) {
     // TODO allocated ref counter buffer
   }
-
+  
   Elem *data;
 
   // Access a single element
@@ -56,19 +53,26 @@ struct Block : public BaseBlockLike<Elem,Rank,
   template <typename...Slices>
   auto view(Slices...slices);
 
-  // Return a colocated view on this corresponding to block_like
-  //  auto colocate(const BlockLike &block_like);
+  // Return a colocated view on this corresponding to block
+  // The returned view contains:
+  // this buffer
+  // this b{extents,strides,origin}
+  // block's b{extents,strides,origin} for the v{extents,strides,origin}
+  template <typename Elem2>  
+  auto colocate(const Block<Elem2,Rank> &block);
+
+  // Return a colocated view on this corresponding to view
+  // The returned view contains:
+  // this buffer
+  // this b{extents,strides,origin}
+  // view's v{extents,strides,origin} for the v{extents,strides,origin}
+  template <typename Elem2>  
+  auto colocate(const View<Elem2,Rank> &view);
 
 };
 
 template <typename Elem, int Rank>
-struct View : public BaseView<Elem, Rank,
-			      std::array<loop_type,Rank>,
-			      std::array<loop_type,Rank>,
-			      std::array<loop_type,Rank>,
-			      std::array<loop_type,Rank>,
-			      std::array<loop_type,Rank>,
-			      std::array<loop_type,Rank>> {
+struct View : public BaseView<Elem, Rank> {
 
   using arr_type = std::array<loop_type,Rank>;
 
@@ -79,9 +83,7 @@ struct View : public BaseView<Elem, Rank,
        const arr_type &vstrides,
        const arr_type &vorigin,
        Elem *data) :
-    BaseView<Elem, Rank,
-	     arr_type, arr_type, arr_type,
-	     arr_type, arr_type, arr_type>(bextents, bstrides, borigin, vextents, vstrides, vorigin),
+    BaseView<Elem, Rank>(bextents, bstrides, borigin, vextents, vstrides, vorigin),
     data(data) { }
 
   // TODO ref counted
@@ -111,7 +113,6 @@ struct View : public BaseView<Elem, Rank,
     ss << "  BOrigin:  " << join(this->borigin) << std::endl;    
     return ss.str();
   }
-
   
   // Return copy of self
   auto view();
@@ -133,14 +134,10 @@ auto tuplefy(const std::array<loop_type, Rank> &arr) {
 
 template <typename Elem, int Rank>
 auto Block<Elem,Rank>::stage(builder::dyn_var<Elem*> data) {
-  // the staged version requires tuples!
-  auto tbextents = tuplefy<Rank>(this->bextents);
-  auto tbstrides = tuplefy<Rank>(this->bstrides);
-  auto tborigin = tuplefy<Rank>(this->borigin);  
-  return SBlock<Elem, Rank, decltype(tbextents), decltype(tbstrides), decltype(tborigin)>(tbextents,
-											  tbstrides,
-											  tborigin,
-											  data);
+  return SBlock<Elem, Rank>(this->bextents,
+			    this->bstrides,
+			    this->borigin,
+			    data);
 }
 
 template <typename Elem, int Rank>
@@ -185,27 +182,35 @@ auto Block<Elem,Rank>::view(Slices...slices) {
 			 this->data);
 }
 
-//template <typename Elem, int Rank>
-//auto Block<Elem,Rank,false>::colocate(const BlockLike &block_like) {
-//  // TODO check that block_like is unstaged
-//  auto bextents = block_like.bextents;
-//  auto bstrides = block_like.bstrides;
-//  auto borigin = block_like.borigin;
-//}
+template <typename Elem, int Rank>
+template <typename Elem2>
+auto Block<Elem,Rank>::colocate(const Block<Elem2,Rank> &block) {  
+  auto bextents = block.bextents;
+  auto bstrides = block.bstrides;
+  auto borigin = block.borigin;
+  auto vextents = bextents;
+  auto vstrides = bstrides;
+  auto vorigin = borigin;
+  return View<Elem,Rank>(bextents, bstrides, borigin, vextents, vstrides, vorigin, this->data);
+}
+
+template <typename Elem, int Rank>
+template <typename Elem2>
+auto Block<Elem,Rank>::colocate(const View<Elem2,Rank> &view) {  
+  auto bextents = view.bextents;
+  auto bstrides = view.bstrides;
+  auto borigin = view.borigin;
+  auto vextents = view.vextents;
+  auto vstrides = view.vstrides;
+  auto vorigin = view.vorigin;
+  return View<Elem,Rank>(bextents, bstrides, borigin, vextents, vstrides, vorigin, this->data);
+}
 
 template <typename Elem, int Rank>
 auto View<Elem,Rank>::stage(builder::dyn_var<Elem*> data) {
-  // the staged version requires tuples!
-  auto tbextents = tuplefy<Rank>(this->bextents);
-  auto tbstrides = tuplefy<Rank>(this->bstrides);
-  auto tborigin = tuplefy<Rank>(this->borigin);
-  auto tvextents = tuplefy<Rank>(this->vextents);
-  auto tvstrides = tuplefy<Rank>(this->vstrides);
-  auto tvorigin = tuplefy<Rank>(this->vorigin);      
-  return SView<Elem,Rank,decltype(tbextents),decltype(tbstrides),decltype(tborigin),
-	       decltype(tvextents),decltype(tvstrides),decltype(tvorigin)>(tbextents, tbstrides, tborigin,
-									   tvextents, tvstrides, tvorigin.
-									   data);
+  return SView<Elem,Rank>(this->bextents, this->bstrides, this->borigin,
+			  this->vextents, this->vstrides, this->vorigin.
+			  data);
 }
 
 template <typename Elem, int Rank>
