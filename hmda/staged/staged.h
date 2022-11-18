@@ -1,5 +1,7 @@
 #pragma once
 
+#include "builder/builder_dynamic.h"
+
 #include "expr.h"
 #include "staged_blocklike.h"
 #include "loops.h"
@@ -30,6 +32,14 @@ void stage(Func func, ArgTuple arg_tuple, std::string name, Unstaged...unstaged)
 template <typename Func, typename...Unstaged>
 void stage(Func func, std::string name, Unstaged...unstaged) {
   stage(func, std::tuple{}, name, unstaged...);
+}
+
+template <typename Func, typename...Unstaged>
+auto dynamic_stage(Func func, Unstaged...unstaged) {
+  builder::builder_context context;
+  context.run_rce = true;
+  auto fptr = builder::compile_function_with_context(context, func, unstaged...);
+  return fptr;
 }
 
 }

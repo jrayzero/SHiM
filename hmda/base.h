@@ -367,4 +367,26 @@ void convert_stops_to_extents(std::array<loop_type,Rank> &arr, Starts starts, St
   convert_stops_to_extents<0,Rank>(arr, starts, stops, strides);
 }
 
+// perform a reduction across something that works with std::get
+template <typename Functor, int Depth, typename Obj>
+auto reduce(const Obj &obj) {
+  constexpr int tuple_sz = std::tuple_size<Obj>();
+  if constexpr (Depth < tuple_sz - 1) {
+    return Functor()(std::get<Depth>(obj), reduce<Functor,Depth+1>(obj));
+  } else if constexpr (Depth == tuple_sz - 1) {
+    return std::get<Depth>(obj);
+  }
+}
+
+template <typename Functor, typename Obj>
+auto reduce(const Obj &obj) {
+  constexpr int tuple_sz = std::tuple_size<Obj>();
+  static_assert(tuple_sz > 0);
+  if constexpr (tuple_sz == 1) {
+    return std::get<0>(obj);
+  } else {
+    return reduce<Functor,0>(obj);
+  }
+}
+
 }

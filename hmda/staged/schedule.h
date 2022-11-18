@@ -25,7 +25,7 @@ struct SchedulableHandle {
     return SchedulableHandle<new_loop, Stmts>(stmts);
   }
 
-  auto eval() {
+  auto generate() {
     // first, we need to gather all the pieces we need for executing the loop
     auto extents = get_extents();
     auto offsets = get_offsets();
@@ -529,7 +529,7 @@ struct NaiveFuseSchedule {
 };
 
 template <typename HandleA, typename HandleB>
-auto outer_fuse(HandleA &handleA, HandleB &handleB) {
+auto outer_fuse(HandleA handleA, HandleB handleB) {
   // combine the stmts
   auto stmts = std::tuple_cat(handleA.stmts, handleB.stmts);  
   // transform the loop

@@ -167,14 +167,14 @@ struct BlockLikeRef : public Expr<BlockLikeRef<BlockLike,Idxs>> {
     // TODO if we have a Block = Block2, we can just do a memset on the whole thing, or if 
     // we statically know that there is a stride of 1
     auto handle = lazy(x);
-    handle.eval();
+    handle.generate();
   }
 
   // some type of expression
   template <typename Rhs>
   void operator=(Rhs rhs) {
     auto handle = lazy(rhs);
-    handle.eval();    
+    handle.generate();    
   }
 
   // This takes in the lhs_idxs of the containing LHS. We need this in

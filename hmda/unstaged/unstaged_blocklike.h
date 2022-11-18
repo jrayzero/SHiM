@@ -2,6 +2,7 @@
 
 #include "builder/dyn_var.h"
 
+#include "arrays.h"
 #include "base.h"
 
 namespace hmda {
@@ -18,19 +19,21 @@ struct Block : public BaseBlockLike<Elem,Rank> {
   Block(const arr_type &bextents,
 	const arr_type &bstrides,
 	const arr_type &borigin) :
-    BaseBlockLike<Elem,Rank>(bextents, bstrides, borigin) {
-    // TODO allocated ref counter buffer
-  }
+    BaseBlockLike<Elem,Rank>(bextents, bstrides, borigin),
+  data(reduce<MulFunctor>(bextents)) { }
 
   Block(const arr_type &bextents) :
     BaseBlockLike<Elem,Rank>(bextents, make_array<loop_type,1,Rank>(),
-			     make_array<loop_type,1,Rank>()) {
-    // TODO allocated ref counter buffer
-  }
+			     make_array<loop_type,1,Rank>()), 
+    data(reduce<MulFunctor>(bextents)) { }
   
+  HeapArray<Elem> data;
 
-  // TODO 
-  Elem *data;
+  // Used for passing unstaged into the dynamically compiled staged function
+  // DO NOT MANUALLY USE THIS. You can screw up the ref counting.
+  operator Elem*() {
+    return data.base->data;
+  }
 
   // Access a single element
   template <typename...Iters>
@@ -90,12 +93,17 @@ struct View : public BaseView<Elem, Rank> {
        const arr_type &vextents,
        const arr_type &vstrides,
        const arr_type &vorigin,
-       Elem *data) :
+       HeapArray<Elem> data) :
     BaseView<Elem, Rank>(bextents, bstrides, borigin, vextents, vstrides, vorigin),
     data(data) { }
 
-  // TODO ref counted
-  Elem *data;
+  HeapArray<Elem> data;
+
+  // Used for passing unstaged into the dynamically compiled staged function
+  // DO NOT MANUALLY USE THIS. You can screw up the ref counting.
+  operator Elem*() {
+    return data.base->data;
+  }
 
   // Access a single element
   template <typename...Iters>
