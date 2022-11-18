@@ -21,48 +21,43 @@ struct Block : public BaseBlockLike<Elem,Rank> {
   Block(const arr_type &bextents,
 	const arr_type &bstrides,
 	const arr_type &borigin) :
-    BaseBlockLike<Elem,Rank>(bextents, bstrides, borigin) { 
-    this->data = new Elem[reduce<MulFunctor>(bextents)];
+    BaseBlockLike<Elem,Rank>(bextents, bstrides, borigin),
+  data(reduce<MulFunctor>(bextents)) { 
+//    this->data = new Elem[];
   }
 
   Block(const arr_type &bextents) :
     BaseBlockLike<Elem,Rank>(bextents, make_array<loop_type,1,Rank>(),
-			     make_array<loop_type,1,Rank>()) { 
-    this->data = new Elem[reduce<MulFunctor>(bextents)];
+			     make_array<loop_type,1,Rank>()),
+    data(reduce<MulFunctor>(bextents)) { 
+//    this->data = new Elem[reduce<MulFunctor>(bextents)];
   }
 
   // Create a Block from the specified raw array
   Block(const arr_type &bextents, Elem values[]) : Block(bextents) {
     int sz = reduce<MulFunctor>(bextents);
     memcpy(this->data, values, sz * sizeof(Elem));
-  }
-
-  template <typename Elem2>
-  Block(const Block<Elem2,Rank> &other) : 
-    BaseBlockLike<Elem,Rank>(other.bextents,
-			     other.bstrides,
-			     other.borigin) {
-    this->data = new Elem[reduce<MulFunctor>(this->bextents)];
-  }
+  }  
 
   Block<Elem,Rank>& operator=(const Block<Elem,Rank>&) = delete;
 
   template <typename Elem2>
-  Block(const View<Elem2,Rank> &other);
+  Block(const View<Elem2,Rank> &other); 
 
-  ~Block() {
+  HeapArray<Elem> data;
+//  Elem *data;
+
+  void destroy() {
     delete[] data;
-    data = nullptr;
   }
-  
-//  HeapArray<Elem> data;
-  Elem *data;
 
-  operator Elem*() { return data; }
-/*  // Be careful with this--lose the ref counting ability
+  ~Block() { }
+
+//  operator Elem*() { return data; }
+  // Be careful with this--lose the ref counting ability
   operator Elem*() {
     return data.base->data;
-  }*/
+  }
 
   // Access a single element
   template <typename...Iters>
@@ -113,7 +108,7 @@ struct Block : public BaseBlockLike<Elem,Rank> {
     std::stringstream ss;
     int sz = reduce<MulFunctor>(this->bextents);
     for (int i = 0; i < sz; i++) {
-      if (i > 0) ss << "," << endl;
+      if (i > 0) ss << ",";
       ss << (*this)(i);
     }
     return ss.str();
@@ -127,24 +122,26 @@ struct View : public BaseView<Elem, Rank> {
   using arr_type = std::array<loop_type,Rank>;
   static constexpr int Rank_T = Rank;
 
+  ~View() { }
+
   View(const arr_type &bextents,
        const arr_type &bstrides,
        const arr_type &borigin,
        const arr_type &vextents,
        const arr_type &vstrides,
        const arr_type &vorigin,
-       Elem *data) :
+       HeapArray<Elem> data) :
     BaseView<Elem, Rank>(bextents, bstrides, borigin, vextents, vstrides, vorigin),
     data(data) { }
 
-  //HeapArray<Elem> data;
-  Elem *data;
+  HeapArray<Elem> data;
+//  Elem *data;
 
-  operator Elem*() { return data; }
+  //operator Elem*() { return data; }
   // Be careful with this--lose the ref counting ability
-//  operator Elem*() {
-//    return data.base->data;
-//  }
+  operator Elem*() {
+    return data.base->data;
+  }
 
   // Access a single element
   template <typename...Iters>
@@ -202,10 +199,9 @@ template <typename Elem2>
 Block<Elem,Rank>::Block(const View<Elem2,Rank> &other) : 
   BaseBlockLike<Elem,Rank>(other.vextents,
 			   other.vstrides,
-			   other.vorigin) { 
-  this->data = new Elem[reduce<MulFunctor>(this->bextents)];
+			   other.vorigin), data(reduce<MulFunctor>(this->bextents)) { 
+//  this->data = new Elem[reduce<MulFunctor>(this->bextents)];
 }
-
 
 template <typename Elem, int Rank>
 template <typename...Iters>
