@@ -22,21 +22,18 @@ struct Block : public BaseBlockLike<Elem,Rank> {
 	const arr_type &bstrides,
 	const arr_type &borigin) :
     BaseBlockLike<Elem,Rank>(bextents, bstrides, borigin),
-  data(reduce<MulFunctor>(bextents)) { 
-//    this->data = new Elem[];
+    data(reduce<MulFunctor>(bextents)) { 
   }
 
   Block(const arr_type &bextents) :
     BaseBlockLike<Elem,Rank>(bextents, make_array<loop_type,1,Rank>(),
 			     make_array<loop_type,1,Rank>()),
     data(reduce<MulFunctor>(bextents)) { 
-//    this->data = new Elem[reduce<MulFunctor>(bextents)];
   }
 
   // Create a Block from the specified raw array
   Block(const arr_type &bextents, Elem values[]) : Block(bextents) {
     int sz = reduce<MulFunctor>(bextents);
-    std::cout << "This sz is " << sz << std::endl;
     memcpy(data.base->data, values, sz * sizeof(Elem));
   }  
 
@@ -46,7 +43,6 @@ struct Block : public BaseBlockLike<Elem,Rank> {
   Block(const View<Elem2,Rank> &other); 
 
   HeapArray<Elem> data;
-//  Elem *data;
 
   void destroy() {
     delete[] data;
@@ -54,7 +50,6 @@ struct Block : public BaseBlockLike<Elem,Rank> {
 
   ~Block() { }
 
-//  operator Elem*() { return data; }
   // Be careful with this--lose the ref counting ability
   operator Elem*() {
     return data.base->data;
@@ -67,6 +62,9 @@ struct Block : public BaseBlockLike<Elem,Rank> {
   // Access a single element
   template <typename...Iters>
   Elem &operator()(Iters...iters) const;
+
+  // Access a single element with a pseudo-linear index
+  Elem &plidx(loop_type lidx) const;
 
   // Take an unstaged block and create one with Staged = true, as well
   // as a dyn_var buffer. This must only be called within the staging context!
@@ -136,9 +134,7 @@ struct View : public BaseView<Elem, Rank> {
     data(data) { }
 
   HeapArray<Elem> data;
-//  Elem *data;
 
-  //operator Elem*() { return data; }
   // Be careful with this--lose the ref counting ability
   operator Elem*() {
     return data.base->data;
@@ -151,6 +147,9 @@ struct View : public BaseView<Elem, Rank> {
   // Access a single element
   template <typename...Iters>
   Elem &operator()(Iters...iters) const;
+
+  // Access a single element with a pseudo-linear index
+  Elem &plidx(loop_type lidx) const;
 
   // Take an unstaged view and create one with Staged = true, as well
   // as a dyn_var buffer. This must only be called within the staging context!
@@ -200,8 +199,7 @@ template <typename Elem2>
 Block<Elem,Rank>::Block(const View<Elem2,Rank> &other) : 
   BaseBlockLike<Elem,Rank>(other.vextents,
 			   other.vstrides,
-			   other.vorigin), data(reduce<MulFunctor>(this->bextents)) { 
-//  this->data = new Elem[reduce<MulFunctor>(this->bextents)];
+			   other.vorigin), data(reduce<MulFunctor>(this->bextents)) {
 }
 
 
@@ -224,6 +222,13 @@ template <typename Elem, int Rank>
 template <typename...Iters>
 Elem &Block<Elem,Rank>::operator()(Iters...iters) const {
   return this->operator()(std::tuple{iters...});
+}
+
+template <typename Elem, int Rank>
+Elem &Block<Elem,Rank>::plidx(loop_type lidx) const {
+  // don't need to delinearize here since the pseudo index is just a normal
+  // index for a block
+  return data[lidx];
 }
 
 template <typename Elem, int Rank>
@@ -307,6 +312,25 @@ template <typename Elem, int Rank>
 template <typename...Iters>
 Elem &View<Elem,Rank>::operator()(Iters...iters) const {
   return this->operator()(std::tuple{iters...});
+}
+
+template <int Depth, typename Extents>
+auto delinearize(loop_type lidx, const Extents &extents) {
+  constexpr int tuple_size = std::tuple_size<Extents>();
+  if constexpr (Depth+1 == tuple_size) {
+    return tuple{lidx};
+  } else {
+    loop_type m = reduce_region<MulFunctor, Depth+1, tuple_size>(extents);
+    loop_type c = lidx / m;
+    return tuple_cat(tuple{c}, delinearize<Depth+1>(lidx % m, extents));
+  }
+}
+
+template <typename Elem, int Rank>
+Elem &View<Elem,Rank>::plidx(loop_type lidx) const {
+  // must delinearize relative to the view
+  auto coord = delinearize<0>(lidx, this->vextents);
+  return this->operator()(coord);
 }
 
 template <typename Elem, int Rank>

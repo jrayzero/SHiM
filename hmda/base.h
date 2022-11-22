@@ -399,4 +399,29 @@ auto reduce(const Obj &obj) {
   }
 }
 
+// perform a reduction across a range of something that works with std::get 
+template <typename Functor, int Begin, int End, int Depth, typename Obj>
+auto reduce_region(const Obj &obj) {
+  constexpr int tuple_sz = std::tuple_size<Obj>();
+  if constexpr (Depth >= Begin && Depth < End) {
+    auto item = std::get<Depth>(obj);
+    if constexpr (Depth < End - 1) {
+      return Functor()(item, reduce_region<Functor,Begin,End,Depth+1>(obj));
+    } else {
+      return item;
+    }
+  } else {
+    // won't be hit if Depth >= End
+    return reduce_region<Functor,Begin,End,Depth+1>(obj);
+  }
+}
+
+template <typename Functor, int Begin, int End, typename Obj>
+auto reduce_region(const Obj &obj) {
+  constexpr int tuple_sz = std::tuple_size<Obj>();
+  static_assert(Begin < tuple_sz && End <= tuple_sz && Begin < End);
+  static_assert(tuple_sz > 0);
+  return reduce_region<Functor,Begin,End,0>(obj);
+}
+
 }
