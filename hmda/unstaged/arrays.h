@@ -26,7 +26,7 @@ struct BaseHeapArray : public RefCounted {
 template <typename Elem>
 struct HeapArray {
 
-  HeapArray(uint64_t sz) : base(new BaseHeapArray<Elem>()){
+  HeapArray(uint64_t sz) : base(new BaseHeapArray<Elem>()), sz(sz) {
     base->data = new Elem[sz];
     memset(base->data, 0, sizeof(Elem) * sz);
     base->incr();
@@ -42,29 +42,41 @@ struct HeapArray {
   }
 
   // Copy constructor
-  HeapArray(const HeapArray<Elem> &other) : base(other.base) { base->incr(); }
+  HeapArray(const HeapArray<Elem> &other) : base(other.base), sz(other.sz) { base->incr(); }
 
   // Copy assignment
   HeapArray<Elem> &operator=(const HeapArray<Elem> &other) {
     if (this == &other) {
       return *this;
     }
-    base->decr(); // since about to overwrite the prior base, make sure to decr (b/c the BaseHeapArray destructor does not do any decrement things)
     base = other.base;
-    base->incr();
+    sz = other.sz;
     return *this;
   }
 
   // Move constructors don't update the reference count, so don't need to manually specify them
 
   Elem &operator[](int lidx) const {
+#ifdef BOUNDS_CHECK
+    if (lidx >= sz) {
+      std::cerr << "Out of bounds! Got " << lidx << " but data size is " << sz << std::endl;
+      exit(-1);
+    }
+#endif
     return base->operator[](lidx);
   }
 
   void write(int lidx, Elem e) {
+#ifdef BOUNDS_CHECK
+    if (lidx >= sz) {
+      std::cerr << "Out of bounds! Got " << lidx << " but data size is " << sz << std::endl;
+      exit(-1);
+    }
+#endif
     base->write(lidx, e);
   }
   
   BaseHeapArray<Elem> *base;
+  int sz;
 
 };

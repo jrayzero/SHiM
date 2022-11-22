@@ -36,7 +36,8 @@ struct Block : public BaseBlockLike<Elem,Rank> {
   // Create a Block from the specified raw array
   Block(const arr_type &bextents, Elem values[]) : Block(bextents) {
     int sz = reduce<MulFunctor>(bextents);
-    memcpy(this->data, values, sz * sizeof(Elem));
+    std::cout << "This sz is " << sz << std::endl;
+    memcpy(data.base->data, values, sz * sizeof(Elem));
   }  
 
   Block<Elem,Rank>& operator=(const Block<Elem,Rank>&) = delete;
@@ -203,13 +204,16 @@ Block<Elem,Rank>::Block(const View<Elem2,Rank> &other) :
 //  this->data = new Elem[reduce<MulFunctor>(this->bextents)];
 }
 
+
 template <typename Elem, int Rank>
 template <typename...Iters>
 Elem &Block<Elem,Rank>::operator()(const std::tuple<Iters...> &iters) const {
-  static_assert(sizeof...(Iters) == 1 || sizeof...(Iters) == Rank);
-  if constexpr (sizeof...(Iters) == 1) {
-    // pseudo-linear, but don't need to do anythign special since its a block
-    return data[std::get<0>(iters)];
+  static_assert(sizeof...(Iters) <= Rank);
+  if constexpr (sizeof...(Iters) < Rank) {
+    // we need padding at the front
+    constexpr int pad_amt = Rank-sizeof...(Iters);
+    auto coord = std::tuple_cat(make_tup<loop_type,0,pad_amt>(), iters);
+    return this->operator()(coord);
   } else { // coordinate-based
     auto lidx = this->template linearize<0>(this->bextents, iters);
     return data[lidx];
@@ -283,19 +287,25 @@ auto View<Elem,Rank>::stage(builder::dyn_var<Elem*> data) {
 template <typename Elem, int Rank>
 template <typename...Iters>
 Elem &View<Elem,Rank>::operator()(const std::tuple<Iters...> &iters) const {
-  // TODO verify that no Iters in here (only loop_type)
-  // the iters are relative to the View, so first make them relative to the block
-  // bi0 = vi0 * vstride0 + vorigin0
-  auto biters = this->template compute_block_relative_iters<0>(iters);
-  // then linearize with respect to the block
-  auto lidx = this->template linearize<0>(this->bextents, biters);
-  return data[lidx];
+  static_assert(sizeof...(Iters) <= Rank);
+  if constexpr (sizeof...(Iters) < Rank) {
+    // we need padding at the front
+    constexpr int pad_amt = Rank-sizeof...(Iters);
+    auto coord = std::tuple_cat(make_tup<loop_type,0,pad_amt>(), iters);
+    return this->operator()(coord);
+  } else {
+    // the iters are relative to the View, so first make them relative to the block
+    // bi0 = vi0 * vstride0 + vorigin0
+    auto biters = this->template compute_block_relative_iters<0>(iters);
+    // then linearize with respect to the block
+    auto lidx = this->template linearize<0>(this->bextents, biters);
+    return data[lidx];
+  }
 }
 
 template <typename Elem, int Rank>
 template <typename...Iters>
 Elem &View<Elem,Rank>::operator()(Iters...iters) const {
-  // TODO verify that no Iters in here (only loop_type)
   return this->operator()(std::tuple{iters...});
 }
 

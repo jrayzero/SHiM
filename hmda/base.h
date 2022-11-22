@@ -102,6 +102,16 @@ std::array<T,Rank> make_array() {
   return arr;
 }
 
+template <typename T, T Val, int N>
+auto make_tup() {
+  if constexpr (N == 0) {
+    return std::tuple{};
+  } else {
+    return std::tuple_cat(std::tuple{Val}, make_tup<T, Val, N-1>());
+  }
+}
+
+
 template <typename Elem, int Rank>
 struct Block;
 
