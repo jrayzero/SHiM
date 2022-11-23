@@ -33,7 +33,7 @@ struct BaseBlockLike {
 protected:
   
   // Convert a coordinate into a linear index using the loop_extents
-  template <int Depth, typename...TupleTypes>
+/*  template <int Depth, typename...TupleTypes>
     auto linearize(const std::tuple<TupleTypes...> &coord) {
     auto c = std::get<Rank-1-Depth>(coord);
     if constexpr (Depth == Rank - 1) {
@@ -41,7 +41,7 @@ protected:
       } else {
       return c + std::get<Rank-1-Depth>(bextents) * linearize<Depth+1>(coord);
     }
-  }
+  }*/
 
   // Convert a coordinate into a linear index using a specified set of extents
   // Extents needs to be something accessible with std::get<int>
@@ -88,8 +88,7 @@ protected:
       return std::tuple{};
     } else {
       return std::tuple_cat(std::tuple{std::get<Depth>(viters) * std::get<Depth>(this->vstrides) +
-	    std::get<Depth>(this->vorigin)},
-	compute_block_relative_iters<Depth+1>(viters));
+	    std::get<Depth>(this->vorigin)}, compute_block_relative_iters<Depth+1>(viters));
     }
   }
   

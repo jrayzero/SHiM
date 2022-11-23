@@ -26,4 +26,4 @@ example(example2)
 example(example3)
 
 
-add_executable(jpegc apps/jpeg/jpeg.cpp)
+add_executable(jpegc apps/jpeg/jpeg.cpp apps/jpeg/syntax.cpp apps/jpeg/huffman.cpp apps/jpeg/bits.cpp)

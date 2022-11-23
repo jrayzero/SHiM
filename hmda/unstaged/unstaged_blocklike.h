@@ -11,7 +11,6 @@ template <typename Elem, int Rank>
 struct View;
 
 // Unstaged version
-// BLOCKS DELETE THEIR DATA WHEN GO OUT OF SCOPE. So don't copy them all willy-nilly
 template <typename Elem, int Rank>
 struct Block : public BaseBlockLike<Elem,Rank> {
 
@@ -43,10 +42,6 @@ struct Block : public BaseBlockLike<Elem,Rank> {
   Block(const View<Elem2,Rank> &other); 
 
   HeapArray<Elem> data;
-
-  void destroy() {
-    delete[] data;
-  }
 
   ~Block() { }
 
@@ -105,12 +100,49 @@ struct Block : public BaseBlockLike<Elem,Rank> {
 
   std::string dump_data() const {
     std::stringstream ss;
-    int sz = reduce<MulFunctor>(this->bextents);
-    for (int i = 0; i < sz; i++) {
-      if (i > 0) ss << ",";
-      ss << (*this)(i);
+    static_assert(Rank >= 1 && Rank <= 3);
+    int width = max_char_width();
+    if constexpr (Rank == 1) {
+      for (int i = 0; i < std::get<0>(this->bextents); i++) {
+	auto val = to_string(this->operator()(i));
+	for (int q = 0; q < (width-val.size()+1); q++) ss << " ";
+	ss << val;
+      }
+    } else if constexpr (Rank == 2) {
+      for (int i = 0; i < std::get<0>(this->bextents); i++) {
+	for (int j = 0; j < std::get<1>(this->bextents); j++) {
+	  auto val = to_string(this->operator()(i,j));
+	  for (int q = 0; q < (width-val.size()+1); q++) ss << " ";
+	  ss << val;
+	}
+	ss << std::endl;
+      }
+    } else {
+      for (int i = 0; i < std::get<0>(this->bextents); i++) {
+	for (int j = 0; j < std::get<1>(this->bextents); j++) {
+	  for (int k = 0; k < std::get<2>(this->bextents); k++) {
+	    auto val = to_string(this->operator()(i,j,k));
+	    for (int q = 0; q < (width-val.size()+1); q++) ss << " ";
+	    ss << val;
+	  }
+	  ss << std::endl;
+	}
+	ss << std::endl << std::endl;
+      }
     }
     return ss.str();
+  }
+
+private:
+
+  int max_char_width() const {
+    int w = 0;
+    int sz = reduce<MulFunctor>(this->bextents);
+    for (int i = 0; i < sz; i++) {
+      int w2 = to_string(plidx(i)).size();
+      if (w2 > w) w = w2;
+    }
+    return w;
   }
 
 };
@@ -174,6 +206,54 @@ struct View : public BaseView<Elem, Rank> {
   // Return a slice based on the slice parameters
   template <typename...Slices>
   auto view(Slices...slices);
+
+  // TODO refactor with Block since it's the same except for the extents
+  std::string dump_data() const {
+    std::stringstream ss;
+    static_assert(Rank >= 1 && Rank <= 3);
+    int width = max_char_width();
+    if constexpr (Rank == 1) {
+      for (int i = 0; i < std::get<0>(this->vextents); i++) {
+	auto val = to_string(this->operator()(i));
+	for (int q = 0; q < (width-val.size()+1); q++) ss << " ";
+	ss << val;
+      }
+    } else if constexpr (Rank == 2) {
+      for (int i = 0; i < std::get<0>(this->vextents); i++) {
+	for (int j = 0; j < std::get<1>(this->vextents); j++) {
+	  auto val = to_string(this->operator()(i,j));
+	  for (int q = 0; q < (width-val.size()+1); q++) ss << " ";
+	  ss << val;
+	}
+	ss << std::endl;
+      }
+    } else {
+      for (int i = 0; i < std::get<0>(this->vextents); i++) {
+	for (int j = 0; j < std::get<1>(this->vextents); j++) {
+	  for (int k = 0; k < std::get<2>(this->vextents); k++) {
+	    auto val = to_string(this->operator()(i,j,k));
+	    for (int q = 0; q < (width-val.size()+1); q++) ss << " ";
+	    ss << val;
+	  }
+	  ss << std::endl;
+	}
+	ss << std::endl << std::endl;
+      }
+    }
+    return ss.str();
+  }
+
+private:
+
+  int max_char_width() const {
+    int w = 0;
+    int sz = reduce<MulFunctor>(this->vextents);
+    for (int i = 0; i < sz; i++) {
+      int w2 = to_string(plidx(i)).size();
+      if (w2 > w) w = w2;
+    }
+    return w;
+  }
 
 };
 
@@ -338,6 +418,23 @@ auto View<Elem,Rank>::view() {
   return *this;
 }
 
+template <typename Functor, int Rank, int Depth>
+void apply(std::array<loop_type,Rank> &arr,
+	   const std::array<loop_type,Rank> &arr0, const std::array<loop_type,Rank> &arr1) {
+  if constexpr (Depth < Rank) {
+    arr[Depth] = Functor()(std::get<Depth>(arr0), std::get<Depth>(arr1));
+    apply<Functor,Rank,Depth+1>(arr, arr0, arr1);
+  }
+}
+
+template <typename Functor, int Rank>
+std::array<loop_type,Rank> apply(const std::array<loop_type,Rank> &arr0, 
+				 const std::array<loop_type,Rank> &arr1) {
+  std::array<loop_type,Rank> arr{};
+  apply<Functor,Rank,0>(arr, arr0, arr1);
+  return arr;
+}
+
 template <typename Elem, int Rank>
 template <typename...Slices>
 auto View<Elem,Rank>::view(Slices...slices) {
@@ -352,8 +449,13 @@ auto View<Elem,Rank>::view(Slices...slices) {
   gather_origin<0,Rank>(vorigin, slices...);
   // convert vstops into extents
   convert_stops_to_extents<Rank>(vextents, vorigin, vstops, vstrides);
+  // now make everything relative to the prior view
+  // new origin = old origin + vorigin * old strides
+  auto origin = apply<AddFunctor,Rank>(this->vorigin, apply<MulFunctor,Rank>(vorigin, this->vstrides));
+  auto strides = apply<MulFunctor,Rank>(this->vstrides, vstrides);
+  // new strides = old strides * new strides
   return View<Elem,Rank>(this->bextents, this->bstrides, this->borigin,
-			 vextents, vstrides, vorigin,
+			 vextents, strides, origin,
 			 this->data);
 }
 
