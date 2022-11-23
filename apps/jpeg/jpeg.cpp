@@ -55,9 +55,9 @@ template <typename RGB_T>
 void color(const RGB_T &RGB, Block<int,3> &YCbCr) {
   for (int i = 0; i < 8; i++) {
     for (int j = 0; j < 8; j++) {
-      YCbCr(0,i,j) = RGB(i,j,0)*0.299     + RGB(i,j,1)*0.587     + RGB(i,j,2)*0.114;
-      YCbCr(1,i,j) = RGB(i,j,0)*-0.168736 + RGB(i,j,1)*-0.33126  + RGB(i,j,2)*0.500002  + 128;
-      YCbCr(2,i,j) = RGB(i,j,0)*0.5       + RGB(i,j,1)*-0.418688 + RGB(i,j,2)*-0.081312 + 128;
+      YCbCr(0,i,j) = int(RGB(i,j,0)*0.299     + RGB(i,j,1)*0.587     + RGB(i,j,2)*0.114);
+      YCbCr(1,i,j) = int(RGB(i,j,0)*-0.168736 + RGB(i,j,1)*-0.33126  + RGB(i,j,2)*0.500002) + 128;
+      YCbCr(2,i,j) = int(RGB(i,j,0)*0.5       + RGB(i,j,1)*-0.418688 + RGB(i,j,2)*-0.081312) + 128;
     }
   }
 }
@@ -317,8 +317,6 @@ int main(int argc, char **argv) {
       dct(Y);
       dct(Cb);
       dct(Cr);
-      cout << YCbCr.dump_data() << endl;
-      exit(48);
       quant(Y, luma_quant);
       quant(Cb, chroma_quant);
       quant(Cr, chroma_quant);
