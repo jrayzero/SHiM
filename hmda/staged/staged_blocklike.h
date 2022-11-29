@@ -21,7 +21,35 @@ struct Block {
   using Loc_T = Wrapped<Rank,loop_type>;
 
   Block(Loc_T bextents, Loc_T bstrides, Loc_T borigin) :
-    bextents(std::move(bextents)), bstrides(std::move(bstrides)), borigin(std::move(borigin)) { }
+    bextents(std::move(bextents)), bstrides(std::move(bstrides)), borigin(std::move(borigin)),
+    data(malloc_func(bextents.template reduce<MulFunctor>()))
+  { 
+    int elem_size = sizeof(Elem);
+    builder::dyn_var<int> sz(bextents.template reduce<MulFunctor>() * elem_size);
+    memset_func(data, 0, sz);
+  }
+
+  Block(Loc_T bextents) :
+    bextents(std::move(bextents)),
+    bstrides(WrappedRecContainer<Rank,Elem>(RecContainer<Elem>::template build_from<1,Rank,0>())),
+    borigin(WrappedRecContainer<Rank,Elem>(RecContainer<Elem>::template build_from<0,Rank,0>())),
+    data(malloc_func(bextents.template reduce<MulFunctor>())) 
+  { 
+    int elem_size = sizeof(Elem);
+    builder::dyn_var<int> sz(bextents.template reduce<MulFunctor>() * elem_size);
+    memset_func(data, 0, sz);
+  }
+
+  Block(Loc_T bextents, builder::dyn_var<Elem[]> values) :
+    bextents(std::move(bextents)),
+    bstrides(WrappedRecContainer<Rank,Elem>(RecContainer<Elem>::template build_from<1,Rank,0>())),
+    borigin(WrappedRecContainer<Rank,Elem>(RecContainer<Elem>::template build_from<0,Rank,0>())),
+    data(malloc_func(bextents.template reduce<MulFunctor>())) 
+  {
+    int elem_size = sizeof(Elem);
+    builder::dyn_var<int> sz(bextents.template reduce<MulFunctor>() * elem_size);
+    memcpy_func(data, values, sz);
+  } 
 
   // Access a single element
   template <typename...Iters>

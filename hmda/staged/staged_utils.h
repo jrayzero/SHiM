@@ -9,6 +9,9 @@ namespace hmda {
 using loop_type = int32_t;
 
 builder::dyn_var<int(int)> floor_func = builder::as_global("floor");
+builder::dyn_var<void*(int)> malloc_func = builder::as_global("malloc");
+builder::dyn_var<void(void*,int,int)> memset_func = builder::as_global("memset");
+builder::dyn_var<void(void*,void*,int)> memcpy_func = builder::as_global("memcpy");
 
 template <int Rank, typename T>
 struct WrappedRecContainer;
@@ -31,6 +34,33 @@ struct RecContainer {
 
   template <typename...Args>
   RecContainer(builder::dyn_var<T> arg, Args...args) : val(arg), nested(build_reccon(args...)) { }
+
+  template <T Val, int Rank, int Idx=0>
+  static auto build_from() {
+    if constexpr (Idx == 0) {
+      auto reccon = RecContainer<T>(Val);
+      if constexpr (Rank > 1) {
+	reccon.nested = build_from<Val,Rank,Idx+1>();
+      }
+      return reccon;
+    } else if constexpr (Idx == Rank - 1) {
+      auto reccon = std::make_unique<RecContainer<T>>(Val);
+      return reccon;
+    } else {
+      auto reccon = std::make_unique<RecContainer<T>>(Val);
+      reccon->nested = build_from<Val,Rank,Idx+1>();
+      return reccon;
+    }
+  }
+
+  template <typename Functor>
+  builder::dyn_var<loop_type> reduce() {
+    if (nested) {
+      return Functor()(val, nested->template reduce<Functor>());
+    } else {
+      return val;
+    }
+  }
 
 private:
 
@@ -110,6 +140,11 @@ struct WrappedRecContainer {
   WrappedRecContainer(const WrappedRecContainer<Rank,T> &other) : reccon(other.reccon.template deepcopy<Rank>()) { }
 
   WrappedRecContainer(RecContainer<T> reccon) : reccon(std::move(reccon)) { }
+
+  template <typename Functor>
+  builder::dyn_var<loop_type> reduce() {
+    return reccon.template reduce<Functor>();
+  }
 
   auto deepcopy() { return WrappedRecContainer<Rank,T>(*this); }
 

@@ -198,29 +198,6 @@ constexpr bool is_slice() {
 // functions to extract the start, stop, stride from a slice
 // either return a tuple or an array
 
-// tuple
-template <typename Arg, typename...Args>
-auto gather_origin(Arg arg, Args...args) {
-  if constexpr (is_slice<Arg>()) {
-    // need to extract the Astart
-    static_assert(!std::is_same<End, decltype(arg.start)>::value, "End only valid for the Stop parameter of Slice");
-    builder::dyn_var<loop_type> start = arg.start;
-    if constexpr (sizeof...(Args) > 0) {
-      return std::tuple_cat(std::tuple{start}, gather_origin(args...));
-    } else {
-      return std::tuple{start};
-    }     
-  } else {
-    // the start is just the value
-    builder::dyn_var<loop_type> start = arg;
-    if constexpr (sizeof...(Args) > 0) {
-      return std::tuple_cat(std::tuple{start}, gather_origin(args...));
-    } else {
-      return start;
-    }    
-  }
-}
-
 // array
 template <int Idx, int Rank, typename Arg, typename...Args>
 void gather_origin(std::array<loop_type, Rank> &arr, Arg arg, Args...args) {
@@ -234,33 +211,9 @@ void gather_origin(std::array<loop_type, Rank> &arr, Arg arg, Args...args) {
     }    
   } else {
     // the start is just the value
-    auto start = std::tuple{arg};
-    arr[Idx] = start;
+    arr[Idx] = arg;//start;
     if constexpr (sizeof...(Args) > 0) {
       gather_origin<Idx+1,Rank>(arr, args...);
-    }    
-  }
-}
-
-// tuple
-template <typename Arg, typename...Args>
-auto gather_strides(Arg arg, Args...args) {
-  if constexpr (is_slice<Arg>()) {
-    // need to extract the stride
-    static_assert(!std::is_same<End, decltype(arg.stride)>::value, "End only valid for the Stop parameter of Slice");
-    builder::dyn_var<loop_type> stride = arg.stride;
-    if constexpr (sizeof...(Args) > 0) {
-      return std::tuple_cat(std::tuple{stride}, gather_strides(args...));
-    } else {
-      return std::tuple{stride};
-    }     
-  } else {
-    // the stride is just one
-    builder::dyn_var<loop_type> stride = (loop_type)1;
-    if constexpr (sizeof...(Args) > 0) {
-      return std::tuple_cat(std::tuple{stride}, gather_strides(args...));
-    } else {
-      return std::tuple{stride};
     }    
   }
 }
@@ -279,40 +232,9 @@ void gather_strides(std::array<loop_type,Rank> &arr, Arg arg, Args...args) {
   } else {
     // the stride is just one
     auto stride = std::tuple{(loop_type)1};
-    arr[Idx] = stride;
+    arr[Idx] = 1;//stride;
     if constexpr (sizeof...(Args) > 0) {
       gather_strides<Idx+1,Rank>(arr, args...);
-    }    
-  }
-}
-
-// tuple
-template <int Idx, typename BlockLikeExtents, typename Arg, typename...Args>
-auto gather_stops(BlockLikeExtents extents, Arg arg, Args...args) {
-  if constexpr (is_slice<Arg>()) {
-    // need to extract the stop
-    if constexpr (std::is_same<End, decltype(arg.stop)>::value) {
-      builder::dyn_var<loop_type> extent = std::get<Idx>(extents);
-      if constexpr (sizeof...(Args) > 0) {
-	return std::tuple_cat(std::tuple{extent}, gather_stops<Idx+1>(extents, args...));
-      } else {
-	return std::tuple{extent};
-      }      
-    } else {
-      builder::dyn_var<loop_type> stop = arg.stop;
-      if constexpr (sizeof...(Args) > 0) {
-	return std::tuple_cat(std::tuple{stop}, gather_stops<Idx+1>(extents, args...));
-      } else {
-	return std::tuple{stop};
-      }
-    }
-  } else {
-    // the stop is just the value
-    builder::dyn_var<loop_type> stop = arg.stop;
-    if constexpr (sizeof...(Args) > 0) {
-      return std::tuple_cat(std::tuple{stop}, gather_stops<Idx+1>(extents, args...));
-    } else {
-      return std::tuple{stop};
     }    
   }
 }
@@ -341,24 +263,6 @@ void gather_stops(std::array<loop_type,Rank> &arr, BlockLikeExtents extents, Arg
       gather_stops<Idx+1,Rank>(arr, extents, args...);
     }    
   }
-}
-
-// tuple
-template <int Depth, typename Starts, typename Stops, typename Strides>
-auto convert_stops_to_extents(Starts starts, Stops stops, Strides strides) {
-  static_assert(std::tuple_size<Starts>() == std::tuple_size<Stops>() && std::tuple_size<Stops>() == std::tuple_size<Strides>());
-  if constexpr (Depth == std::tuple_size<Starts>()) {
-    return std::tuple{};
-  } else {
-    builder::dyn_var<loop_type> extent = (std::get<Depth>(stops) - std::get<Depth>(starts) - (loop_type)1) / std::get<Depth>(strides);
-    extent = extent + 1;
-    return std::tuple_cat(std::tuple{extent}, convert_stops_to_extents<Depth+1>(starts, stops, strides));
-  }
-}
-
-template <typename Starts, typename Stops, typename Strides>
-auto convert_stops_to_extents(Starts starts, Stops stops, Strides strides) {
-  return convert_stops_to_extents<0>(starts, stops, strides);
 }
 
 // array

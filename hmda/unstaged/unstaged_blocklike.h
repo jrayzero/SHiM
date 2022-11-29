@@ -1,7 +1,5 @@
 #pragma once
 
-#include "builder/dyn_var.h"
-
 #include "arrays.h"
 #include "base.h"
 
@@ -26,7 +24,7 @@ struct Block : public BaseBlockLike<Elem,Rank> {
 
   Block(const arr_type &bextents) :
     BaseBlockLike<Elem,Rank>(bextents, make_array<loop_type,1,Rank>(),
-			     make_array<loop_type,1,Rank>()),
+			     make_array<loop_type,0,Rank>()),
     data(reduce<MulFunctor>(bextents)) { 
   }
 
@@ -60,10 +58,6 @@ struct Block : public BaseBlockLike<Elem,Rank> {
 
   // Access a single element with a pseudo-linear index
   Elem &plidx(loop_type lidx) const;
-
-  // Take an unstaged block and create one with Staged = true, as well
-  // as a dyn_var buffer. This must only be called within the staging context!
-  auto stage(builder::dyn_var<Elem*> data);
 
   std::string dump() const {
     std::stringstream ss;
@@ -183,10 +177,6 @@ struct View : public BaseView<Elem, Rank> {
   // Access a single element with a pseudo-linear index
   Elem &plidx(loop_type lidx) const;
 
-  // Take an unstaged view and create one with Staged = true, as well
-  // as a dyn_var buffer. This must only be called within the staging context!
-  auto stage(builder::dyn_var<Elem*> data);
-
   std::string dump() const {
     std::stringstream ss;
     // TODO print out Elem type
@@ -256,23 +246,6 @@ private:
   }
 
 };
-
-template <int Rank, int Depth=0>
-auto tuplefy(const std::array<loop_type, Rank> &arr) {
-  if constexpr (Rank == Depth) {
-    return std::tuple{};
-  } else {
-    return tuple_cat(std::tuple{std::get<Depth>(arr)}, tuplefy<Rank,Depth+1>(arr));
-  }
-}
-
-template <typename Elem, int Rank>
-auto Block<Elem,Rank>::stage(builder::dyn_var<Elem*> data) {
-  return SBlock<Elem, Rank>(this->bextents,
-			    this->bstrides,
-			    this->borigin,
-			    data);
-}
 
 template <typename Elem, int Rank>
 template <typename Elem2>
@@ -360,13 +333,6 @@ auto Block<Elem,Rank>::colocate(const View<Elem2,Rank> &view) {
   auto vstrides = view.vstrides;
   auto vorigin = view.vorigin;
   return View<Elem,Rank>(bextents, bstrides, borigin, vextents, vstrides, vorigin, this->data);
-}
-
-template <typename Elem, int Rank>
-auto View<Elem,Rank>::stage(builder::dyn_var<Elem*> data) {
-  return SView<Elem,Rank>(this->bextents, this->bstrides, this->borigin,
-			  this->vextents, this->vstrides, this->vorigin,
-			  data);
 }
 
 template <typename Elem, int Rank>

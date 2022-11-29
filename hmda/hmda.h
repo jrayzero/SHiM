@@ -8,10 +8,5 @@
 
 #include "base.h"
 #include "functors.h"
-#include "staged/staged.h"
-#include "staged/loops.h"
-#include "staged/expr.h"
-#include "staged/schedule.h"
-#include "staged/staged_blocklike.h"
 #include "unstaged/unstaged_blocklike.h"
 

@@ -22,8 +22,9 @@ endfunction()
 #target_link_libraries(simple buildit)
 example(example0)
 example(example1)
-example(example2)
-example(example3)
+#example(example2)
+#example(example3)
+example(example4)
 
 
 add_executable(jpegc apps/jpeg/jpeg.cpp apps/jpeg/syntax.cpp apps/jpeg/huffman.cpp apps/jpeg/bits.cpp)
