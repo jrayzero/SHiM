@@ -144,8 +144,6 @@ struct View {
 
 };
 
-struct Foo { };
-
 template <typename BlockLike, typename Idxs>
 struct Ref : public Expr<Ref<BlockLike,Idxs>> {
 
@@ -202,6 +200,12 @@ struct Ref : public Expr<Ref<BlockLike,Idxs>> {
 
 private:
 
+  template <int Depth=0>
+  void verify_unadorned() {
+    // unadorned must be either an integral or an Iter
+  }
+  
+
   template <typename Rhs, typename...Iters>
   void realize_loop_nest(Rhs rhs, Iters...iters) {
     // the lhs indices can be either an Iter or an integer.
@@ -211,9 +215,10 @@ private:
     constexpr int depth = sizeof...(Iters);
     if constexpr (depth < rank) {
       auto dummy = std::get<depth>(idxs);
-      if constexpr (std::is_integral<decltype(dummy)>()) {
+      if constexpr (std::is_integral<decltype(dummy)>() ||
+		    std::is_same<decltype(dummy),builder::dyn_var<loop_type>>()) {
 	// single iter
-	builder::dyn_var<loop_type> iter = std::get<depth>(idxs);//block_like.primary_extents.get<depth>();
+	builder::dyn_var<loop_type> iter = std::get<depth>(idxs);
 	realize_loop_nest(rhs, iters..., iter);
       } else {
 	// loop
