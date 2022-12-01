@@ -3,6 +3,7 @@
 #include <type_traits>
 #include "builder/dyn_var.h"
 #include "functors.h"
+#include "staged_utils.h"
 
 namespace hmda {
 
@@ -51,29 +52,66 @@ constexpr bool is_expr() {
 template <typename Derived>
 struct Expr {
 
-  template <typename Rhs>
-  Binary<AddFunctor, Derived, Rhs> operator+(const Rhs &rhs) {
-    return Binary<AddFunctor, Derived, Rhs>(*static_cast<Derived*>(this), rhs);
-  }
-
-  template <typename Rhs>
-  Binary<MulFunctor, Derived, Rhs> operator*(const Rhs &rhs) {
-    return Binary<MulFunctor, Derived, Rhs>(*static_cast<Derived*>(this), rhs);
+#define UNARY(functor, name)						\
+  Unary<functor##Functor, Derived> name() {				\
+    return Unary<functor##Functor, Derived>(*static_cast<Derived*>(this)); \
   }
   
+#define BINARY(functor, name)						\
+  template <typename Rhs>						\
+  Binary<functor##Functor, Derived, Rhs> name(const Rhs &rhs) {		\
+    return Binary<functor##Functor, Derived, Rhs>(*static_cast<Derived*>(this), rhs); \
+  }
+  
+  BINARY(Add, operator+);
+  BINARY(Sub, operator-);
+  BINARY(Mul, operator*);
+  BINARY(Div, operator/);
+  BINARY(RShift, operator>>);
+  BINARY(LShift, operator<<);
+  BINARY(LT, operator<);
+  BINARY(LTE, operator<=);
+  BINARY(GT, operator>);
+  BINARY(GTE, operator>=);
+  BINARY(Eq, operator==);
+  BINARY(NEq, operator!=);
+  BINARY(And, operator&&);
+  BINARY(Or, operator||);
+  BINARY(BAnd, operator&);
+  BINARY(BOr, operator|);
+  UNARY(Not, operator!);
+  UNARY(BNot, operator~);
+  UNARY(Invert, operator-);
+
+
 };
 
-template <typename Lhs, typename Rhs, 
-	  typename std::enable_if<std::is_fundamental<Lhs>::value, int>::type = 0,
-	  typename std::enable_if<is_expr<Rhs>(), int>::type = 0>
-auto operator+(Lhs lhs, const Rhs &rhs) {
-  return Binary<AddFunctor, Lhs, Rhs>(lhs, rhs);  
-}
+#define FREE_BINARY(functor, name)					\
+  template <typename Lhs, typename Rhs,					\
+	    typename std::enable_if<std::is_fundamental<Lhs>::value, int>::type = 0, \
+	    typename std::enable_if<is_expr<Rhs>(), int>::type = 0>	\
+  auto name(Lhs lhs, const Rhs &rhs) {					\
+    return Binary<functor##Functor, Lhs, Rhs>(lhs, rhs);		\
+  }
 
-template <typename Lhs, typename Rhs, typename std::enable_if<std::is_fundamental<Lhs>::value, int>::type = 0>
-auto operator*(Lhs lhs, const Rhs &rhs) {
-  return Binary<MulFunctor, Lhs, Rhs>(lhs, rhs);  
-}
+
+
+FREE_BINARY(Add, operator+);
+FREE_BINARY(Sub, operator-);
+FREE_BINARY(Mul, operator*);
+FREE_BINARY(Div, operator/);
+FREE_BINARY(RShift, operator>>);
+FREE_BINARY(LShift, operator<<);
+FREE_BINARY(LT, operator<);
+FREE_BINARY(LTE, operator<=);
+FREE_BINARY(GT, operator>);
+FREE_BINARY(GTE, operator>=);
+FREE_BINARY(Eq, operator==);
+FREE_BINARY(NEq, operator!=);
+FREE_BINARY(And, operator&&);
+FREE_BINARY(Or, operator||);
+FREE_BINARY(BAnd, operator&);
+FREE_BINARY(BOr, operator|);
 
 template <typename T, typename LhsIdxs, typename Iters>
 builder::dyn_var<loop_type> dispatch_realize(T to_realize, const LhsIdxs &lhs_idxs, const Iters &iters) {
