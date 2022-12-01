@@ -82,11 +82,12 @@ struct Block {
   template <typename LIdx>
   builder::dyn_var<loop_type> plidx(LIdx lidx);
 
-  template <typename...Iters>
-  void write(Elem val, std::tuple<Iters...> iters);
+  // ScalarElem is either Elem of dyn_var<Elem>
+  template <typename ScalarElem, typename...Iters>
+  void write(ScalarElem val, std::tuple<Iters...> iters);
 
-  template <typename...Iters>
-  void write(builder::dyn_var<Elem> val, std::tuple<Iters...> iters);
+//  template <typename...Iters>
+//  void write(builder::dyn_var<Elem> val, std::tuple<Iters...> iters);
 
   // Return a simple view over the whole block
   auto view();
@@ -129,11 +130,11 @@ struct View {
   template <typename LIdx>
   builder::dyn_var<loop_type> plidx(LIdx lidx);
 
-  template <typename...Iters>
-  void write(Elem val, std::tuple<Iters...> iters);
+  template <typename ScalarElem, typename...Iters>
+  void write(ScalarElem val, std::tuple<Iters...> iters);
 
-  template <typename...Iters>
-  void write(builder::dyn_var<Elem> val, std::tuple<Iters...> iters);
+//  template <typename...Iters>
+//  void write(builder::dyn_var<Elem> val, std::tuple<Iters...> iters);
 
   template <typename...Slices>
   View<Elem,Rank> view(Slices...slices);
@@ -180,7 +181,9 @@ struct Ref : public Expr<Ref<BlockLike,Idxs>> {
     static_assert(std::tuple_size<Idxs>() == BlockLike::Rank_T);
     realize_loop_nest(rhs);
   }
-  
+
+  // TODO need to just check for dyn_var instead of dyn_var<loop_type> I think, b/c this
+  // isn't always catching dyn_vars. Should make this change wherever I have this check.
   template <int Depth, typename LhsIdxs, typename...Iters>
   auto realize_each(LhsIdxs lhs, std::tuple<Iters...> iters) {
     auto i = std::get<Depth>(idxs);
@@ -325,8 +328,8 @@ builder::dyn_var<loop_type> Block<Elem,Rank>::operator()(Iters...iters) {
 }
 
 template <typename Elem, int Rank>
-template <typename...Iters>
-void Block<Elem,Rank>::write(Elem val, std::tuple<Iters...> iters) {
+template <typename ScalarElem, typename...Iters>
+void Block<Elem,Rank>::write(ScalarElem val, std::tuple<Iters...> iters) {
   static_assert(sizeof...(Iters) <= Rank);
   if constexpr (sizeof...(Iters) < Rank) {
     // we need padding at the front
@@ -339,7 +342,7 @@ void Block<Elem,Rank>::write(Elem val, std::tuple<Iters...> iters) {
   }
 }
 
-template <typename Elem, int Rank>
+/*template <typename Elem, int Rank>
 template <typename...Iters>
 void Block<Elem,Rank>::write(builder::dyn_var<Elem> val, std::tuple<Iters...> iters) {
   static_assert(sizeof...(Iters) <= Rank);
@@ -352,7 +355,7 @@ void Block<Elem,Rank>::write(builder::dyn_var<Elem> val, std::tuple<Iters...> it
     builder::dyn_var<loop_type> lidx = linearize<0,Rank>(this->bextents, iters);
     data[lidx] = val;
   }
-}
+}*/
 
 template <typename Elem, int Rank>
 template <typename Idx>
@@ -402,8 +405,8 @@ builder::dyn_var<loop_type> View<Elem,Rank>::operator()(Iters...iters) {
 }
 
 template <typename Elem, int Rank>
-template <typename...Iters>
-void View<Elem,Rank>::write(Elem val, std::tuple<Iters...> iters) {
+template <typename ScalarElem, typename...Iters>
+void View<Elem,Rank>::write(ScalarElem val, std::tuple<Iters...> iters) {
   static_assert(sizeof...(Iters) <= Rank);
   if constexpr (sizeof...(Iters) < Rank) {
     // we need padding at the front
@@ -421,7 +424,7 @@ void View<Elem,Rank>::write(Elem val, std::tuple<Iters...> iters) {
   }
 }
 
-template <typename Elem, int Rank>
+/*template <typename Elem, int Rank>
 template <typename...Iters>
 void View<Elem,Rank>::write(builder::dyn_var<Elem> val, std::tuple<Iters...> iters) {
   static_assert(sizeof...(Iters) <= Rank);
@@ -439,7 +442,7 @@ void View<Elem,Rank>::write(builder::dyn_var<Elem> val, std::tuple<Iters...> ite
     builder::dyn_var<loop_type> lidx = linearize<0,Rank>(this->bextents, biters);
     data[lidx] = val;
   }
-}
+}*/
 
 template <typename Elem, int Rank>
 template <typename Idx>
