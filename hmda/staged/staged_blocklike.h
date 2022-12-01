@@ -152,6 +152,33 @@ struct View {
 
 };
 
+template <typename T>
+struct IsDynVar { constexpr bool operator()() { return false; } };
+
+template <typename T>
+struct IsDynVar<builder::dyn_var<T>> { constexpr bool operator()() { return true; } };
+
+template <typename T>
+struct IsBuilder { constexpr bool operator()() { return false; } };
+
+template <>
+struct IsBuilder<builder::builder> { constexpr bool operator()() { return true; } };
+
+template <typename T>
+constexpr bool is_dyn_var() {
+  return IsDynVar<T>()();
+}
+
+template <typename T>
+constexpr bool is_dyn_like() {
+  return IsDynVar<T>()() || IsBuilder<T>()();
+}
+
+template <typename T>
+constexpr bool is_builder() {
+  return IsBuilder<T>()();
+}
+
 template <typename BlockLike, typename Idxs>
 struct Ref : public Expr<Ref<BlockLike,Idxs>> {
 
@@ -182,17 +209,15 @@ struct Ref : public Expr<Ref<BlockLike,Idxs>> {
     realize_loop_nest(rhs);
   }
 
-  // TODO need to just check for dyn_var instead of dyn_var<loop_type> I think, b/c this
-  // isn't always catching dyn_vars. Should make this change wherever I have this check.
   template <int Depth, typename LhsIdxs, typename...Iters>
   auto realize_each(LhsIdxs lhs, std::tuple<Iters...> iters) {
     auto i = std::get<Depth>(idxs);
-    if constexpr (std::is_same<decltype(i),builder::dyn_var<loop_type>>() ||
+    if constexpr (is_dyn_like<decltype(i)>() ||
 		  std::is_same<decltype(i),loop_type>()) {
       if constexpr (Depth < sizeof...(Iters) - 1) {
 	return std::tuple_cat(std::tuple{i}, realize_each<Depth+1>(lhs, iters));
       } else {
-	return std::tuple{i};
+	return std::tuple{i};	  
       }
     } else {
       auto r = i.realize(lhs, iters);
@@ -221,7 +246,7 @@ private:
     auto i = std::get<Depth>(idxs);
     using T = decltype(i);
     static_assert(std::is_integral<T>() || 
-		  std::is_same<T,builder::dyn_var<loop_type>>() ||
+		  is_dyn_like<T>() ||
 		  is_iter<T>(), "LHS indices for inline write must be unadorned.");
     if constexpr (Depth < BlockLike::Rank_T - 1) {
       verify_unadorned<Depth+1>();
@@ -256,7 +281,7 @@ private:
     if constexpr (depth < rank) {
       auto dummy = std::get<depth>(idxs);
       if constexpr (std::is_integral<decltype(dummy)>() ||
-		    std::is_same<decltype(dummy),builder::dyn_var<loop_type>>()) {
+		    is_dyn_like<decltype(dummy)>()) {
 	// single iter
 	builder::dyn_var<loop_type> iter = std::get<depth>(idxs);
 	realize_loop_nest(rhs, iters..., iter);
@@ -277,7 +302,7 @@ private:
     } else {
       // at the innermost level
       if constexpr (std::is_same<Rhs, typename BlockLike::Elem_T>() ||
-		    std::is_same<Rhs, builder::dyn_var<typename BlockLike::Elem_T>>()) {
+		    is_dyn_like<Rhs>()) {
 	block_like.write(rhs, std::tuple{iters...});
       } else {
 	block_like.write(rhs.realize(idxs, std::tuple{iters...}), std::tuple{iters...});	  
