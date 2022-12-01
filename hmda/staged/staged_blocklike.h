@@ -160,6 +160,7 @@ struct Ref : public Expr<Ref<BlockLike,Idxs>> {
   
   void operator=(typename BlockLike::Elem_T x) {
     this->verify_unadorned();
+    this->verify_unique<0>();
     // TODO can potentially memset this whole thing
     static_assert(std::tuple_size<Idxs>() == BlockLike::Rank_T);
     realize_loop_nest(x);
@@ -168,6 +169,7 @@ struct Ref : public Expr<Ref<BlockLike,Idxs>> {
   template <typename Rhs>
   void operator=(Rhs rhs) {
     this->verify_unadorned();
+    this->verify_unique<0>();
     static_assert(std::tuple_size<Idxs>() == BlockLike::Rank_T);
     realize_loop_nest(rhs);
   }
@@ -202,6 +204,7 @@ struct Ref : public Expr<Ref<BlockLike,Idxs>> {
 
 private:
 
+  // check that lhs idxs are unadorned
   template <int Depth=0>
   void verify_unadorned() {
     // unadorned must be either an integral, Iter, or dyn_var<loop_type>
@@ -209,9 +212,27 @@ private:
     using T = decltype(i);
     static_assert(std::is_integral<T>() || 
 		  std::is_same<T,builder::dyn_var<loop_type>>() ||
-		  is_iter<T>(), "LHS index for inline write must be unadorned.");
+		  is_iter<T>(), "LHS indices for inline write must be unadorned.");
     if constexpr (Depth < BlockLike::Rank_T - 1) {
       verify_unadorned<Depth+1>();
+    }
+  }  
+
+  // check that lhs idxs are unique
+  template <int Depth, char...Seen>
+  void verify_unique() {
+    // unadorned must be either an integral, Iter, or dyn_var<loop_type>
+    auto i = std::get<Depth>(idxs);
+    using T = decltype(i);
+    if constexpr (is_iter<T>()) {
+      static_assert(VerifyUnique<T::Ident_T, Seen...>()(), "LHS indices for inline write must be unique.");
+      if constexpr (Depth < BlockLike::Rank_T - 1) {
+	verify_unique<Depth+1, Seen..., T::Ident_T>();
+      }
+    } else {
+      if constexpr (Depth < BlockLike::Rank_T - 1) {
+	verify_unique<Depth+1, Seen...>();
+      }
     }
   }  
   
@@ -253,6 +274,25 @@ private:
       }
     }
   }
+
+  template <char C, char...Others>
+  struct VerifyUnique { constexpr bool operator()() { return true; } }; // only a single thing in this case
+
+  template <char C, char D, char...Others>
+  struct VerifyUnique<C, D, Others...> { 
+    constexpr bool operator()() { 
+      if constexpr (sizeof...(Others) > 0) {
+	return VerifyUnique<C, Others...>()();
+      } else {
+	return true;
+      }
+    } 
+  };
+
+  template <char C, char...Others>
+  struct VerifyUnique<C, C, Others...> {
+    constexpr bool operator()() { return false; }
+  };
   
 };
 

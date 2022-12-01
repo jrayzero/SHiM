@@ -127,6 +127,8 @@ private:
 template <char Ident>
 struct Iter : public Expr<Iter<Ident>> {
 
+  static constexpr char Ident_T = Ident;
+
   template <typename LhsIdxs, typename Iters>
   auto realize(const LhsIdxs &lhs_idxs, const Iters &iters) {
     // figure out the index of Ident within lhs_idxs so I can get the correct
