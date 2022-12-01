@@ -15,7 +15,7 @@ struct Binary;
 template <char Ident>
 struct Iter;
 template <typename BlockLIke, typename Idxs>
-struct BlockLikeRef;
+struct Ref;
 
 template <typename T>
 struct IsExpr {
@@ -23,7 +23,7 @@ struct IsExpr {
 };
 
 template <typename BlockLike, typename Idxs>
-struct IsExpr<BlockLikeRef<BlockLike,Idxs>> {
+struct IsExpr<Ref<BlockLike,Idxs>> {
   constexpr bool operator()() { return true; }
 };
 
@@ -80,7 +80,7 @@ builder::dyn_var<loop_type> dispatch_realize(T to_realize, const LhsIdxs &lhs_id
   if constexpr (IsExpr<T>()()) {
     return to_realize.realize(lhs_idxs, iters);
   } else {
-    // loop_type or another builder
+    // something primitive-y, like a loop_type or another builder
     return to_realize;
   }
 }

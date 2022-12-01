@@ -9,7 +9,10 @@
 
 namespace hmda {
 
-// TODO verify that operator[] stmts do not contain any dyn_vars
+// Notes:
+// don't use operator() with Iter objects. use operator[] instead.
+// so block[i][j] = other[i][j] => good
+// so block[i][j] = other(i,j) => bad
 
 // The location information within Blocks and Views is immutable once set, so we
 // don't have to worry about breaking dependencies with dyn_vars when passing
@@ -169,21 +172,30 @@ struct Ref : public Expr<Ref<BlockLike,Idxs>> {
     realize_loop_nest(rhs);
   }
   
-  template <typename LhsIdxs, typename Iter, typename...Iters>
-  auto realize_each(LhsIdxs lhs, Iter iter, Iters...iters) {
-    auto r = iter.realize(lhs, idxs);
-    if constexpr (sizeof...(Iters) > 0) {
-      return std::tuple_cat(std::tuple{r}, realize_each(lhs, iters...));
+  template <int Depth, typename LhsIdxs, typename...Iters>
+  auto realize_each(LhsIdxs lhs, std::tuple<Iters...> iters) {
+    auto i = std::get<Depth>(idxs);
+    if constexpr (std::is_same<decltype(i),builder::dyn_var<loop_type>>() ||
+		  std::is_same<decltype(i),loop_type>()) {
+      if constexpr (Depth < sizeof...(Iters) - 1) {
+	return std::tuple_cat(std::tuple{i}, realize_each<Depth+1>(lhs, iters));
+      } else {
+	return std::tuple{i};
+      }
     } else {
-      return std::tuple{r};
+      auto r = i.realize(lhs, iters);
+      if constexpr (Depth < sizeof...(Iters) - 1) {
+	return std::tuple_cat(std::tuple{r}, realize_each<Depth+1>(lhs, iters));
+      } else {
+	return std::tuple{r};
+      }
     }
   }
   
   template <typename LhsIdxs, typename...Iters>
-  auto realize(LhsIdxs lhs, Iters...iters) {
-    static_assert(sizeof...(Iters) == BlockLike::Rank_T);
+  auto realize(LhsIdxs lhs, std::tuple<Iters...> iters) {
     // first realize each idx
-    auto realized = realize_each(lhs, iters...);
+    auto realized = realize_each<0>(lhs, iters);
     // then access the thing
     return block_like(realized);
   }
