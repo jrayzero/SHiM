@@ -3,7 +3,6 @@
 #include <type_traits>
 #include "builder/dyn_var.h"
 #include "functors.h"
-#include "base.h"
 
 namespace hmda {
 
@@ -15,32 +14,6 @@ template <typename Functor, typename Operand0, typename Operand1>
 struct Binary;
 template <char Ident>
 struct Iter;
-
-template <typename Derived>
-struct Expr {
-
-  template <typename Rhs>
-  Binary<AddFunctor, Derived, Rhs> operator+(const Rhs &rhs) {
-    return Binary<AddFunctor, Derived, Rhs>(*static_cast<Derived*>(this), rhs);
-  }
-
-  template <typename Rhs>
-  Binary<MulFunctor, Derived, Rhs> operator*(const Rhs &rhs) {
-    return Binary<MulFunctor, Derived, Rhs>(*static_cast<Derived*>(this), rhs);
-  }
-  
-};
-
-template <typename Lhs, typename Rhs, typename std::enable_if<std::is_fundamental<Lhs>::value, int>::type = 0>
-auto operator+(Lhs lhs, const Rhs &rhs) {
-  return Binary<AddFunctor, Lhs, Rhs>(lhs, rhs);  
-}
-
-template <typename Lhs, typename Rhs, typename std::enable_if<std::is_fundamental<Lhs>::value, int>::type = 0>
-auto operator*(Lhs lhs, const Rhs &rhs) {
-  return Binary<MulFunctor, Lhs, Rhs>(lhs, rhs);  
-}
-
 template <typename BlockLIke, typename Idxs>
 struct BlockLikeRef;
 
@@ -69,6 +42,38 @@ template <char Ident>
 struct IsExpr<Iter<Ident>> {
   constexpr bool operator()() { return true; }
 };
+
+template <typename T>
+constexpr bool is_expr() {
+  return IsExpr<T>()();
+}
+
+template <typename Derived>
+struct Expr {
+
+  template <typename Rhs>
+  Binary<AddFunctor, Derived, Rhs> operator+(const Rhs &rhs) {
+    return Binary<AddFunctor, Derived, Rhs>(*static_cast<Derived*>(this), rhs);
+  }
+
+  template <typename Rhs>
+  Binary<MulFunctor, Derived, Rhs> operator*(const Rhs &rhs) {
+    return Binary<MulFunctor, Derived, Rhs>(*static_cast<Derived*>(this), rhs);
+  }
+  
+};
+
+template <typename Lhs, typename Rhs, 
+	  typename std::enable_if<std::is_fundamental<Lhs>::value, int>::type = 0,
+	  typename std::enable_if<is_expr<Rhs>(), int>::type = 0>
+auto operator+(Lhs lhs, const Rhs &rhs) {
+  return Binary<AddFunctor, Lhs, Rhs>(lhs, rhs);  
+}
+
+template <typename Lhs, typename Rhs, typename std::enable_if<std::is_fundamental<Lhs>::value, int>::type = 0>
+auto operator*(Lhs lhs, const Rhs &rhs) {
+  return Binary<MulFunctor, Lhs, Rhs>(lhs, rhs);  
+}
 
 template <typename T, typename LhsIdxs, typename Iters>
 builder::dyn_var<loop_type> dispatch_realize(T to_realize, const LhsIdxs &lhs_idxs, const Iters &iters) {
@@ -165,11 +170,6 @@ private:
   
 };
 
-template <char Ident, typename Functor>
-struct Redux {
-
-};
-
 template <typename I>
 struct IsIterType {
   constexpr bool operator()() { return false; }
@@ -183,21 +183,6 @@ struct IsIterType<Iter<Ident>> {
 template <typename T>
 constexpr bool is_iter() {
   return IsIterType<T>()();
-}
-
-template <typename I>
-struct IsReduxType {
-  constexpr bool operator()() { return false; }
-};
-
-template <char Ident, typename Functor>
-struct IsReduxType<Redux<Ident, Functor>> {
-  constexpr bool operator()() { return true; }
-};
-
-template <typename T>
-constexpr bool is_redux() {
-  return IsReduxType<T>()();
 }
 
 }

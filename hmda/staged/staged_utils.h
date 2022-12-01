@@ -75,42 +75,57 @@ private:
 
   template <int Rank, int Depth=Rank>
   auto deepcopy(bool deepcopy_dyn_var=false) const {
-    if constexpr (Depth == Rank) {
-      auto u = this->nested->template deepcopy<Rank,Depth-1>(deepcopy_dyn_var);
+    if constexpr (Rank == 1) {
       if (deepcopy_dyn_var) {
-	builder::dyn_var<T> d;
-	d = this->val;
-	auto r = RecContainer<T>(d);
-	r.nested = move(u);
-	return r;
+	  builder::dyn_var<T> d;
+	  d = this->val;
+	  auto r = RecContainer<T>(d);
+	  r.nested = nullptr;
+	  return r; 
       } else {
-	builder::dyn_var<T> d = this->val;
-	auto r = RecContainer<T>(d);
-	r.nested = move(u);
-	return r;
-      }
-    } else if constexpr (Depth > 1) {
-      auto u = this->nested->template deepcopy<Rank,Depth-1>(deepcopy_dyn_var);
-      if (deepcopy_dyn_var) {
-	builder::dyn_var<T> d;
-	d = this->val;
-	auto r = std::make_unique<RecContainer<T>>(d);
-	r->nested = move(u);
-	return r;
-      } else {
-	builder::dyn_var<T> d = this->val;
-	auto r = std::make_unique<RecContainer<T>>(d);
-	r->nested = move(u);
-	return r;
+	  builder::dyn_var<T> d = this->val;
+	  auto r = RecContainer<T>(d);
+	  r.nested = nullptr;
+	  return r;
       }
     } else {
-      if (deepcopy_dyn_var) {
-	builder::dyn_var<T> d;
-	d = this->val;
-	return std::make_unique<RecContainer<T>>(d);
+      if constexpr (Depth == Rank) {
+	auto u = this->nested->template deepcopy<Rank,Depth-1>(deepcopy_dyn_var);
+	if (deepcopy_dyn_var) {
+	  builder::dyn_var<T> d;
+	  d = this->val;
+	  auto r = RecContainer<T>(d);
+	  r.nested = move(u);
+	  return r;
+	} else {
+	  builder::dyn_var<T> d = this->val;
+	  auto r = RecContainer<T>(d);
+	  r.nested = move(u);
+	  return r;
+	}
+      } else if constexpr (Depth > 1) {
+	auto u = this->nested->template deepcopy<Rank,Depth-1>(deepcopy_dyn_var);
+	if (deepcopy_dyn_var) {
+	  builder::dyn_var<T> d;
+	  d = this->val;
+	  auto r = std::make_unique<RecContainer<T>>(d);
+	  r->nested = move(u);
+	  return r;
+	} else {
+	  builder::dyn_var<T> d = this->val;
+	  auto r = std::make_unique<RecContainer<T>>(d);
+	  r->nested = move(u);
+	  return r;
+	}
       } else {
-	builder::dyn_var<T> d = this->val;
-	return std::make_unique<RecContainer<T>>(d);
+	if (deepcopy_dyn_var) {
+	  builder::dyn_var<T> d;
+	  d = this->val;
+	  return std::make_unique<RecContainer<T>>(d);
+	} else {
+	  builder::dyn_var<T> d = this->val;
+	  return std::make_unique<RecContainer<T>>(d);
+	}
       }
     }
   }

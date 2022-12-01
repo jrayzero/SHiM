@@ -5,12 +5,18 @@
 #include "builder/dyn_var.h"
 #include "functors.h"
 #include "staged_utils.h"
+#include "expr.h"
 
 namespace hmda {
+
+// TODO verify that operator[] stmts do not contain any dyn_vars
 
 // The location information within Blocks and Views is immutable once set, so we
 // don't have to worry about breaking dependencies with dyn_vars when passing
 // them across blocks and views.
+
+template <typename BlockLike, typename Idxs> 
+struct Ref;
 
 template <typename Elem, int Rank>
 struct View;
@@ -19,6 +25,9 @@ template <typename Elem, int Rank>
 struct Block {
 
   using Loc_T = Wrapped<Rank,loop_type>;
+  using Elem_T = Elem;
+  static constexpr int Rank_T = Rank;
+  static constexpr bool IsBlock_T = true;  
 
   Block(Loc_T bextents, Loc_T bstrides, Loc_T borigin) :
     bextents(std::move(bextents)), bstrides(std::move(bstrides)), borigin(std::move(borigin)),
@@ -63,10 +72,17 @@ struct Block {
   template <typename LIdx>
   builder::dyn_var<loop_type> plidx(LIdx lidx);
 
+  template <typename...Iters>
+  void write(Elem val, std::tuple<Iters...> iters);
+
+  template <typename...Iters>
+  void write(builder::dyn_var<Elem> val, std::tuple<Iters...> iters);
+
   // Return a simple view over the whole block
   auto view();
 
-private:
+  template <typename Idx>
+  auto operator[](Idx idx);
 
   builder::dyn_var<Elem*> data;
   Loc_T bextents;
@@ -79,6 +95,9 @@ template <typename Elem, int Rank>
 struct View {
 
   using Loc_T = Wrapped<Rank,loop_type>;
+  using Elem_T = Elem;
+  static constexpr int Rank_T = Rank;
+  static constexpr bool IsBlock_T = false;
 
   View(Loc_T bextents, Loc_T bstrides, Loc_T borigin,
        Loc_T vextents, Loc_T vstrides, Loc_T vorigin,
@@ -100,10 +119,17 @@ struct View {
   template <typename LIdx>
   builder::dyn_var<loop_type> plidx(LIdx lidx);
 
+  template <typename...Iters>
+  void write(Elem val, std::tuple<Iters...> iters);
+
+  template <typename...Iters>
+  void write(builder::dyn_var<Elem> val, std::tuple<Iters...> iters);
+
   template <typename...Slices>
   View<Elem,Rank> view(Slices...slices);
 
-private:
+  template <typename Idx>
+  auto operator[](Idx idx);
 
   builder::dyn_var<Elem*> data;
   Loc_T bextents;
@@ -113,6 +139,95 @@ private:
   Loc_T vstrides;
   Loc_T vorigin;
 
+};
+
+struct Foo { };
+
+template <typename BlockLike, typename Idxs>
+struct Ref : public Expr<Ref<BlockLike,Idxs>> {
+
+  Idxs idxs;
+  BlockLike block_like;
+
+  Ref(BlockLike block_like, Idxs idxs) : block_like(block_like), idxs(idxs) { }
+  
+  template <typename Idx>
+  auto operator[](Idx idx) {
+    auto args = std::tuple_cat(idxs, std::tuple{idx});
+    return Ref<BlockLike,decltype(args)>(block_like, args);
+  }
+  
+  void operator=(typename BlockLike::Elem_T x) {
+    // TODO can potentially memset this whole thing
+    static_assert(std::tuple_size<Idxs>() == BlockLike::Rank_T);
+    realize_loop_nest(x);
+  }
+
+  template <typename Rhs>
+  void operator=(Rhs rhs) {
+    static_assert(std::tuple_size<Idxs>() == BlockLike::Rank_T);
+    realize_loop_nest(rhs);
+  }
+  
+  template <typename LhsIdxs, typename Iter, typename...Iters>
+  auto realize_each(LhsIdxs lhs, Iter iter, Iters...iters) {
+    auto r = iter.realize(lhs, idxs);
+    if constexpr (sizeof...(Iters) > 0) {
+      return std::tuple_cat(std::tuple{r}, realize_each(lhs, iters...));
+    } else {
+      return std::tuple{r};
+    }
+  }
+  
+  template <typename LhsIdxs, typename...Iters>
+  auto realize(LhsIdxs lhs, Iters...iters) {
+    static_assert(sizeof...(Iters) == BlockLike::Rank_T);
+    // first realize each idx
+    auto realized = realize_each(lhs, iters...);
+    // then access the thing
+    return block_like(realized);
+  }
+
+private:
+
+  template <typename Rhs, typename...Iters>
+  void realize_loop_nest(Rhs rhs, Iters...iters) {
+    // the lhs indices can be either an Iter or an integer.
+    // Iter -> loop over whole extent
+    // integer -> single iteration loop
+    constexpr int rank = BlockLike::Rank_T;
+    constexpr int depth = sizeof...(Iters);
+    if constexpr (depth < rank) {
+      auto dummy = std::get<depth>(idxs);
+      if constexpr (std::is_integral<decltype(dummy)>()) {
+	// single iter
+	builder::dyn_var<loop_type> iter = std::get<depth>(idxs);//block_like.primary_extents.get<depth>();
+	realize_loop_nest(rhs, iters..., iter);
+      } else {
+	// loop
+	if constexpr (BlockLike::IsBlock_T) {
+	  auto extent = block_like.bextents.template get<depth>();	  
+	  for (builder::dyn_var<loop_type> iter = 0; iter < extent; iter = iter + 1) {
+	    realize_loop_nest(rhs, iters..., iter);
+	  }
+	} else {
+	  auto extent = block_like.vextents.template get<depth>();
+	  for (builder::dyn_var<loop_type> iter = 0; iter < extent; iter = iter + 1) {
+	    realize_loop_nest(rhs, iters..., iter);
+	  }
+	}
+      }
+    } else {
+      // at the innermost level
+      if constexpr (std::is_same<Rhs, typename BlockLike::Elem_T>() ||
+		    std::is_same<Rhs, builder::dyn_var<typename BlockLike::Elem_T>>()) {
+	block_like.write(rhs, std::tuple{iters...});
+      } else {
+	block_like.write(rhs.realize(idxs, std::tuple{iters...}), std::tuple{iters...});	  
+      }
+    }
+  }
+  
 };
 
 template <typename Elem, int Rank>
@@ -134,6 +249,42 @@ template <typename Elem, int Rank>
 template <typename...Iters>
 builder::dyn_var<loop_type> Block<Elem,Rank>::operator()(Iters...iters) {
   return this->operator()(std::tuple{iters...});
+}
+
+template <typename Elem, int Rank>
+template <typename...Iters>
+void Block<Elem,Rank>::write(Elem val, std::tuple<Iters...> iters) {
+  static_assert(sizeof...(Iters) <= Rank);
+  if constexpr (sizeof...(Iters) < Rank) {
+    // we need padding at the front
+    constexpr int pad_amt = Rank-sizeof...(Iters);
+    auto coord = std::tuple_cat(make_tup<loop_type,0,pad_amt>(), iters);
+    this->write(val, coord);
+  } else { // coordinate-based
+    builder::dyn_var<loop_type> lidx = linearize<0,Rank>(this->bextents, iters);
+    data[lidx] = val;
+  }
+}
+
+template <typename Elem, int Rank>
+template <typename...Iters>
+void Block<Elem,Rank>::write(builder::dyn_var<Elem> val, std::tuple<Iters...> iters) {
+  static_assert(sizeof...(Iters) <= Rank);
+  if constexpr (sizeof...(Iters) < Rank) {
+    // we need padding at the front
+    constexpr int pad_amt = Rank-sizeof...(Iters);
+    auto coord = std::tuple_cat(make_tup<loop_type,0,pad_amt>(), iters);
+    this->write(val, coord);
+  } else { // coordinate-based
+    builder::dyn_var<loop_type> lidx = linearize<0,Rank>(this->bextents, iters);
+    data[lidx] = val;
+  }
+}
+
+template <typename Elem, int Rank>
+template <typename Idx>
+auto Block<Elem,Rank>::operator[](Idx idx) {
+  return Ref<Block<Elem,Rank>,std::tuple<Idx>>(*this, std::tuple{idx});
 }
 
 template <typename Elem, int Rank>
@@ -177,6 +328,51 @@ builder::dyn_var<loop_type> View<Elem,Rank>::operator()(Iters...iters) {
   return this->operator()(std::tuple{iters...});
 }
 
+template <typename Elem, int Rank>
+template <typename...Iters>
+void View<Elem,Rank>::write(Elem val, std::tuple<Iters...> iters) {
+  static_assert(sizeof...(Iters) <= Rank);
+  if constexpr (sizeof...(Iters) < Rank) {
+    // we need padding at the front
+    constexpr int pad_amt = Rank-sizeof...(Iters);
+    builder::dyn_var<loop_type> zero = 0;
+    auto coord = std::tuple_cat(make_tup<builder::dyn_var<loop_type>,zero,pad_amt>(), iters);
+    this->write(val, coord);
+  } else {
+    // the iters are relative to the View, so first make them relative to the block
+    // bi0 = vi0 * vstride0 + vorigin0
+    auto biters = compute_block_relative_iters<Rank,0>(this->vstrides, this->vorigin, iters);
+    // then linearize with respect to the block
+    builder::dyn_var<loop_type> lidx = linearize<0,Rank>(this->bextents, biters);
+    data[lidx] = val;
+  }
+}
+
+template <typename Elem, int Rank>
+template <typename...Iters>
+void View<Elem,Rank>::write(builder::dyn_var<Elem> val, std::tuple<Iters...> iters) {
+  static_assert(sizeof...(Iters) <= Rank);
+  if constexpr (sizeof...(Iters) < Rank) {
+    // we need padding at the front
+    constexpr int pad_amt = Rank-sizeof...(Iters);
+    builder::dyn_var<loop_type> zero = 0;
+    auto coord = std::tuple_cat(make_tup<builder::dyn_var<loop_type>,zero,pad_amt>(), iters);
+    this->write(val, coord);
+  } else {
+    // the iters are relative to the View, so first make them relative to the block
+    // bi0 = vi0 * vstride0 + vorigin0
+    auto biters = compute_block_relative_iters<Rank,0>(this->vstrides, this->vorigin, iters);
+    // then linearize with respect to the block
+    builder::dyn_var<loop_type> lidx = linearize<0,Rank>(this->bextents, biters);
+    data[lidx] = val;
+  }
+}
+
+template <typename Elem, int Rank>
+template <typename Idx>
+auto View<Elem,Rank>::operator[](Idx idx) {
+  return Ref<View<Elem,Rank>,std::tuple<Idx>>(*this, std::tuple{idx});
+}
 
 template <typename Elem, int Rank>
 template <typename LIdx>
