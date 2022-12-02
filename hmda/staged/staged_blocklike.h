@@ -401,8 +401,7 @@ View<Elem,Rank> Block<Elem,Rank>::view(Slices...slices) {
   SLoc_T vorigin;
   gather_origin<0,Rank>(vorigin, slices...);
   // convert vstops into extents
-  SLoc_T vextents;
-  convert_stops_to_extents<Rank>(vextents, vorigin, vstops, vstrides);
+  SLoc_T vextents = convert_stops_to_extents<Rank>(vorigin, vstops, vstrides);
   // now make everything relative to the prior block
   // new origin = old origin + vorigin * old strides
   SLoc_T origin = apply<AddFunctor,Rank>(this->borigin, apply<MulFunctor,Rank>(vorigin, this->bstrides));
@@ -485,8 +484,7 @@ View<Elem,Rank> View<Elem,Rank>::view(Slices...slices) {
   SLoc_T vorigin;
   gather_origin<0,Rank>(vorigin, slices...);
   // convert vstops into extents
-  SLoc_T vextents;
-  convert_stops_to_extents<Rank>(vextents, vorigin, vstops, vstrides);
+  SLoc_T vextents = convert_stops_to_extents<Rank>(vorigin, vstops, vstrides);
   // now make everything relative to the prior view
   // new origin = old origin + vorigin * old strides
   SLoc_T origin = apply<AddFunctor,Rank>(this->vorigin, apply<MulFunctor,Rank>(vorigin, this->vstrides));
