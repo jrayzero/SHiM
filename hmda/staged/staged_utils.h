@@ -16,167 +16,6 @@ builder::dyn_var<void*(int)> malloc_func = builder::as_global("malloc");
 builder::dyn_var<void(void*,int,int)> memset_func = builder::as_global("memset");
 builder::dyn_var<void(void*,void*,int)> memcpy_func = builder::as_global("memcpy");
 
-/*template <int Rank, typename T>
-struct WrappedRecContainer;
- 
-// A recursive container for holding dyn_vars. Gets rid of weird issues with built-in data
-// structures that screw up the semantics of the dyn_vars. I don't want to just
-// use dyn_var<int[]> for holding things like extents b/c it generates code like x={2,4},
-// and I don't want to rely on the compiler to extract the array elements.
-template <typename T>
-struct RecContainer {
-
-  template <int Rank, typename T2>
-  friend struct WrappedRecContainer;
-
-  builder::dyn_var<T> val;
-  std::unique_ptr<RecContainer<T>> nested;
-
-  template <typename...Args>
-  RecContainer(T arg, Args...args) : val(arg), nested(build_reccon(args...)) { }
-
-  template <typename...Args>
-  RecContainer(builder::dyn_var<T> arg, Args...args) : val(arg), nested(build_reccon(args...)) { }
-
-  template <T Val, int Rank, int Idx=0>
-  static auto build_from() {
-    if constexpr (Idx == 0) {
-      auto reccon = RecContainer<T>(Val);
-      if constexpr (Rank > 1) {
-	reccon.nested = build_from<Val,Rank,Idx+1>();
-      }
-      return reccon;
-    } else if constexpr (Idx == Rank - 1) {
-      auto reccon = std::make_unique<RecContainer<T>>(Val);
-      return reccon;
-    } else {
-      auto reccon = std::make_unique<RecContainer<T>>(Val);
-      reccon->nested = build_from<Val,Rank,Idx+1>();
-      return reccon;
-    }
-  }
-
-  template <typename Functor>
-  builder::dyn_var<loop_type> reduce() {
-    if (nested) {
-      return Functor()(val, nested->template reduce<Functor>());
-    } else {
-      return val;
-    }
-  }
-
-private:
-
-  template <typename...Args>
-  static std::unique_ptr<RecContainer<T>> build_reccon(T arg, Args...args) {
-    return std::make_unique<RecContainer<T>>(arg, args...);
-  }
-
-  static std::unique_ptr<RecContainer<T>> build_reccon() {
-    return nullptr;
-  }
-
-  template <int Rank, int Depth=Rank>
-  auto deepcopy(bool deepcopy_dyn_var=false) const {
-    if constexpr (Rank == 1) {
-      if (deepcopy_dyn_var) {
-	  builder::dyn_var<T> d;
-	  d = this->val;
-	  auto r = RecContainer<T>(d);
-	  r.nested = nullptr;
-	  return r; 
-      } else {
-	  builder::dyn_var<T> d = this->val;
-	  auto r = RecContainer<T>(d);
-	  r.nested = nullptr;
-	  return r;
-      }
-    } else {
-      if constexpr (Depth == Rank) {
-	auto u = this->nested->template deepcopy<Rank,Depth-1>(deepcopy_dyn_var);
-	if (deepcopy_dyn_var) {
-	  builder::dyn_var<T> d;
-	  d = this->val;
-	  auto r = RecContainer<T>(d);
-	  r.nested = move(u);
-	  return r;
-	} else {
-	  builder::dyn_var<T> d = this->val;
-	  auto r = RecContainer<T>(d);
-	  r.nested = move(u);
-	  return r;
-	}
-      } else if constexpr (Depth > 1) {
-	auto u = this->nested->template deepcopy<Rank,Depth-1>(deepcopy_dyn_var);
-	if (deepcopy_dyn_var) {
-	  builder::dyn_var<T> d;
-	  d = this->val;
-	  auto r = std::make_unique<RecContainer<T>>(d);
-	  r->nested = move(u);
-	  return r;
-	} else {
-	  builder::dyn_var<T> d = this->val;
-	  auto r = std::make_unique<RecContainer<T>>(d);
-	  r->nested = move(u);
-	  return r;
-	}
-      } else {
-	if (deepcopy_dyn_var) {
-	  builder::dyn_var<T> d;
-	  d = this->val;
-	  return std::make_unique<RecContainer<T>>(d);
-	} else {
-	  builder::dyn_var<T> d = this->val;
-	  return std::make_unique<RecContainer<T>>(d);
-	}
-      }
-    }
-  }
-	
-  template <int Idx, int Depth=0>
-  builder::dyn_var<T> get() const {
-    if constexpr (Depth==Idx) {
-      return this->val;
-    } else {
-      return this->nested->template get<Idx,Depth+1>();
-    }
-  }
-
-};
-
-// A wrapper for RecContainer that contains a Rank, which makes it easier to deep copy.
-template <int Rank, typename T>
-struct WrappedRecContainer {
- 
-  RecContainer<T> reccon;
-
-  template <typename...Args>
-  WrappedRecContainer(T arg, Args...args) : reccon(arg, args...) { 
-    static_assert(1+sizeof...(Args) == Rank);
-  }
-
-  WrappedRecContainer(const WrappedRecContainer<Rank,T> &other) : reccon(other.reccon.template deepcopy<Rank>()) { }
-
-  WrappedRecContainer(RecContainer<T> reccon) : reccon(std::move(reccon)) { }
-
-  template <typename Functor>
-  builder::dyn_var<loop_type> reduce() {
-    return reccon.template reduce<Functor>();
-  }
-
-  auto deepcopy() { return WrappedRecContainer<Rank,T>(*this); }
-
-  template <int Idx>
-  builder::dyn_var<T> get() const {
-    static_assert(Idx < Rank);
-    return reccon.template get<Idx>();
-  }
-
-};
-
-template <int Rank, typename T>
-using Wrapped = WrappedRecContainer<Rank,T>;
-*/
 template <typename T, T Val, int N>
 auto make_tup() {
   if constexpr (N == 0) {
@@ -242,19 +81,6 @@ auto delinearize(LIdx lidx, const Extents &extents) {
   }
 }
 
-/*template <int Rank, int Depth, typename...Iters>
-auto compute_block_relative_iters(const Wrapped<Rank,loop_type> &vstrides, 
-				  const Wrapped<Rank,loop_type> &vorigin,
-				  const std::tuple<Iters...> &viters) {
-  if constexpr (Depth == sizeof...(Iters)) {
-    return std::tuple{};
-  } else {
-    return std::tuple_cat(std::tuple{std::get<Depth>(viters) * vstrides.template get<Depth>() +
-	  vorigin.template get<Depth>()}, 
-      compute_block_relative_iters<Rank,Depth+1>(vstrides, vorigin, viters));
-  }
-}*/
-
 template <int Rank, int Depth, typename...Iters>
 auto compute_block_relative_iters(Loc_T<Rank> vstrides, 
 				  Loc_T<Rank> vorigin,
@@ -274,9 +100,11 @@ struct Slice {
   builder::dyn_var<loop_type> start;
   builder::dyn_var<loop_type> stop;
   builder::dyn_var<loop_type> stride;
-  Slice(builder::dyn_var<loop_type> start, builder::dyn_var<loop_type> stop, builder::dyn_var<loop_type> stride) : start(start),
-														   stop(stop),
-														   stride(stride) { }
+  Slice(builder::dyn_var<loop_type> start, 
+	builder::dyn_var<loop_type> stop, 
+	builder::dyn_var<loop_type> stride) : start(start),
+					      stop(stop),
+					      stride(stride) { }
 };
 
 auto slice(builder::dyn_var<loop_type> start, builder::dyn_var<loop_type> stop, builder::dyn_var<loop_type> stride) {
@@ -294,27 +122,6 @@ constexpr bool is_slice() {
   return IsSlice<MaybeSlice>()();
 }
 
-/*template <typename Functor, int Rank, int Depth>
-auto apply(const Wrapped<Rank,loop_type> &vec0, const Wrapped<Rank,loop_type> &vec1) {
-  if constexpr (Depth < Rank) {
-    auto applied = Functor()(vec0.template get<Depth>(), vec1.template get<Depth>());
-    if constexpr (Depth == 0) {
-      auto u = apply<Functor,Rank,Depth+1>(vec0, vec1);
-      auto r = RecContainer<loop_type>(applied);
-      r.nested = std::move(u);
-      return r;
-    } else if constexpr (Depth == Rank - 1) {
-      // last one
-      return std::make_unique<RecContainer<loop_type>>(applied);
-    } else {
-      auto u = apply<Functor,Rank,Depth+1>(vec0, vec1);
-      auto r = std::make_unique<RecContainer<loop_type>>(applied);
-      r->nested = std::move(u);
-      return r;
-    }
-  }
-}*/
-
 template <typename Functor, int Rank, int Depth>
 void apply(Loc_T<Rank> vec,
 	   Loc_T<Rank> vec0, 
@@ -325,12 +132,6 @@ void apply(Loc_T<Rank> vec,
     apply<Functor,Rank,Depth+1>(vec,vec0, vec1);
   }
 }
- 
-//template <typename Functor, int Rank>
-//Wrapped<Rank,loop_type> apply(const Wrapped<Rank,loop_type> &vec0, 
-//			      const Wrapped<Rank,loop_type> &vec1) {
-//  return Wrapped<Rank,loop_type>(apply<Functor,Rank,0>(vec0,vec1));
-//}
 
 template <typename Functor, int Rank>
 Loc_T<Rank> apply(Loc_T<Rank> vec0, 
@@ -338,7 +139,6 @@ Loc_T<Rank> apply(Loc_T<Rank> vec0,
   Loc_T<Rank> vec;
   apply<Functor, Rank, 0>(vec, vec0, vec1);
   return vec;
-//  return Wrapped<Rank,loop_type>(apply<Functor,Rank,0>(vec0,vec1));
 }
 
 template <int Idx, int Rank, typename Arg, typename...Args>
