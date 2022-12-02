@@ -86,17 +86,26 @@ struct Simple {
 */
 
 void staged() {
+//  Block<int,1> block({4},{1},{0});
   Block<int,2> block({4,5},{1,1},{0,0});
-  auto x = block(1,1);
+/*  auto x = block(1,1);
   auto view = block.view();
   auto y = view(1,1);
   auto z = view.view(2,2)(7,8);
-  Block<int,2> block2({2,2}, {1,2,3,4});
+  Block<int,2> block2({2,2}, {1,2,3,4});*/
 //  dyn_var<int[2]> extents{4,5};
 //  Simple<2> simple({4,5});
 //  simple.extents.reccon.val = 18;
 //  Simple<2> simple2(simple.extents);
 //  simple2.extents.reccon.val = 19;
+
+  Iter<'i'> i;
+  Iter<'j'> j;
+  dyn_var<loop_type> y = 37;
+  block[i][i] = block[0][0]+365+i;
+
+  
+
 }
 
 int main() {

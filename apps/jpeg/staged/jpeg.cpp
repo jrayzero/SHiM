@@ -16,6 +16,16 @@ void scale_quant(Block<int,2> quant, int quality) {
   quant[i][j] = (quant[i][j]*scale+50)/100;
 }
 
+template <typename RGB_T>
+void color(RGB_T RGB, Block<int,3> YCbCr) {
+  Iter<'i'> i;
+  Iter<'j'> j;
+  // TODO I need a cast operation
+  YCbCr[0][i][j] = RGB[i][j][0]*0.299     + RGB[i][j][1]*0.587     + RGB[i][j][2]*0.114;
+  YCbCr[1][i][j] = RGB[i][j][0]*-0.168736 + RGB[i][j][1]*-0.33126  + RGB[i][j][2]*0.500002 + 128;
+  YCbCr[2][i][j] = RGB[i][j][0]*0.5       + RGB[i][j][1]*-0.418688 + RGB[i][j][2]*-0.081312 + 128;
+}
+
 void jpeg_staged(dyn_var<uint8_t*> input, dyn_var<int> H, dyn_var<int> W) {
 
   // Tables
@@ -89,27 +99,17 @@ void jpeg_staged(dyn_var<uint8_t*> input, dyn_var<int> H, dyn_var<int> W) {
 	auto orig_padded = padded.view().view(slice(0,last_valid_row,1),slice(0,last_valid_col,1),slice(0,3,1));
 	orig_padded[x][y][z] = RGB[x+r][y+c][z];
 	// pad
-	auto to_pad = padded.view().view(slice(last_valid_row,row_pad,1),slice(0,8,1),slice(0,3,1));
-	// TODO left off here. Have issue with builder realization. see note in staged_blocklike::realize_each
-//	to_pad[x][y][z] = padded[last_valid_row-1][y][z];
-/*	for (dint x = last_valid_row; x < row_pad; x++) {
-	  for (dint y = 0; y < 8; y++) {
-	    for (dint z = 0; z < 3; z++) {
-	      padded(x+last_valid_row,y,z) = padded(last_valid_row-1,y,z);
-	    }
-	  }
-	}*/
-//	for (dint x = 0; x < 8; x++) {
-//	  for (dint y = 0; y < col_pad; y++) {
-//	    for (dint z = 0; z < 3; z++) {
-//	      padded(x,y+last_valid_col,z) = padded(x,last_valid_col-1, z);
-//	    }
-//	  }
-//	}	
-//	color(padded, YCbCr);
+	auto row_padding_area = padded.view().view(slice(last_valid_row,row_pad,1),slice(0,8,1),slice(0,3,1));
+	auto col_padding_area = padded.view().view(slice(0,8,1), slice(last_valid_col,col_pad,1), slice(0,3,1));
+	// TODO things are not happy with builder::builder, so I need to force a cast here to dyn_var
+	// the builder ends up creating a variable decl with no definition. Trying to do within the 
+	// realize function doesn't work
+	row_padding_area[x][y][z] = padded[(dint)(last_valid_row-1)][y][z];
+	col_padding_area[x][y][z] = padded[x][(dint)(last_valid_col-1)][z];
+	color(padded, YCbCr);
       } else {
 	// no padding needed
-//	color(mcu, YCbCr);	
+	color(mcu, YCbCr);	
       }
     }
   }
