@@ -24,51 +24,54 @@ struct Ref;
 template <typename Elem, int Rank>
 struct View;
 
+// If we don't deepcopy, then the user could modify dyn_vars that they use for extents and such, which
+// would affect the location of a given block/view. This is bad. It'd basically be like having a pointer
+// represent the location information.
+template <int Rank>
+Loc_T<Rank> deepcopy(Loc_T<Rank> obj) {
+  Loc_T<Rank> copy;
+  for (builder::static_var<int> i = 0; i < Rank; i=i+1) {
+    copy[i] = obj[i];
+  }
+  return copy;
+}
+
 template <typename Elem, int Rank>
 struct Block {
 
-  using Loc_T = Wrapped<Rank,loop_type>;
+  using SLoc_T = Loc_T<Rank>;//builder::dyn_var<loop_type[Rank]>;//Wrapped<Rank,loop_type>;
   using Elem_T = Elem;
   static constexpr int Rank_T = Rank;
   static constexpr bool IsBlock_T = true;  
 
-  Block(Loc_T bextents, Loc_T bstrides, Loc_T borigin) :
-    bextents(std::move(bextents)), bstrides(std::move(bstrides)), borigin(std::move(borigin)),
-    data(malloc_func(bextents.template reduce<MulFunctor>()))
-  { 
+  Block(SLoc_T bextents, SLoc_T bstrides, SLoc_T borigin) :
+    bextents(deepcopy(bextents)), bstrides(deepcopy(bstrides)), borigin(deepcopy(borigin)),
+    data(malloc_func(reduce<MulFunctor>(bextents) * (int)sizeof(Elem))) { 
     int elem_size = sizeof(Elem);
-    builder::dyn_var<int> sz(bextents.template reduce<MulFunctor>() * elem_size);
+    builder::dyn_var<int> sz(reduce<MulFunctor>(bextents) * elem_size);
     memset_func(data, 0, sz);
   }
 
-  Block(Loc_T bextents) :
+  Block(SLoc_T bextents) :
     bextents(std::move(bextents)),
-    bstrides(WrappedRecContainer<Rank,loop_type>(RecContainer<loop_type>::template build_from<1,Rank,0>())),
-    borigin(WrappedRecContainer<Rank,loop_type>(RecContainer<loop_type>::template build_from<0,Rank,0>())),
-    data(malloc_func(bextents.template reduce<MulFunctor>())) 
-  { 
+    data(malloc_func(reduce<MulFunctor>(bextents) * (int)sizeof(Elem))) { 
+    for (builder::static_var<int> i = 0; i < Rank; i=i+1) {
+      bstrides[i] = 1;
+      borigin[i] = 0;
+    }
     int elem_size = sizeof(Elem);
-    builder::dyn_var<int> sz(bextents.template reduce<MulFunctor>() * elem_size);
+    builder::dyn_var<int> sz(reduce<MulFunctor>(bextents) * elem_size);
     memset_func(data, 0, sz);
   }
 
-  Block(Loc_T bextents, builder::dyn_var<Elem*> data) :
-    bextents(std::move(bextents)),
-    bstrides(WrappedRecContainer<Rank,loop_type>(RecContainer<loop_type>::template build_from<1,Rank,0>())),
-    borigin(WrappedRecContainer<Rank,loop_type>(RecContainer<loop_type>::template build_from<0,Rank,0>())),
-    data(data) 
-  { }
-
-  Block(Loc_T bextents, builder::dyn_var<Elem[]> values) :
-    bextents(std::move(bextents)),
-    bstrides(WrappedRecContainer<Rank,loop_type>(RecContainer<loop_type>::template build_from<1,Rank,0>())),
-    borigin(WrappedRecContainer<Rank,loop_type>(RecContainer<loop_type>::template build_from<0,Rank,0>())),
-    data(malloc_func(bextents.template reduce<MulFunctor>())) 
-  {
-    int elem_size = sizeof(Elem);
-    builder::dyn_var<int> sz(bextents.template reduce<MulFunctor>() * elem_size);
-    memcpy_func(data, values, sz);
-  } 
+  // Can use for either staging OR passing in an array of pre-set data
+  Block(SLoc_T bextents, builder::dyn_var<Elem*> data) :
+    bextents(std::move(bextents)), data(data) { 
+    for (builder::static_var<int> i = 0; i < Rank; i=i+1) {
+      bstrides[i] = 1;
+      borigin[i] = 0;
+    }
+  }
 
   // Access a single element
   template <typename...Iters>
@@ -86,9 +89,6 @@ struct Block {
   template <typename ScalarElem, typename...Iters>
   void write(ScalarElem val, std::tuple<Iters...> iters);
 
-//  template <typename...Iters>
-//  void write(builder::dyn_var<Elem> val, std::tuple<Iters...> iters);
-
   // Return a simple view over the whole block
   auto view();
 
@@ -96,26 +96,27 @@ struct Block {
   auto operator[](Idx idx);
 
   builder::dyn_var<Elem*> data;
-  Loc_T bextents;
-  Loc_T bstrides;
-  Loc_T borigin;
+  SLoc_T bextents;
+  SLoc_T bstrides;
+  SLoc_T borigin;
 
 };
 
 template <typename Elem, int Rank>
 struct View {
 
-  using Loc_T = Wrapped<Rank,loop_type>;
+  using SLoc_T = builder::dyn_var<loop_type[Rank]>;
   using Elem_T = Elem;
   static constexpr int Rank_T = Rank;
   static constexpr bool IsBlock_T = false;
 
-  View(Loc_T bextents, Loc_T bstrides, Loc_T borigin,
-       Loc_T vextents, Loc_T vstrides, Loc_T vorigin,
+  // make private and have block be a friend
+  View(SLoc_T bextents, SLoc_T bstrides, SLoc_T borigin,
+       SLoc_T vextents, SLoc_T vstrides, SLoc_T vorigin,
        builder::dyn_var<Elem*> data) :
-    bextents(bextents.deepcopy()), bstrides(bstrides), 
-    borigin(borigin), vextents(vextents), 
-    vstrides(vstrides), vorigin(vorigin),
+    bextents(deepcopy(bextents)), bstrides(deepcopy(bstrides)), 
+    borigin(deepcopy(borigin)), vextents(deepcopy(vextents)), 
+    vstrides(deepcopy(vstrides)), vorigin(deepcopy(vorigin)),
     data(data) { }
 
   // Access a single element
@@ -133,9 +134,6 @@ struct View {
   template <typename ScalarElem, typename...Iters>
   void write(ScalarElem val, std::tuple<Iters...> iters);
 
-//  template <typename...Iters>
-//  void write(builder::dyn_var<Elem> val, std::tuple<Iters...> iters);
-
   template <typename...Slices>
   View<Elem,Rank> view(Slices...slices);
 
@@ -143,12 +141,12 @@ struct View {
   auto operator[](Idx idx);
 
   builder::dyn_var<Elem*> data;
-  Loc_T bextents;
-  Loc_T bstrides;
-  Loc_T borigin;
-  Loc_T vextents;
-  Loc_T vstrides;
-  Loc_T vorigin;
+  SLoc_T bextents;
+  SLoc_T bstrides;
+  SLoc_T borigin;
+  SLoc_T vextents;
+  SLoc_T vstrides;
+  SLoc_T vorigin;
 
 };
 
@@ -288,12 +286,12 @@ private:
       } else {
 	// loop
 	if constexpr (BlockLike::IsBlock_T) {
-	  auto extent = block_like.bextents.template get<depth>();	  
+	  auto extent = block_like.bextents[depth];	  
 	  for (builder::dyn_var<loop_type> iter = 0; iter < extent; iter = iter + 1) {
 	    realize_loop_nest(rhs, iters..., iter);
 	  }
 	} else {
-	  auto extent = block_like.vextents.template get<depth>();
+	  auto extent = block_like.vextents[depth];
 	  for (builder::dyn_var<loop_type> iter = 0; iter < extent; iter = iter + 1) {
 	    realize_loop_nest(rhs, iters..., iter);
 	  }
@@ -488,15 +486,20 @@ template <typename...Slices>
 View<Elem,Rank> View<Elem,Rank>::view(Slices...slices) {
   // the block parameters stay the same, but we need to update the
   // view parameters
-  auto vstops = Loc_T(gather_stops<0,Rank>(this->vextents, slices...));
-  auto vstrides = Loc_T(gather_strides<0,Rank>(slices...));
-  auto vorigin = Loc_T(gather_origin<0,Rank>(slices...));
+  
+  SLoc_T vstops;
+  gather_stops<0,Rank>(vstops, this->vextents, slices...);
+  SLoc_T vstrides;
+  gather_strides<0,Rank>(vstrides, slices...);
+  SLoc_T vorigin;
+  gather_origin<0,Rank>(vorigin, slices...);
   // convert vstops into extents
-  auto vextents = convert_stops_to_extents<Rank>(vorigin, vstops, vstrides);
+  SLoc_T vextents;
+  convert_stops_to_extents<Rank>(vextents, vorigin, vstops, vstrides);
   // now make everything relative to the prior view
   // new origin = old origin + vorigin * old strides
-  auto origin = apply<AddFunctor,Rank>(this->vorigin, apply<MulFunctor,Rank>(vorigin, this->vstrides));
-  auto strides = apply<MulFunctor,Rank>(this->vstrides, vstrides);
+  SLoc_T origin = apply<AddFunctor,Rank>(this->vorigin, apply<MulFunctor,Rank>(vorigin, this->vstrides));
+  SLoc_T strides = apply<MulFunctor,Rank>(this->vstrides, vstrides);
   // new strides = old strides * new strides
   return View<Elem,Rank>(this->bextents, this->bstrides, this->borigin,
 			 vextents, strides, origin,
