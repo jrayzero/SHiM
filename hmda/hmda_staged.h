@@ -10,4 +10,4 @@
 #include "staged/expr.h"
 #include "staged/staged_utils.h"
 #include "staged/staged_blocklike.h"
-
+#include "staged/staged_ref_array.h"

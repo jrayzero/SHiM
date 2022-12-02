@@ -6,6 +6,7 @@
 #include "functors.h"
 #include "staged_utils.h"
 #include "expr.h"
+#include "staged_ref_array.h"
 
 namespace hmda {
 
@@ -46,7 +47,8 @@ struct Block {
 
   Block(SLoc_T bextents, SLoc_T bstrides, SLoc_T borigin) :
     bextents(deepcopy(bextents)), bstrides(deepcopy(bstrides)), borigin(deepcopy(borigin)),
-    data(malloc_func(reduce<MulFunctor>(bextents) * (int)sizeof(Elem))) { 
+    data(malloc_func(reduce<MulFunctor>(bextents) * (int)sizeof(Elem))),
+    ref_data(arr_size_func(reduce<MulFunctor>(bextents))) { 
     int elem_size = sizeof(Elem);
     builder::dyn_var<int> sz(reduce<MulFunctor>(bextents) * elem_size);
     memset_func(data, 0, sz);
@@ -54,7 +56,8 @@ struct Block {
 
   Block(SLoc_T bextents) :
     bextents(std::move(bextents)),
-    data(malloc_func(reduce<MulFunctor>(bextents) * (int)sizeof(Elem))) { 
+    data(malloc_func(reduce<MulFunctor>(bextents) * (int)sizeof(Elem))),
+    ref_data(arr_size_func(reduce<MulFunctor>(bextents))) { 
     for (builder::static_var<int> i = 0; i < Rank; i=i+1) {
       bstrides[i] = 1;
       borigin[i] = 0;
@@ -64,6 +67,8 @@ struct Block {
     memset_func(data, 0, sz);
   }
 
+  // TODO need to handle this differently since I need to memcpy into the heaparray since the
+  // user would be passing in the data.
   // Can use for either staging OR passing in an array of pre-set data
   Block(SLoc_T bextents, builder::dyn_var<Elem*> data) :
     bextents(std::move(bextents)), data(data) { 
@@ -99,6 +104,7 @@ struct Block {
   auto operator[](Idx idx);
 
   builder::dyn_var<Elem*> data;
+  builder::dyn_var<HEAP_T<Elem>> ref_data;
   SLoc_T bextents;
   SLoc_T bstrides;
   SLoc_T borigin;
