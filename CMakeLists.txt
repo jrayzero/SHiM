@@ -29,5 +29,5 @@ example(example4)
 # unstaged jpeg
 add_executable(jpegc apps/jpeg/jpeg.cpp apps/jpeg/syntax.cpp apps/jpeg/huffman.cpp apps/jpeg/bits.cpp)
 # staged jpeg
-add_executable(sjpegc apps/jpeg/staged/jpeg.cpp)
+add_executable(sjpegc apps/jpeg/staged/sjpeg.cpp)
 target_link_libraries(sjpegc buildit)
