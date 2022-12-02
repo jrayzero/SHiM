@@ -92,6 +92,9 @@ struct Block {
   // Return a simple view over the whole block
   auto view();
 
+  template <typename...Slices>
+  View<Elem,Rank> view(Slices...slices);
+
   template <typename Idx>
   auto operator[](Idx idx);
 
@@ -365,21 +368,6 @@ void Block<Elem,Rank>::write(ScalarElem val, std::tuple<Iters...> iters) {
   }
 }
 
-/*template <typename Elem, int Rank>
-template <typename...Iters>
-void Block<Elem,Rank>::write(builder::dyn_var<Elem> val, std::tuple<Iters...> iters) {
-  static_assert(sizeof...(Iters) <= Rank);
-  if constexpr (sizeof...(Iters) < Rank) {
-    // we need padding at the front
-    constexpr int pad_amt = Rank-sizeof...(Iters);
-    auto coord = std::tuple_cat(make_tup<loop_type,0,pad_amt>(), iters);
-    this->write(val, coord);
-  } else { // coordinate-based
-    builder::dyn_var<loop_type> lidx = linearize<0,Rank>(this->bextents, iters);
-    data[lidx] = val;
-  }
-}*/
-
 template <typename Elem, int Rank>
 template <typename Idx>
 auto Block<Elem,Rank>::operator[](Idx idx) {
@@ -399,6 +387,30 @@ auto Block<Elem,Rank>::view() {
   return View<Elem,Rank>(this->bextents, this->bstrides, this->borigin,
 			 this->bextents, this->bstrides, this->borigin,
 			 this->data);
+}
+
+template <typename Elem, int Rank>
+template <typename...Slices>
+View<Elem,Rank> Block<Elem,Rank>::view(Slices...slices) {
+  // the block parameters stay the same, but we need to update the
+  // view parameters  
+  SLoc_T vstops;
+  gather_stops<0,Rank>(vstops, this->bextents, slices...);
+  SLoc_T vstrides;
+  gather_strides<0,Rank>(vstrides, slices...);
+  SLoc_T vorigin;
+  gather_origin<0,Rank>(vorigin, slices...);
+  // convert vstops into extents
+  SLoc_T vextents;
+  convert_stops_to_extents<Rank>(vextents, vorigin, vstops, vstrides);
+  // now make everything relative to the prior block
+  // new origin = old origin + vorigin * old strides
+  SLoc_T origin = apply<AddFunctor,Rank>(this->borigin, apply<MulFunctor,Rank>(vorigin, this->bstrides));
+  // new strides = old strides * new strides
+  SLoc_T strides = apply<MulFunctor,Rank>(this->bstrides, vstrides);
+  return View<Elem,Rank>(this->bextents, this->bstrides, this->borigin,
+			 vextents, strides, vorigin,
+			 this->data);  
 }
 
 template <typename Elem, int Rank>
@@ -465,8 +477,7 @@ template <typename Elem, int Rank>
 template <typename...Slices>
 View<Elem,Rank> View<Elem,Rank>::view(Slices...slices) {
   // the block parameters stay the same, but we need to update the
-  // view parameters
-  
+  // view parameters  
   SLoc_T vstops;
   gather_stops<0,Rank>(vstops, this->vextents, slices...);
   SLoc_T vstrides;
@@ -479,8 +490,8 @@ View<Elem,Rank> View<Elem,Rank>::view(Slices...slices) {
   // now make everything relative to the prior view
   // new origin = old origin + vorigin * old strides
   SLoc_T origin = apply<AddFunctor,Rank>(this->vorigin, apply<MulFunctor,Rank>(vorigin, this->vstrides));
-  SLoc_T strides = apply<MulFunctor,Rank>(this->vstrides, vstrides);
   // new strides = old strides * new strides
+  SLoc_T strides = apply<MulFunctor,Rank>(this->vstrides, vstrides);
   return View<Elem,Rank>(this->bextents, this->bstrides, this->borigin,
 			 vextents, strides, origin,
 			 this->data);
