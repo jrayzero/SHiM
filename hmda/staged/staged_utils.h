@@ -18,8 +18,6 @@ builder::dyn_var<void(void*,int,int)> memset_func = builder::as_global("memset")
 builder::dyn_var<void(void*,int,int)> memset_heaparr_func = builder::as_global("memset_heaparr");
 builder::dyn_var<void(void*,void*,int)> memcpy_func = builder::as_global("memcpy");
 
-// malloc needs a cast 
-
 template <typename T, T Val, int N>
 auto make_tup() {
   if constexpr (N == 0) {

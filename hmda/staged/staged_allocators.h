@@ -12,30 +12,37 @@
 
 using namespace hmda;
 
-// Things for heap allocation
-
-// TODO other primitive types
-
 // Only support primitive types for this
-constexpr char uint8_name[] = "HeapArray<uint8_t>";
-constexpr char int32_name[] = "HeapArray<int32_t>";
+constexpr char uint8_t_name[] = "HeapArray<uint8_t>";
+constexpr char uint16_t_name[] = "HeapArray<uint16_t>";
+constexpr char uint32_t_name[] = "HeapArray<uint32_t>";
+constexpr char uint64_t_name[] = "HeapArray<uint64_t>";
+constexpr char int16_t_name[] = "HeapArray<int16_t>";
+constexpr char int32_t_name[] = "HeapArray<int32_t>";
+constexpr char int64_t_name[] = "HeapArray<int64_t>";
+constexpr char float_name[] = "HeapArray<float>";
+constexpr char double_name[] = "HeapArray<double>";
+
+// constructs the appropriate HeapArray object name so it is a constexpr
+#define CONSTEXPR_HEAP_NAME(dtype)		\
+  template <>					\
+  struct BuildHeapName<dtype> {			\
+    constexpr auto operator()() {		\
+      return dtype##_name;			\
+    }						\
+  };
 
 template <typename Elem>
 struct BuildHeapName { };
-
-template <>
-struct BuildHeapName<uint8_t> {
-  constexpr auto operator()() {
-    return uint8_name;
-  }
-};
-
-template <>
-struct BuildHeapName<int32_t> {
-  constexpr auto operator()() {
-    return int32_name;
-  }
-};
+CONSTEXPR_HEAP_NAME(uint8_t);
+CONSTEXPR_HEAP_NAME(uint16_t);
+CONSTEXPR_HEAP_NAME(uint32_t);
+CONSTEXPR_HEAP_NAME(uint64_t);
+CONSTEXPR_HEAP_NAME(int16_t);
+CONSTEXPR_HEAP_NAME(int32_t);
+CONSTEXPR_HEAP_NAME(int64_t);
+CONSTEXPR_HEAP_NAME(float);
+CONSTEXPR_HEAP_NAME(double);
 
 template <typename Elem>
 constexpr auto build_heap_name() {
@@ -45,9 +52,9 @@ constexpr auto build_heap_name() {
 template <typename Elem>
 using HEAP_T = typename builder::name<build_heap_name<Elem>()>;
 
-// this wraps the heaparray from unstaged in staging so we can use it in the generated staged code
 namespace builder {
 
+// These allow us to insert HeapArray<Elem> datatypes into the generated code
 #define HEAP_DYN_VAR(type)					\
   template <>							\
   struct dyn_var<type> : public dyn_var_impl<type> {		\
@@ -68,75 +75,156 @@ namespace builder {
 								\
   };
 
-HEAP_DYN_VAR(HEAP_T<uint8_t>)
-HEAP_DYN_VAR(HEAP_T<int32_t>)
+HEAP_DYN_VAR(HEAP_T<uint8_t>);
+HEAP_DYN_VAR(HEAP_T<uint16_t>);
+HEAP_DYN_VAR(HEAP_T<uint32_t>);
+HEAP_DYN_VAR(HEAP_T<uint64_t>);
+HEAP_DYN_VAR(HEAP_T<int16_t>);
+HEAP_DYN_VAR(HEAP_T<int32_t>);
+HEAP_DYN_VAR(HEAP_T<int64_t>);
+HEAP_DYN_VAR(HEAP_T<float>);
+HEAP_DYN_VAR(HEAP_T<double>);
 
 }
 
 // general allocators
 
-// these are all the function wrappers for reading/writing data b/c it's difficult to operate
-// directly on the dyn_vars
-
+// these are all the function wrappers for reading/writing data
 // These aren't exactly the correct signatures since dtype* should actually be heap array for some that case, but it works
 // (i.e. buildit doesn't complain)
 #define READER(dtype)							\
   builder::dyn_var<dtype(loop_type,dtype*)> read_func_##dtype = builder::as_global("read_" # dtype);
 #define WRITER(dtype)							\
   builder::dyn_var<void(dtype,loop_type,dtype*)> write_func_##dtype = builder::as_global("write_" # dtype);
+#define BUILDER(dtype)							\
+  builder::dyn_var<dtype*(loop_type)> build_heap_func_##dtype = builder::as_global("build_heap_" # dtype);
 
-READER(int);
-WRITER(int);
+READER(uint8_t);
+READER(uint16_t);
+READER(uint32_t);
+READER(uint64_t);
+READER(int16_t);
+READER(int32_t);
+READER(int64_t);
+READER(float);
+READER(double);
+
+WRITER(uint8_t);
+WRITER(uint16_t);
+WRITER(uint32_t);
+WRITER(uint64_t);
+WRITER(int16_t);
+WRITER(int32_t);
+WRITER(int64_t);
+WRITER(float);
+WRITER(double);
+
+BUILDER(uint8_t);
+BUILDER(uint16_t);
+BUILDER(uint32_t);
+BUILDER(uint64_t);
+BUILDER(int16_t);
+BUILDER(int32_t);
+BUILDER(int64_t);
+BUILDER(float);
+BUILDER(double);
 
 template <typename Elem>
 struct Allocator {
   virtual bool is_heap_strategy() const { return false; }
   virtual bool is_stack_strategy() const { return false; }
   virtual bool is_user_strategy() const { return false; }
-  // this really returns a reference 
   virtual builder::dyn_var<Elem> read(builder::dyn_var<loop_type> lidx) = 0;
   virtual void write(builder::dyn_var<Elem> val, builder::dyn_var<loop_type> lidx) = 0;
   virtual void memset(builder::dyn_var<int> sz) = 0;
   virtual ~Allocator() = default;
 };
 
-template <typename Elem, typename Data>
-struct DispatchRead {  };
+// calls the appropriate read function
+#define DISPATCH_READER(dtype)						\
+  template <typename Data>						\
+  struct DispatchRead<dtype, Data> {					\
+    auto operator()(builder::dyn_var<loop_type> lidx, Data data) {	\
+      return read_func_##dtype(lidx,data);				\
+    }									\
+  };
 
-template <typename Data>
-struct DispatchRead<int, Data> {
-  auto operator()(builder::dyn_var<loop_type> lidx, Data data) {
-    return read_func_int(lidx,data); 
-  }
-};
+template <typename Elem, typename Data>
+struct DispatchRead { };
+DISPATCH_READER(uint8_t);
+DISPATCH_READER(uint16_t);
+DISPATCH_READER(uint32_t);
+DISPATCH_READER(uint64_t);
+DISPATCH_READER(int16_t);
+DISPATCH_READER(int32_t);
+DISPATCH_READER(int64_t);
+DISPATCH_READER(float);
+DISPATCH_READER(double);
 
 template <typename Elem, typename Data>
 auto dispatch_read(builder::dyn_var<loop_type> lidx, Data data) {
   return DispatchRead<Elem,Data>()(lidx, data);
 }
 
-template <typename Elem, typename Data>
-struct DispatchWrite {  };
+// calls the appropriate write function
+#define DISPATCH_WRITER(dtype)						\
+  template <typename Data>						\
+  struct DispatchWrite<dtype, Data> {					\
+    void operator()(builder::dyn_var<dtype> val, builder::dyn_var<loop_type> lidx, Data data) { \
+      write_func_##dtype(val, lidx, data);				\
+    }									\
+  };
 
-template <typename Data>
-struct DispatchWrite<int, Data> {
-  void operator()(builder::dyn_var<int> val, builder::dyn_var<loop_type> lidx, Data data) { 
-    write_func_int(val, lidx, data);
-  }
-};
+template <typename Elem, typename Data>
+struct DispatchWrite { };
+DISPATCH_WRITER(uint8_t);
+DISPATCH_WRITER(uint16_t);
+DISPATCH_WRITER(uint32_t);
+DISPATCH_WRITER(uint64_t);
+DISPATCH_WRITER(int16_t);
+DISPATCH_WRITER(int32_t);
+DISPATCH_WRITER(int64_t);
+DISPATCH_WRITER(float);
+DISPATCH_WRITER(double);
 
 template <typename Elem, typename Data>
 void dispatch_write(builder::dyn_var<Elem> val, builder::dyn_var<loop_type> lidx, Data data) {
   DispatchWrite<Elem,Data>()(val, lidx, data);
 }
 
+// calls the appropriate heap builder function
+#define DISPATCH_BUILDER(dtype)				\
+  template <>						\
+  struct DispatchBuildHeap<dtype> {			\
+    auto operator()(builder::dyn_var<loop_type> sz) {	\
+      return build_heap_func_##dtype(sz);		\
+    }							\
+  };
+
+template <typename Elem>
+struct DispatchBuildHeap { };
+DISPATCH_BUILDER(uint8_t);
+DISPATCH_BUILDER(uint16_t);
+DISPATCH_BUILDER(uint32_t);
+DISPATCH_BUILDER(uint64_t);
+DISPATCH_BUILDER(int16_t);
+DISPATCH_BUILDER(int32_t);
+DISPATCH_BUILDER(int64_t);
+DISPATCH_BUILDER(float);
+DISPATCH_BUILDER(double);
+
+template <typename Elem>
+auto dispatch_build_heap(builder::dyn_var<loop_type> sz) {
+  return DispatchBuildHeap<Elem>()(sz);  
+}
 
 // This is a reference-counted array
 template <typename Elem>
 struct HeapAllocator : public Allocator<Elem> {
   builder::dyn_var<HEAP_T<Elem>> data;
   // If I use dyn_var instead of builder, it doesn't generate heapallocator
-  explicit HeapAllocator(builder::builder sz) : data(sz) { }
+//  explicit HeapAllocator(builder::builder sz) : data(sz) { }
+  explicit HeapAllocator(builder::dyn_var<loop_type> sz) : data(dispatch_build_heap<Elem>(sz)) { }
   bool is_heap_strategy() const override { return true; }
   builder::dyn_var<Elem> read(builder::dyn_var<loop_type> lidx) override { 
     return dispatch_read<Elem>(lidx, data);
@@ -151,10 +239,10 @@ struct HeapAllocator : public Allocator<Elem> {
   virtual ~HeapAllocator() = default;
 };
 
+// I have no idea if this actually works
 template <typename Elem>
 struct StackAllocator : public Allocator<Elem> {
   builder::dyn_var<Elem[]> data;
-  // If I use dyn_var instead of builder, it doesn't generate heapallocator
   explicit StackAllocator(builder::builder sz) : data(sz) { }
   bool is_stack_strategy() const override { return true; }
   builder::dyn_var<Elem> read(builder::dyn_var<loop_type> lidx) override { 
