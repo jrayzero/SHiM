@@ -6,7 +6,7 @@
 #include "functors.h"
 #include "staged_utils.h"
 #include "expr.h"
-#include "staged_ref_array.h"
+#include "staged_allocators.h"
 
 namespace hmda {
 
@@ -47,7 +47,7 @@ struct Block {
 
   Block(SLoc_T bextents, SLoc_T bstrides, SLoc_T borigin, bool memset_data=false) :
     bextents(deepcopy(bextents)), bstrides(deepcopy(bstrides)), borigin(deepcopy(borigin)),
-    allocator(make_shared<HeapAllocator<Elem>>(arr_size_func(reduce<MulFunctor>(bextents)))) {
+    allocator(make_shared<HeapAllocator<Elem>>(reduce<MulFunctor>(bextents))) {
     if (memset_data) {
       int elem_size = sizeof(Elem);
       builder::dyn_var<int> sz(reduce<MulFunctor>(bextents) * elem_size);
@@ -56,12 +56,11 @@ struct Block {
   }
 
   Block(SLoc_T bextents, bool memset_data=false) :
-    bextents(std::move(bextents)) {
+    bextents(std::move(bextents)), allocator(make_shared<HeapAllocator<Elem>>(reduce<MulFunctor>(bextents))) {
     for (builder::static_var<int> i = 0; i < Rank; i=i+1) {
       bstrides[i] = 1;
       borigin[i] = 0;
     }
-    this->allocator = make_shared<HeapAllocator<Elem>>(arr_size_func(reduce<MulFunctor>(bextents)));
     if (memset_data) {
       int elem_size = sizeof(Elem);
       builder::dyn_var<int> sz(reduce<MulFunctor>(bextents) * elem_size);
@@ -200,6 +199,19 @@ struct Ref : public Expr<Ref<BlockLike,Idxs>> {
   auto operator[](Idx idx) {
     auto args = std::tuple_cat(idxs, std::tuple{idx});
     return Ref<BlockLike,decltype(args)>(block_like, args);
+  }
+   
+  // need this one for a case like so
+  // Block<int,2> block{...}
+  // Block<int,2> block2{...}  
+  // Iter i
+  // block[i][3] = block2[i][4]
+  // block and block2 have the same type signature, and so do the Refs created <Iter,int>, 
+  // so it's a copy assignment
+  Ref<BlockLike, Idxs> &operator=(Ref<BlockLike, Idxs> &rhs) {
+    // force it to the not copy-assignment operator=
+    *this = BlockLike::Elem_T(1) * rhs;    
+    return *this;
   }
   
   void operator=(typename BlockLike::Elem_T x) {
