@@ -15,6 +15,7 @@ builder::dyn_var<int(int)> floor_func = builder::as_global("floor");
 builder::dyn_var<int(int)> arr_size_func = builder::as_global("compute_arr_size");
 builder::dyn_var<void*(int)> malloc_func = builder::as_global("malloc");
 builder::dyn_var<void(void*,int,int)> memset_func = builder::as_global("memset");
+builder::dyn_var<void(void*,int,int)> memset_heaparr_func = builder::as_global("memset_heaparr");
 builder::dyn_var<void(void*,void*,int)> memcpy_func = builder::as_global("memcpy");
 
 // malloc needs a cast 

@@ -12,6 +12,8 @@
 
 using namespace hmda;
 
+// Things for heap allocation
+
 // TODO other primitive types
 
 // Only support primitive types for this
@@ -46,33 +48,45 @@ using HEAP_T = typename builder::name<build_heap_name<Elem>()>;
 // this wraps the heaparray from unstaged in staging so we can use it in the generated staged code
 namespace builder {
 
-#define HEAP_DYN_VAR(type)				\
-  template <>						\
-    struct dyn_var<type> : public dyn_var_impl<type> {	\
-							\
-    typedef dyn_var_impl<type> super;			\
-    using super::super;					\
-    using super::operator=;				\
-    builder operator= (const dyn_var<type> &t) {	\
-      return (*this) = (builder)t;			\
-    }							\
-							\
-  dyn_var(const dyn_var& t): dyn_var_impl((builder)t){}	\
-  dyn_var(): dyn_var_impl<type>() {}			\
-							\
-    template <typename Elem>				\
-      void write(dyn_var<loop_type> lidx, Elem val) {	\
-      (cast)this->operator[](lidx) = val;		\
-    }							\
-							\
-    template <typename Elem>				\
-      dyn_var<Elem> read(dyn_var<loop_type> lidx) {	\
-      return (cast)this->operator[](lidx);		\
-    }							\
-							\
+#define HEAP_DYN_VAR(type)					\
+  template <>							\
+  struct dyn_var<type> : public dyn_var_impl<type> {		\
+								\
+    typedef dyn_var_impl<type> super;				\
+    using super::super;						\
+    using super::operator=;					\
+    builder operator= (const dyn_var<type> &t) {		\
+      return (*this) = (builder)t;				\
+    }								\
+								\
+    dyn_var(const dyn_var& t): dyn_var_impl((builder)t){}	\
+    dyn_var(): dyn_var_impl<type>() {}				\
+								\
+    template <typename Elem>					\
+    dyn_var<Elem> read(dyn_var<loop_type> lidx) {		\
+      return (cast)this->operator[](lidx);			\
+    }								\
+								\
   };
 
 HEAP_DYN_VAR(HEAP_T<uint8_t>)
 HEAP_DYN_VAR(HEAP_T<int32_t>)
+
+// general allocators
+template <typename Elem>
+struct Allocator {
+  virtual bool is_heap_strategy() const { return false; }
+  virtual bool is_stack_strategy() const { return false; }
+  virtual bool is_user_strategy() const { return false; }
+};
+
+// This is a reference-counted array
+struct HeapAllocator {
+
+};
+
+
+
+
 
 }

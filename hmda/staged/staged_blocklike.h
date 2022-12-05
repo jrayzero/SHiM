@@ -40,43 +40,45 @@ Loc_T<Rank> deepcopy(Loc_T<Rank> obj) {
 template <typename Elem, int Rank>
 struct Block {
 
-  using SLoc_T = Loc_T<Rank>;//builder::dyn_var<loop_type[Rank]>;//Wrapped<Rank,loop_type>;
+  using SLoc_T = Loc_T<Rank>;
   using Elem_T = Elem;
   static constexpr int Rank_T = Rank;
   static constexpr bool IsBlock_T = true;  
 
-  Block(SLoc_T bextents, SLoc_T bstrides, SLoc_T borigin) :
+  Block(SLoc_T bextents, SLoc_T bstrides, SLoc_T borigin, bool memset_data=false) :
     bextents(deepcopy(bextents)), bstrides(deepcopy(bstrides)), borigin(deepcopy(borigin)),
-    data(malloc_func(reduce<MulFunctor>(bextents) * (int)sizeof(Elem))),
     ref_data(arr_size_func(reduce<MulFunctor>(bextents))) { 
-    int elem_size = sizeof(Elem);
-    builder::dyn_var<int> sz(reduce<MulFunctor>(bextents) * elem_size);
-    memset_func(data, 0, sz);
+    if (memset_data) {
+      int elem_size = sizeof(Elem);
+      builder::dyn_var<int> sz(reduce<MulFunctor>(bextents) * elem_size);
+      memset_heaparr_func(ref_data, 0, sz);
+    }
   }
 
-  Block(SLoc_T bextents) :
+  Block(SLoc_T bextents, bool memset_data=false) :
     bextents(std::move(bextents)),
-    data(malloc_func(reduce<MulFunctor>(bextents) * (int)sizeof(Elem))),
     ref_data(arr_size_func(reduce<MulFunctor>(bextents))) { 
     for (builder::static_var<int> i = 0; i < Rank; i=i+1) {
       bstrides[i] = 1;
       borigin[i] = 0;
     }
-    int elem_size = sizeof(Elem);
-    builder::dyn_var<int> sz(reduce<MulFunctor>(bextents) * elem_size);
-    memset_func(data, 0, sz);
+    if (memset_data) {
+      int elem_size = sizeof(Elem);
+      builder::dyn_var<int> sz(reduce<MulFunctor>(bextents) * elem_size);
+      memset_heaparr_func(ref_data, 0, sz);
+    }
   }
 
   // TODO need to handle this differently since I need to memcpy into the heaparray since the
   // user would be passing in the data.
   // Can use for either staging OR passing in an array of pre-set data
-  Block(SLoc_T bextents, builder::dyn_var<Elem*> data) :
+/*  Block(SLoc_T bextents, builder::dyn_var<Elem*> data) :
     bextents(std::move(bextents)), data(data) { 
     for (builder::static_var<int> i = 0; i < Rank; i=i+1) {
       bstrides[i] = 1;
       borigin[i] = 0;
     }
-  }
+  }*/
 
   // Access a single element
   template <typename...Iters>
@@ -103,7 +105,6 @@ struct Block {
   template <typename Idx>
   auto operator[](Idx idx);
 
-  builder::dyn_var<Elem*> data;
   builder::dyn_var<HEAP_T<Elem>> ref_data;
   SLoc_T bextents;
   SLoc_T bstrides;
@@ -122,11 +123,11 @@ struct View {
   // make private and have block be a friend
   View(SLoc_T bextents, SLoc_T bstrides, SLoc_T borigin,
        SLoc_T vextents, SLoc_T vstrides, SLoc_T vorigin,
-       builder::dyn_var<Elem*> data) :
+       builder::dyn_var<HEAP_T<Elem>> ref_data) :
     bextents(deepcopy(bextents)), bstrides(deepcopy(bstrides)), 
     borigin(deepcopy(borigin)), vextents(deepcopy(vextents)), 
     vstrides(deepcopy(vstrides)), vorigin(deepcopy(vorigin)),
-    data(data) { }
+    ref_data(ref_data) { }
 
   // Access a single element
   template <typename...Iters>
@@ -149,7 +150,7 @@ struct View {
   template <typename Idx>
   auto operator[](Idx idx);
 
-  builder::dyn_var<Elem*> data;
+  builder::dyn_var<HEAP_T<Elem>> ref_data;
   SLoc_T bextents;
   SLoc_T bstrides;
   SLoc_T borigin;
@@ -349,7 +350,13 @@ builder::dyn_var<loop_type> Block<Elem,Rank>::operator()(std::tuple<Iters...> it
     return this->operator()(coord);
   } else { // coordinate-based
     builder::dyn_var<loop_type> lidx = linearize<0,Rank>(this->bextents, iters);
-    return data[lidx];
+    // Need this, otherwise just returning ref_data[lidx] acts like an Elem&, even
+    // if the user assigns it to a dyn_var<Elem> (so the user can't easily break
+    // the reference). If you want to do obj(x,y) = val, then use square brackets 
+    // instead
+    auto x = ref_data.template read<Elem>(lidx);
+    builder::dyn_var<Elem> y = x;
+    return y;
   }
 }
 
@@ -370,7 +377,8 @@ void Block<Elem,Rank>::write(ScalarElem val, std::tuple<Iters...> iters) {
     this->write(val, coord);
   } else { // coordinate-based
     builder::dyn_var<loop_type> lidx = linearize<0,Rank>(this->bextents, iters);
-    data[lidx] = val;
+    auto x = ref_data.template read<Elem>(lidx);
+    x = val;
   }
 }
 
@@ -385,14 +393,14 @@ template <typename LIdx>
 builder::dyn_var<loop_type> Block<Elem,Rank>::plidx(LIdx lidx) {
   // don't need to delinearize here since the pseudo index is just a normal
   // index for a block
-  return data[lidx];
+  return ref_data.template read<Elem>(lidx);
 }
 
 template <typename Elem, int Rank>
 auto Block<Elem,Rank>::view() {
   return View<Elem,Rank>(this->bextents, this->bstrides, this->borigin,
 			 this->bextents, this->bstrides, this->borigin,
-			 this->data);
+			 this->ref_data);
 }
 
 template <typename Elem, int Rank>
@@ -415,7 +423,7 @@ View<Elem,Rank> Block<Elem,Rank>::view(Slices...slices) {
   SLoc_T strides = apply<MulFunctor,Rank>(this->bstrides, vstrides);
   return View<Elem,Rank>(this->bextents, this->bstrides, this->borigin,
 			 vextents, strides, vorigin,
-			 this->data);  
+			 this->ref_data);  
 }
 
 template <typename Elem, int Rank>
@@ -434,7 +442,10 @@ builder::dyn_var<loop_type> View<Elem,Rank>::operator()(std::tuple<Iters...> ite
     auto biters = compute_block_relative_iters<Rank,0>(this->vstrides, this->vorigin, iters);
     // then linearize with respect to the block
     builder::dyn_var<loop_type> lidx = linearize<0,Rank>(this->bextents, biters);
-    return data[lidx];
+    // see block::operator for this I do it this way
+    auto x = ref_data.template read<Elem>(lidx);
+    builder::dyn_var<Elem> y = x;
+    return y;
   }
 }
 
@@ -460,7 +471,8 @@ void View<Elem,Rank>::write(ScalarElem val, std::tuple<Iters...> iters) {
     auto biters = compute_block_relative_iters<Rank,0>(this->vstrides, this->vorigin, iters);
     // then linearize with respect to the block
     builder::dyn_var<loop_type> lidx = linearize<0,Rank>(this->bextents, biters);
-    data[lidx] = val;
+    auto x = ref_data.template read<Elem>(lidx);
+    x = val;
   }
 }
 
@@ -498,7 +510,7 @@ View<Elem,Rank> View<Elem,Rank>::view(Slices...slices) {
   SLoc_T strides = apply<MulFunctor,Rank>(this->vstrides, vstrides);
   return View<Elem,Rank>(this->bextents, this->bstrides, this->borigin,
 			 vextents, strides, origin,
-			 this->data);
+			 this->ref_data);
 }
 
 }
