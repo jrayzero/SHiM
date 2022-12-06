@@ -6,7 +6,7 @@
 #include "blocks/c_code_generator.h"
 #include "blocks/rce.h"
 
-#include "base.h"
-#include "functors.h"
+#include "common/functors.h"
+#include "unstaged/base.h"
 #include "unstaged/unstaged_blocklike.h"
 

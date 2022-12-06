@@ -1,9 +1,12 @@
 #pragma once
 
 #include <array>
+#include "common/loop_type.h"
 #include "ref_count.h"
 
 using namespace std;
+
+namespace hmda {
 
 template <typename Elem>
 struct HeapArray;
@@ -12,11 +15,11 @@ template <typename Elem>
 struct BaseHeapArray : public RefCounted {
   friend struct HeapArray<Elem>;
 
-  Elem &operator[](int lidx) const {
+  Elem &operator[](loop_type lidx) const {
     return data[lidx];
   }
 
-  void write(int lidx, Elem e) {
+  void write(loop_type lidx, Elem e) {
     data[lidx] = e;
   }
 
@@ -26,7 +29,7 @@ struct BaseHeapArray : public RefCounted {
 template <typename Elem>
 struct HeapArray {
 
-  HeapArray(uint64_t sz) : base(new BaseHeapArray<Elem>()), sz(sz) {
+  HeapArray(loop_type sz) : base(new BaseHeapArray<Elem>()), sz(sz) {
     base->data = new Elem[sz];
     memset(base->data, 0, sizeof(Elem) * sz);
     base->incr();
@@ -56,7 +59,7 @@ struct HeapArray {
 
   // Move constructors don't update the reference count, so don't need to manually specify them
 
-  Elem &operator[](int lidx) const {
+  Elem &operator[](loop_type lidx) const {
 #ifdef BOUNDS_CHECK
     if (lidx >= sz) {
       std::cerr << "Out of bounds! Got " << lidx << " but data size is " << sz << std::endl;
@@ -66,7 +69,7 @@ struct HeapArray {
     return base->operator[](lidx);
   }
 
-  void write(int lidx, Elem e) {
+  void write(loop_type lidx, Elem e) {
 #ifdef BOUNDS_CHECK
     if (lidx >= sz) {
       std::cerr << "Out of bounds! Got " << lidx << " but data size is " << sz << std::endl;
@@ -77,6 +80,8 @@ struct HeapArray {
   }
   
   BaseHeapArray<Elem> *base;
-  int sz;
+  loop_type sz;
 
 };
+
+}

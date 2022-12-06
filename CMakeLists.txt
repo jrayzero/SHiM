@@ -10,7 +10,7 @@ set(CMAKE_CXX_FLAGS "-std=c++17 -Wno-sign-compare -Wno-unused-function -Wno-unus
 set(CMAKE_CXX_FLAGS_RELEASE "-O3")
 set(CMAKE_CXX_FLAGS_DEBUG "-g -O0 -DBOUNDS_CHECK")
 
-include_directories(hmda hmda/unstaged hmda/staged ${CMAKE_SOURCE_DIR}/buildit/include ${CMAKE_SOURCE_DIR}/buildit/build/gen_headers)
+include_directories(hmda hmda/common ${CMAKE_SOURCE_DIR}/buildit/include ${CMAKE_SOURCE_DIR}/buildit/build/gen_headers)
 link_directories(${CMAKE_SOURCE_DIR}/buildit/build)
 
 function(example name)
@@ -20,14 +20,14 @@ endfunction()
 
 #add_executable(simple simple.cpp)
 #target_link_libraries(simple buildit)
-example(example0)
-example(example1)
+#example(example0)
+#example(example1)
 #example(example2)
 #example(example3)
-example(example4)
+example(example)
 
 # unstaged jpeg
 add_executable(jpegc apps/jpeg/jpeg.cpp apps/jpeg/syntax.cpp apps/jpeg/huffman.cpp apps/jpeg/bits.cpp)
 # staged jpeg
-add_executable(sjpegc apps/jpeg/staged/jpeg.cpp)
+add_executable(sjpegc apps/jpeg/staged/sjpeg.cpp)
 target_link_libraries(sjpegc buildit)
