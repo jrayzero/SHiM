@@ -18,6 +18,21 @@ builder::dyn_var<void(void*,int,int)> memset_func = builder::as_global("memset")
 builder::dyn_var<void(void*,int,int)> memset_heaparr_func = builder::as_global("memset_heaparr");
 builder::dyn_var<void(void*,void*,int)> memcpy_func = builder::as_global("memcpy");
 
+template <int Idx, typename D, loop_type Val, loop_type...Vals>
+void to_Loc_T(D &dyn) {
+  dyn[Idx] = Val;
+  if constexpr (sizeof...(Vals) > 0) {
+    to_Loc_T<Idx+1,D,Vals...>(dyn);
+  }
+}
+
+template <loop_type...Vals>
+Loc_T<sizeof...(Vals)> to_Loc_T() {
+  builder::dyn_var<loop_type[sizeof...(Vals)]> loc_t;
+  to_Loc_T<0,decltype(loc_t),Vals...>(loc_t);
+  return loc_t;
+}
+
 template <typename T, T Val, int N>
 auto make_tup() {
   if constexpr (N == 0) {
@@ -69,6 +84,15 @@ builder::dyn_var<T> reduce(builder::dyn_var<T[Rank]> arr) {
     acc = Functor()(acc, arr[i]);
   }
   return acc;
+}
+
+template <loop_type Val, loop_type...Vals>
+constexpr loop_type mul_reduce() {
+  if constexpr (sizeof...(Vals) == 0) {
+    return Val;
+  } else {
+    return Val * mul_reduce<Vals...>();
+  }
 }
 
 template <int Depth, typename LIdx, typename Extents>

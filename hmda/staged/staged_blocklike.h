@@ -45,9 +45,11 @@ struct Block {
   static constexpr int Rank_T = Rank;
   static constexpr bool IsBlock_T = true;  
 
+  // Manually specified heap allocated-versions
+  // TODO after generating the AST, I could possibly change heaparray instances to use stack array
   Block(SLoc_T bextents, SLoc_T bstrides, SLoc_T borigin, bool memset_data=false) :
-    bextents(deepcopy(bextents)), bstrides(deepcopy(bstrides)), borigin(deepcopy(borigin)),
-    allocator(make_shared<HeapAllocator<Elem>>(reduce<MulFunctor>(bextents))) {
+    bextents(deepcopy(bextents)), bstrides(deepcopy(bstrides)), borigin(deepcopy(borigin)) {
+    this->allocator = std::make_shared<HeapAllocation<Elem>>(reduce<MulFunctor>(bextents));
     if (memset_data) {
       int elem_size = sizeof(Elem);
       builder::dyn_var<int> sz(reduce<MulFunctor>(bextents) * elem_size);
@@ -56,7 +58,23 @@ struct Block {
   }
 
   Block(SLoc_T bextents, bool memset_data=false) :
-    bextents(std::move(bextents)), allocator(make_shared<HeapAllocator<Elem>>(reduce<MulFunctor>(bextents))) {
+    bextents(std::move(bextents)) {
+    for (builder::static_var<int> i = 0; i < Rank; i=i+1) {
+      bstrides[i] = 1;
+      borigin[i] = 0;
+    }
+    this->allocator = std::make_shared<HeapAllocation<Elem>>(reduce<MulFunctor>(bextents));
+    if (memset_data) {
+      int elem_size = sizeof(Elem);
+      builder::dyn_var<int> sz(reduce<MulFunctor>(bextents) * elem_size);
+      allocator->memset(sz);
+    }
+  }
+
+  // manually specified allocator. User can either use this, or use one of the static functions
+  // to create it
+  Block(SLoc_T bextents, std::shared_ptr<Allocation<Elem>> allocator, bool memset_data=false) :
+    bextents(std::move(bextents)), allocator(allocator) {
     for (builder::static_var<int> i = 0; i < Rank; i=i+1) {
       bstrides[i] = 1;
       borigin[i] = 0;
@@ -68,16 +86,31 @@ struct Block {
     }
   }
 
-  // TODO need to handle this differently since I need to memcpy into the heaparray since the
-  // user would be passing in the data.
-  // Can use for either staging OR passing in an array of pre-set data
-/*  Block(SLoc_T bextents, builder::dyn_var<Elem*> data) :
-    bextents(std::move(bextents)), data(data) { 
-    for (builder::static_var<int> i = 0; i < Rank; i=i+1) {
-      bstrides[i] = 1;
-      borigin[i] = 0;
-    }
-  }*/
+  // Manually specified internal stack-allocation
+  template <loop_type...Extents>
+  static auto stack() {
+    static_assert(Rank == sizeof...(Extents));
+    auto allocator = std::make_shared<StackAllocation<Elem,mul_reduce<Extents...>()>>();
+    auto bextents = to_Loc_T<Extents...>();
+    return Block<Elem, Rank>(bextents, allocator);
+  }
+
+  // Manually specified user-side stack-allocation
+  static auto stack(SLoc_T bextents, builder::dyn_var<Elem[]> user) {
+    auto allocator = std::make_shared<UserStackAllocation<Elem>>(user);
+    return Block<Elem, Rank>(bextents, allocator);
+  }
+
+  // Manually specified internal heap-allocation
+  static auto heap(SLoc_T bextents) {
+    return Block<Elem, Rank>(bextents, false);
+  }    
+
+  // Manually specified user-side heap-allocation
+  static auto heap(SLoc_T bextents, builder::dyn_var<Elem*> user) {
+    auto allocator = std::make_shared<UserHeapAllocation<Elem>>(user);
+    return Block<Elem, Rank>(bextents, allocator);
+  }  
 
   // Access a single element
   template <typename...Iters>
@@ -104,8 +137,7 @@ struct Block {
   template <typename Idx>
   auto operator[](Idx idx);
 
-//  builder::dyn_var<HEAP_T<Elem>> ref_data;
-  std::shared_ptr<Allocator<Elem>> allocator;
+  std::shared_ptr<Allocation<Elem>> allocator;
   SLoc_T bextents;
   SLoc_T bstrides;
   SLoc_T borigin;
@@ -123,7 +155,7 @@ struct View {
   // make private and have block be a friend
   View(SLoc_T bextents, SLoc_T bstrides, SLoc_T borigin,
        SLoc_T vextents, SLoc_T vstrides, SLoc_T vorigin,
-       std::shared_ptr<Allocator<Elem>> allocator) :
+       std::shared_ptr<Allocation<Elem>> allocator) :
     bextents(deepcopy(bextents)), bstrides(deepcopy(bstrides)), 
     borigin(deepcopy(borigin)), vextents(deepcopy(vextents)), 
     vstrides(deepcopy(vstrides)), vorigin(deepcopy(vorigin)),
@@ -150,7 +182,7 @@ struct View {
   template <typename Idx>
   auto operator[](Idx idx);
 
-  std::shared_ptr<Allocator<Elem>> allocator;
+  std::shared_ptr<Allocation<Elem>> allocator;
   SLoc_T bextents;
   SLoc_T bstrides;
   SLoc_T borigin;

@@ -130,14 +130,16 @@ BUILDER(float);
 BUILDER(double);
 
 template <typename Elem>
-struct Allocator {
+struct Allocation {
+  // I don't think I need these is_X functions.
   virtual bool is_heap_strategy() const { return false; }
   virtual bool is_stack_strategy() const { return false; }
-  virtual bool is_user_strategy() const { return false; }
+  virtual bool is_user_stack_strategy() const { return false; }
+  virtual bool is_user_heap_strategy() const { return false; }  
   virtual builder::dyn_var<Elem> read(builder::dyn_var<loop_type> lidx) = 0;
   virtual void write(builder::dyn_var<Elem> val, builder::dyn_var<loop_type> lidx) = 0;
   virtual void memset(builder::dyn_var<int> sz) = 0;
-  virtual ~Allocator() = default;
+  virtual ~Allocation() = default;
 };
 
 // calls the appropriate read function
@@ -220,11 +222,9 @@ auto dispatch_build_heap(builder::dyn_var<loop_type> sz) {
 
 // This is a reference-counted array
 template <typename Elem>
-struct HeapAllocator : public Allocator<Elem> {
+struct HeapAllocation : public Allocation<Elem> {
   builder::dyn_var<HEAP_T<Elem>> data;
-  // If I use dyn_var instead of builder, it doesn't generate heapallocator
-//  explicit HeapAllocator(builder::builder sz) : data(sz) { }
-  explicit HeapAllocator(builder::dyn_var<loop_type> sz) : data(dispatch_build_heap<Elem>(sz)) { }
+  explicit HeapAllocation(builder::dyn_var<loop_type> sz) : data(dispatch_build_heap<Elem>(sz)) { }
   bool is_heap_strategy() const override { return true; }
   builder::dyn_var<Elem> read(builder::dyn_var<loop_type> lidx) override { 
     return dispatch_read<Elem>(lidx, data);
@@ -236,14 +236,12 @@ struct HeapAllocator : public Allocator<Elem> {
     // TODO need to actually call a special memset for heap array
     memset_heaparr_func(this->data, 0, sz);
   }
-  virtual ~HeapAllocator() = default;
+  virtual ~HeapAllocation() = default;
 };
 
-// I have no idea if this actually works
-template <typename Elem>
-struct StackAllocator : public Allocator<Elem> {
-  builder::dyn_var<Elem[]> data;
-  explicit StackAllocator(builder::builder sz) : data(sz) { }
+template <typename Elem, int Size>
+struct StackAllocation : public Allocation<Elem> {
+  builder::dyn_var<Elem[Size]> data;
   bool is_stack_strategy() const override { return true; }
   builder::dyn_var<Elem> read(builder::dyn_var<loop_type> lidx) override { 
     return dispatch_read<Elem>(lidx, data);
@@ -254,14 +252,14 @@ struct StackAllocator : public Allocator<Elem> {
   void memset(builder::dyn_var<int> sz) override {
     memset_func(this->data, 0, sz);
   }  
-  virtual ~StackAllocator() = default;
+  virtual ~StackAllocation() = default;
 };
 
 template <typename Elem>
-struct UserAllocator : public Allocator<Elem> {
-  builder::dyn_var<Elem*> data;
-  explicit UserAllocator(builder::dyn_var<Elem*> data) : data(data) { }
-  bool is_user_strategy() const override { return true; }
+struct UserStackAllocation : public Allocation<Elem> {
+  builder::dyn_var<Elem[]> data;
+  explicit UserStackAllocation(builder::dyn_var<Elem[]> data) : data(data) { }
+  bool is_user_stack_strategy() const override { return true; }
   builder::dyn_var<Elem> read(builder::dyn_var<loop_type> lidx) override { 
     return dispatch_read<Elem>(lidx, data);
   }
@@ -271,6 +269,23 @@ struct UserAllocator : public Allocator<Elem> {
   void memset(builder::dyn_var<int> sz) override {
     memset_func(this->data, 0, sz);
   }  
-  virtual ~UserAllocator() = default;
+  virtual ~UserStackAllocation() = default;
+};
+
+template <typename Elem>
+struct UserHeapAllocation : public Allocation<Elem> {
+  builder::dyn_var<Elem*> data;
+  explicit UserHeapAllocation(builder::dyn_var<Elem*> data) : data(data) { }
+  bool is_user_heap_strategy() const override { return true; }
+  builder::dyn_var<Elem> read(builder::dyn_var<loop_type> lidx) override { 
+    return dispatch_read<Elem>(lidx, data);
+  }
+  void write(builder::dyn_var<Elem> val, builder::dyn_var<loop_type> lidx) override { 
+    dispatch_write<Elem>(val, lidx, data);
+  }
+  void memset(builder::dyn_var<int> sz) override {
+    memset_func(this->data, 0, sz);
+  }  
+  virtual ~UserHeapAllocation() = default;
 };
 
