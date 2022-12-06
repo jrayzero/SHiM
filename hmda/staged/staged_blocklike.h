@@ -94,9 +94,15 @@ struct Block {
     auto bextents = to_Loc_T<Extents...>();
     return Block<Elem, Rank>(bextents, allocator);
   }
-
+  
   // Manually specified user-side stack-allocation
-  static auto stack(SLoc_T bextents, builder::dyn_var<Elem[]> user) {
+  // hmm, for some reason typechecking says dyn_var<float[]> and dyn_var<int[]> are the same when
+  // I (accidentally) pass in the float arr here but use Block<int>...Maybe something 
+  // I'm missing with static template methods?
+  // Anyway, work around it with the is_same trait
+  template <typename Elem2>
+  static auto stack(SLoc_T bextents, builder::dyn_var<Elem2[]> user) {
+    static_assert(std::is_same<Elem,Elem2>());
     auto allocator = std::make_shared<UserStackAllocation<Elem>>(user);
     return Block<Elem, Rank>(bextents, allocator);
   }
@@ -106,8 +112,10 @@ struct Block {
     return Block<Elem, Rank>(bextents, false);
   }    
 
-  // Manually specified user-side heap-allocation
-  static auto heap(SLoc_T bextents, builder::dyn_var<Elem*> user) {
+  // Manually specified user-side heap-allocation  
+  template <typename Elem2>
+  static auto heap(SLoc_T bextents, builder::dyn_var<Elem2*> user) {
+    static_assert(std::is_same<Elem,Elem2>());
     auto allocator = std::make_shared<UserHeapAllocation<Elem>>(user);
     return Block<Elem, Rank>(bextents, allocator);
   }  
@@ -354,7 +362,8 @@ private:
       }
     } else {
       // at the innermost level
-      if constexpr (std::is_same<Rhs, typename BlockLike::Elem_T>() ||
+      // note: this uses c++'s type coercien here since we don't look if they are actually different types
+      if constexpr (std::is_arithmetic<Rhs>() ||
 		    is_dyn_like<Rhs>()) {
 	block_like.write(rhs, std::tuple{iters...});
       } else {

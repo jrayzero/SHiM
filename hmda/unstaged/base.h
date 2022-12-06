@@ -3,10 +3,9 @@
 #include <array>
 #include <sstream>
 #include <cmath>
+#include "common/loop_type.h"
 
 namespace hmda {
-
-using loop_type = int32_t;
 
 // For staged versions, things like extents and what not can include dyn_vars which is
 // why we need a tuple for it instead of a homogeneous structure like an array

@@ -10,7 +10,7 @@ set(CMAKE_CXX_FLAGS "-std=c++17 -Wno-sign-compare -Wno-unused-function -Wno-unus
 set(CMAKE_CXX_FLAGS_RELEASE "-O3")
 set(CMAKE_CXX_FLAGS_DEBUG "-g -O0 -DBOUNDS_CHECK")
 
-include_directories(hmda hmda/unstaged hmda/staged hmda/common ${CMAKE_SOURCE_DIR}/buildit/include ${CMAKE_SOURCE_DIR}/buildit/build/gen_headers)
+include_directories(hmda hmda/common ${CMAKE_SOURCE_DIR}/buildit/include ${CMAKE_SOURCE_DIR}/buildit/build/gen_headers)
 link_directories(${CMAKE_SOURCE_DIR}/buildit/build)
 
 function(example name)
