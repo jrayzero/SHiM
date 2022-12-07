@@ -5,8 +5,6 @@
 
 using namespace std;
 
-// entry point into the staged code
-
 int zigzag[] = {
   0,  1,  8, 16, 9, 2, 3, 10, 
   17, 24, 32, 25, 18, 11, 4,
@@ -89,13 +87,15 @@ int main(int argc, char **argv) {
   FILE *ifd = fopen(ppm.c_str(), "r");
   int H, W, max_val;
   read_ppm_header(ifd, H, W, max_val);
-  cout << "H " << H << endl;
-  cout << "W " << W << endl;
   uint8_t *RGB = new uint8_t[H*W*3];
   read_ppm_body(ifd, RGB, H, W);
   fclose(ifd);
+
+  // prep quant
   scale_quant(luma_quant, 75);
   scale_quant(chroma_quant, 75);
+
+  // write bitstream headers
   syntax_SOI(bits);
   syntax_JFIF(bits);
   syntax_quant_table(bits, luma_quant, zigzag, true);
@@ -118,6 +118,7 @@ int main(int argc, char **argv) {
 		       chroma_AC_huffvals, 162,
 		       false, 1);
   syntax_scan_header(bits);
+
   // staged code
   jpeg(RGB, H, W, luma_quant, chroma_quant, zigzag, luma_codes, chroma_codes, bits);
   bits.complete_byte_and_stuff(1, 0xFF, 0);

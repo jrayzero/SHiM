@@ -204,17 +204,17 @@ void jpeg_staged(dyn_var<uint8_t*> input, dyn_var<int> H, dyn_var<int> W,
 	if (c+8>W)
 	  col_pad = 8 - (W%8);
 	// col major still
-	Block<uint8_t,3> padded(loc<3>{8,8,3});
+	auto padded = Block<uint8_t,3>::stack<8,8,3>();
 	dint last_valid_row = 8 - row_pad;
 	dint last_valid_col = 8 - col_pad;
 	// copy over original
 	auto orig_padded = padded.view(slice(0,last_valid_row,1),slice(0,last_valid_col,1),slice(0,3,1));
 	orig_padded[i][j][k] = RGB[i+r][j+c][k];
 	// pad
-	auto row_padding_area = padded.view(slice(last_valid_row,row_pad,1),slice(0,8,1),slice(0,3,1));
-	auto col_padding_area = padded.view(slice(0,8,1), slice(last_valid_col,col_pad,1), slice(0,3,1));
-	row_padding_area[i][j][k] = padded[(dint)(last_valid_row-1)][j][k];
-	col_padding_area[i][j][k] = padded[i][(dint)(last_valid_col-1)][k];
+	auto row_padding_area = padded.view(slice(last_valid_row,last_valid_row+row_pad,1),slice(0,8,1),slice(0,3,1));
+	auto col_padding_area = padded.view(slice(0,8,1), slice(last_valid_col,last_valid_col+col_pad,1), slice(0,3,1));
+	row_padding_area[i][j][k] = padded[(last_valid_row-1)][j][k];
+	col_padding_area[i][j][k] = padded[i][(last_valid_col-1)][k];
 	color(padded, YCbCr);
       } else {
 	// no padding needed
