@@ -75,6 +75,21 @@ void dispatch_print_elem(Val val) {
 
 builder::dyn_var<void(void)> print_newline = builder::as_global("hmda::print_newline");
 
+template <typename Idx>
+struct RefIdxType { 
+  using type = Idx;
+};
+
+template <>
+struct RefIdxType<builder::builder> {
+  using type = builder::dyn_var<loop_type>;
+};
+
+template <>
+struct RefIdxType<builder::dyn_var<loop_type>> {
+  using type = builder::dyn_var<loop_type>;
+};
+
 template <typename Elem, int Rank>
 struct Block {
 
@@ -181,7 +196,7 @@ struct Block {
   View<Elem,Rank> view(Slices...slices);
 
   template <typename Idx>
-  Ref<Block<Elem,Rank>,std::tuple<Idx>> operator[](Idx idx);
+  Ref<Block<Elem,Rank>,std::tuple<typename RefIdxType<Idx>::type>> operator[](Idx idx);
 
   template <typename T=Elem>
   void dump_data() {
@@ -255,7 +270,7 @@ struct View {
   View<Elem,Rank> view(Slices...slices);
 
   template <typename Idx>
-  Ref<View<Elem,Rank>,std::tuple<Idx>> operator[](Idx idx);
+  Ref<View<Elem,Rank>,std::tuple<typename RefIdxType<Idx>::type>> operator[](Idx idx);
 
   template <typename T=Elem>
   void dump_data() {
@@ -341,9 +356,17 @@ struct Ref : public Expr<Ref<BlockLike,Idxs>> {
   Ref(BlockLike block_like, Idxs idxs) : block_like(block_like), idxs(idxs) { }
   
   template <typename Idx>
-  Ref<BlockLike,typename TupleTypeCat<Idx,Idxs>::type> operator[](Idx idx) {
-    typename TupleTypeCat<Idx,Idxs>::type args = std::tuple_cat(idxs, std::tuple{idx});
-    return Ref<BlockLike,decltype(args)>(block_like, args);
+//  Ref<BlockLike,typename TupleTypeCat<Idx,Idxs>::type> 
+  Ref<BlockLike,typename TupleTypeCat<typename RefIdxType<Idx>::type,Idxs>::type> operator[](Idx idx) {
+    if constexpr (is_dyn_like<Idx>()) {
+      builder::dyn_var<loop_type> didx = idx;
+      using DIdx = decltype(didx);
+      typename TupleTypeCat<DIdx,Idxs>::type args = std::tuple_cat(idxs, std::tuple{didx});
+      return Ref<BlockLike,decltype(args)>(block_like, args);
+    } else {
+      typename TupleTypeCat<Idx,Idxs>::type args = std::tuple_cat(idxs, std::tuple{idx});
+      return Ref<BlockLike,decltype(args)>(block_like, args);
+    }
   }
    
   // need this one for a case like so
@@ -536,8 +559,14 @@ void Block<Elem,Rank>::write(ScalarElem val, std::tuple<Iters...> iters) {
 
 template <typename Elem, int Rank>
 template <typename Idx>
-Ref<Block<Elem,Rank>,std::tuple<Idx>> Block<Elem,Rank>::operator[](Idx idx) {
-  return Ref<Block<Elem,Rank>,std::tuple<Idx>>(*this, std::tuple{idx});
+Ref<Block<Elem,Rank>,std::tuple<typename RefIdxType<Idx>::type>> Block<Elem,Rank>::operator[](Idx idx) {
+  if constexpr (is_dyn_like<Idx>()) {
+    // potentially slice builder::builder to dyn_var 
+    builder::dyn_var<loop_type> didx = idx;
+    return Ref<Block<Elem,Rank>,std::tuple<decltype(didx)>>(*this, std::tuple{didx});
+  } else {
+    return Ref<Block<Elem,Rank>,std::tuple<Idx>>(*this, std::tuple{idx});
+  }
 }
 
 template <typename Elem, int Rank>
@@ -627,8 +656,14 @@ void View<Elem,Rank>::write(ScalarElem val, std::tuple<Iters...> iters) {
 
 template <typename Elem, int Rank>
 template <typename Idx>
-Ref<View<Elem,Rank>,std::tuple<Idx>> View<Elem,Rank>::operator[](Idx idx) {
-  return Ref<View<Elem,Rank>,std::tuple<Idx>>(*this, std::tuple{idx});
+Ref<View<Elem,Rank>,std::tuple<typename RefIdxType<Idx>::type>> View<Elem,Rank>::operator[](Idx idx) {
+  if constexpr (is_dyn_like<Idx>()) {
+    // potentially slice builder::builder to dyn_var 
+    builder::dyn_var<loop_type> didx = idx;
+    return Ref<View<Elem,Rank>,std::tuple<decltype(didx)>>(*this, std::tuple{didx});
+  } else {
+    return Ref<View<Elem,Rank>,std::tuple<Idx>>(*this, std::tuple{idx});
+  }
 }
 
 template <typename Elem, int Rank>
