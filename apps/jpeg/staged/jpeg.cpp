@@ -61,6 +61,15 @@ void read_ppm_body(FILE *fd, uint8_t *image, int H, int W) {
   fread(image, 1, sz, fd); 
 }
 
+void scale_quant(int quant[], int quality) {
+  int scale = quality < 50 ? 5000 / quality : 200 - quality * 2;
+  for (int i = 0; i < 8; i++) {
+    for (int j = 0; j < 8; j++) {
+      quant[i*8+j] = (quant[i*8+j]*scale+50)/100;
+    }
+  }
+}
+
 int main(int argc, char **argv) {
   if (argc != 3) {
     cerr << "Usage: ./jpeg <ppm> <jpg>" << endl;
@@ -85,7 +94,8 @@ int main(int argc, char **argv) {
   uint8_t *RGB = new uint8_t[H*W*3];
   read_ppm_body(ifd, RGB, H, W);
   fclose(ifd);
-
+  scale_quant(luma_quant, 75);
+  scale_quant(chroma_quant, 75);
   syntax_SOI(bits);
   syntax_JFIF(bits);
   syntax_quant_table(bits, luma_quant, zigzag, true);

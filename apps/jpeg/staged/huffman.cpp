@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <iostream>
 #include "huffman.h"
 
 int luma_DC_huffbits[] = {0,0,1,5,1,1,1,1,1,1,0,0,0,0,0,0,0};
@@ -91,7 +92,7 @@ HuffmanCodes generate_codes(int *DC_bits, int *DC_vals, int *AC_bits, int *AC_va
 void huffman_encode_block(int *obj, int color_idx, int last_val,
 			  Bits &bits, int *zigzag, const HuffmanCodes &codes) {
   // DC
-  int base_lidx = color_idx * 8 * 3;
+  int base_lidx = color_idx * 8 * 8;
   int dc = obj[base_lidx];
   int temp = dc - last_val;
   int temp2 = temp;

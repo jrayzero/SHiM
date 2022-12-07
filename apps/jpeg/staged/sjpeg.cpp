@@ -37,17 +37,17 @@ void scale_quant(Block<int,2> quant, int quality) {
 template <typename RGB_T>
 void color(RGB_T RGB, Block<int,3> YCbCr) {
   YCbCr[0][i][j] = 
-    cast<int>(cast<float>(RGB[i][j][0])*0.299f + 
-	      cast<float>(RGB[i][j][1])*0.587f + 
-	      cast<float>(RGB[i][j][2])*0.114f);
+    cast<int>(cast<double>(RGB[i][j][0])*0.299 + 
+	      cast<double>(RGB[i][j][1])*0.587 + 
+	      cast<double>(RGB[i][j][2])*0.114);
   YCbCr[1][i][j] = 
-    cast<int>(cast<float>(RGB[i][j][0])*-0.168736f + 
-	      cast<float>(RGB[i][j][1])*-0.33126f + 
-	      cast<float>(RGB[i][j][2])*0.500002f) + 128;
+    cast<int>(cast<double>(RGB[i][j][0])*-0.168736 + 
+	      cast<double>(RGB[i][j][1])*-0.33126 + 
+	      cast<double>(RGB[i][j][2])*0.500002) + 128;
   YCbCr[2][i][j] = 
-    cast<int>(cast<float>(RGB[i][j][0])*0.5f + 
-	      cast<float>(RGB[i][j][1])*-0.418688f + 
-	      cast<float>(RGB[i][j][2])*-0.081312f) + 128;
+    cast<int>(cast<double>(RGB[i][j][0])*0.5 + 
+	      cast<double>(RGB[i][j][1])*-0.418688 + 
+	      cast<double>(RGB[i][j][2])*-0.081312) + 128;
 }
 
 // buildit doesn't have shift operators, so use these
@@ -73,7 +73,7 @@ void dct(View<int,3> obj) {
   sint FIX_2_562915447 = 20995;
   sint FIX_3_072711026 = 25172;
   
-  for (dint r = 0; r < 8; r=r+8) {
+  for (dint r = 0; r < 8; r=r+1) {
     auto row = obj.view(slice(0,1,1),slice(r,r+1,1),slice(0,8,1));
     dint tmp0 = row(0,0,0) + row(0,0,7);
     dint tmp7 = row(0,0,0) - row(0,0,7);
@@ -112,7 +112,7 @@ void dct(View<int,3> obj) {
     row[0][0][3] = descale(tmp6 + z2 + z3, 11);
     row[0][0][1] = descale(tmp7 + z1 + z4, 11);
   }
-  for (dint c = 0; c < 8; c=c+8) {
+  for (dint c = 0; c < 8; c=c+1) {
     auto col = obj.view(slice(0,1,1), slice(0,8,1), slice(c,c+1,1));    
     dint tmp0 = col(0,0,0) + col(0,7,0);
     dint tmp7 = col(0,0,0) - col(0,7,0);
@@ -159,10 +159,10 @@ void quant(View<int,3> obj, Block<int,2> quant) {
       dint v = obj(0,i,j);
       dint q = quant(i,j) * 8;
       if (v < 0) {
-	v = -v;
+	v = -1*v;
 	v = v + rshift(q, 1);
 	v = v / q;
-	v = -v;
+	v = -1*v;
       } else {
 	v = v + rshift(q, 1);
 	v = v / q;
@@ -173,33 +173,30 @@ void quant(View<int,3> obj, Block<int,2> quant) {
 }
 
 void jpeg_staged(dyn_var<uint8_t*> input, dyn_var<int> H, dyn_var<int> W, 
-		 dyn_var<int[]> luma_quant_arr, dyn_var<int[]> chroma_quant_arr,
+		 dyn_var<int[]> luma_quant_arr, 
+		 dyn_var<int[]> chroma_quant_arr,
 		 dyn_var<int[]> zigzag, 
 		 dyn_var<HuffmanCodes> luma_codes, 
 		 dyn_var<HuffmanCodes> chroma_codes,
 		 dyn_var<Bits> bits) {
 
-  // Tables
+  // Tables (these are already scaled)
   auto luma_quant = Block<int,2>::stack({8,8}, luma_quant_arr);
   auto chroma_quant = Block<int,2>::stack({8,8}, chroma_quant_arr);
-  
-  // prep quant  
-  scale_quant(luma_quant, 75);
-  scale_quant(chroma_quant, 75);
-  
+    
   // start it up
   auto RGB = Block<uint8_t,3>::heap({H, W, 3}, input);
   dint last_Y = 0;
   dint last_Cb = 0;
   dint last_Cr = 0;
 
-  auto YCbCr = Block<int,3>::stack<3,8,8>();//{3,8,8});
+  auto YCbCr = Block<int,3>::stack<3,8,8>();
   
   for (dint r = 0; r < H; r = r + 8) {
     for (dint c = 0; c < W; c = c + 8) {
       auto mcu = RGB.view(slice(r,r+8,1),slice(c,c+8,1),slice(0,3,1));
       if (r+8>H || c+8>W) {
-/*	// need padding
+	// need padding
 	dint row_pad = 0;
 	dint col_pad = 0;
 	if (r+8>H)
@@ -218,20 +215,17 @@ void jpeg_staged(dyn_var<uint8_t*> input, dyn_var<int> H, dyn_var<int> W,
 	auto col_padding_area = padded.view(slice(0,8,1), slice(last_valid_col,col_pad,1), slice(0,3,1));
 	row_padding_area[i][j][k] = padded[(dint)(last_valid_row-1)][j][k];
 	col_padding_area[i][j][k] = padded[i][(dint)(last_valid_col-1)][k];
-	color(padded, YCbCr);*/
+	color(padded, YCbCr);
       } else {
 	// no padding needed
 	color(mcu, YCbCr);	
-	YCbCr.dump_data();
-	hexit(48);
       }
       // offset
       YCbCr[i][j][k] = YCbCr[i][j][k] - 128;
-      
-/*      auto Y = YCbCr.view(slice(0,1,1),slice(0,8,1),slice(0,8,1));
+      auto Y = YCbCr.view(slice(0,1,1),slice(0,8,1),slice(0,8,1));
       auto Cb = YCbCr.view(slice(1,2,1),slice(0,8,1),slice(0,8,1));
       auto Cr = YCbCr.view(slice(2,3,1),slice(0,8,1),slice(0,8,1));
-      dct(Y);
+      dct(Y);      
       dct(Cb);
       dct(Cr);
       quant(Y, luma_quant);
@@ -242,7 +236,7 @@ void jpeg_staged(dyn_var<uint8_t*> input, dyn_var<int> H, dyn_var<int> W,
       huffman_encode_block(Cr.allocator->stack<3*8*8>(), 2, last_Cr, bits, zigzag, chroma_codes);
       last_Y = Y(0,0,0);
       last_Cb = Cb(0,0,0);
-      last_Cr = Cr(0,0,0);*/
+      last_Cr = Cr(0,0,0);
     }
   }
 }
@@ -274,7 +268,7 @@ int main(int argc, char **argv) {
   src << "int lshift(int a, int b) { return a << b; }" << endl;
   src << "int rshift(int a, int b) { return a >> b; }" << endl;  
   stringstream ss;
-  block::c_code_generator::generate_code(ast, ss, 0);
+  hmda::hmda_cpp_code_generator::generate_code(ast, ss, 0);
   cout << ss.str() << endl;
   src << ss.str() << endl;
   src.flush();

@@ -257,6 +257,35 @@ struct View {
   template <typename Idx>
   Ref<View<Elem,Rank>,std::tuple<Idx>> operator[](Idx idx);
 
+  template <typename T=Elem>
+  void dump_data() {
+    // TODO format nicely with the max string length thing
+    static_assert(Rank<=3, "dump_data only supports ranks 1, 2, and 3");
+    if constexpr (Rank == 1) {
+      for (builder::dyn_var<loop_type> i = 0; i < vextents[0]; i=i+1) {
+	dispatch_print_elem<Elem>(cast<Elem>(this->operator()(i)));
+      }
+    } else if constexpr (Rank == 2) {
+      for (builder::dyn_var<loop_type> i = 0; i < vextents[0]; i=i+1) {
+	for (builder::dyn_var<loop_type> j = 0; j < vextents[1]; j=j+1) {
+	  dispatch_print_elem<Elem>(cast<Elem>(this->operator()(i,j)));
+	}
+	print_newline();
+      }
+    } else {
+      for (builder::dyn_var<loop_type> i = 0; i < vextents[0]; i=i+1) {
+	for (builder::dyn_var<loop_type> j = 0; j < vextents[1]; j=j+1) {
+	  for (builder::dyn_var<loop_type> k = 0; k < vextents[2]; k=k+1) {
+	    dispatch_print_elem<Elem>(cast<Elem>(this->operator()(i,j,k)));
+	  }
+	  print_newline();
+	}
+	print_newline();
+	print_newline();
+      }
+    }
+  }
+
   std::shared_ptr<Allocation<Elem>> allocator;
   SLoc_T bextents;
   SLoc_T bstrides;
