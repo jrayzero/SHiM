@@ -37,6 +37,44 @@ Loc_T<Rank> deepcopy(Loc_T<Rank> obj) {
   return copy;
 }
 
+#define PRINT_ELEM(dtype) \
+  builder::dyn_var<void(dtype)> print_elem_##dtype = builder::as_global("hmda::print_elem");
+PRINT_ELEM(uint8_t);
+PRINT_ELEM(uint16_t);
+PRINT_ELEM(uint32_t);
+PRINT_ELEM(uint64_t);
+PRINT_ELEM(int16_t);
+PRINT_ELEM(int32_t);
+PRINT_ELEM(int64_t);
+PRINT_ELEM(float);
+PRINT_ELEM(double);
+
+template <typename T>
+struct DispatchPrintElem { };
+
+#define DISPATCH_PRINT_ELEM(dtype)				\
+  template <>							\
+  struct DispatchPrintElem<dtype> {				\
+    template <typename Val>					\
+    void operator()(Val val) { print_elem_##dtype(val); }	\
+  };
+DISPATCH_PRINT_ELEM(uint8_t);
+DISPATCH_PRINT_ELEM(uint16_t);
+DISPATCH_PRINT_ELEM(uint32_t);
+DISPATCH_PRINT_ELEM(uint64_t);
+DISPATCH_PRINT_ELEM(int16_t);
+DISPATCH_PRINT_ELEM(int32_t);
+DISPATCH_PRINT_ELEM(int64_t);
+DISPATCH_PRINT_ELEM(float);
+DISPATCH_PRINT_ELEM(double);
+
+template <typename Elem, typename Val>
+void dispatch_print_elem(Val val) {
+  DispatchPrintElem<Elem>()(val);
+}
+
+builder::dyn_var<void(void)> print_newline = builder::as_global("hmda::print_newline");
+
 template <typename Elem, int Rank>
 struct Block {
 
@@ -144,6 +182,35 @@ struct Block {
 
   template <typename Idx>
   auto operator[](Idx idx);
+
+  template <typename T=Elem>
+  void dump_data() {
+    // TODO format nicely with the max string length thing
+    static_assert(Rank<=3, "dump_data only supports ranks 1, 2, and 3");
+    if constexpr (Rank == 1) {
+      for (builder::dyn_var<loop_type> i = 0; i < bextents[0]; i=i+1) {
+	dispatch_print_elem<Elem>(cast<Elem>(this->operator()(i)));
+      }
+    } else if constexpr (Rank == 2) {
+      for (builder::dyn_var<loop_type> i = 0; i < bextents[0]; i=i+1) {
+	for (builder::dyn_var<loop_type> j = 0; j < bextents[1]; j=j+1) {
+	  dispatch_print_elem<Elem>(cast<Elem>(this->operator()(i,j)));
+	}
+	print_newline();
+      }
+    } else {
+      for (builder::dyn_var<loop_type> i = 0; i < bextents[0]; i=i+1) {
+	for (builder::dyn_var<loop_type> j = 0; j < bextents[1]; j=j+1) {
+	  for (builder::dyn_var<loop_type> k = 0; k < bextents[2]; k=k+1) {
+	    dispatch_print_elem<Elem>(cast<Elem>(this->operator()(i,j,k)));
+	  }
+	  print_newline();
+	}
+	print_newline();
+	print_newline();
+      }
+    }
+  }
 
   std::shared_ptr<Allocation<Elem>> allocator;
   SLoc_T bextents;

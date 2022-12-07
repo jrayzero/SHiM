@@ -9,6 +9,8 @@ namespace hmda {
 template <int Rank>
 using Loc_T = builder::dyn_var<loop_type[Rank]>;
 
+builder::dyn_var<void(int)> hexit = builder::as_global("exit");
+
 builder::dyn_var<loop_type(loop_type)> floor_func = builder::as_global("floor");
 
 /*// casting functions (type isn't quite right, but don't care!)
