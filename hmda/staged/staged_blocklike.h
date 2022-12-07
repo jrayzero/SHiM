@@ -37,6 +37,44 @@ Loc_T<Rank> deepcopy(Loc_T<Rank> obj) {
   return copy;
 }
 
+#define PRINT_ELEM(dtype) \
+  builder::dyn_var<void(dtype)> print_elem_##dtype = builder::as_global("hmda::print_elem");
+PRINT_ELEM(uint8_t);
+PRINT_ELEM(uint16_t);
+PRINT_ELEM(uint32_t);
+PRINT_ELEM(uint64_t);
+PRINT_ELEM(int16_t);
+PRINT_ELEM(int32_t);
+PRINT_ELEM(int64_t);
+PRINT_ELEM(float);
+PRINT_ELEM(double);
+
+template <typename T>
+struct DispatchPrintElem { };
+
+#define DISPATCH_PRINT_ELEM(dtype)				\
+  template <>							\
+  struct DispatchPrintElem<dtype> {				\
+    template <typename Val>					\
+    void operator()(Val val) { print_elem_##dtype(val); }	\
+  };
+DISPATCH_PRINT_ELEM(uint8_t);
+DISPATCH_PRINT_ELEM(uint16_t);
+DISPATCH_PRINT_ELEM(uint32_t);
+DISPATCH_PRINT_ELEM(uint64_t);
+DISPATCH_PRINT_ELEM(int16_t);
+DISPATCH_PRINT_ELEM(int32_t);
+DISPATCH_PRINT_ELEM(int64_t);
+DISPATCH_PRINT_ELEM(float);
+DISPATCH_PRINT_ELEM(double);
+
+template <typename Elem, typename Val>
+void dispatch_print_elem(Val val) {
+  DispatchPrintElem<Elem>()(val);
+}
+
+builder::dyn_var<void(void)> print_newline = builder::as_global("hmda::print_newline");
+
 template <typename Elem, int Rank>
 struct Block {
 
@@ -88,7 +126,7 @@ struct Block {
 
   // Manually specified internal stack-allocation
   template <loop_type...Extents>
-  static auto stack() {
+  static Block<Elem,Rank> stack() {
     static_assert(Rank == sizeof...(Extents));
     auto allocator = std::make_shared<StackAllocation<Elem,mul_reduce<Extents...>()>>();
     auto bextents = to_Loc_T<Extents...>();
@@ -101,20 +139,20 @@ struct Block {
   // I'm missing with static template methods?
   // Anyway, work around it with the is_same trait
   template <typename Elem2>
-  static auto stack(SLoc_T bextents, builder::dyn_var<Elem2[]> user) {
+  static Block<Elem,Rank> stack(SLoc_T bextents, builder::dyn_var<Elem2[]> user) {
     static_assert(std::is_same<Elem,Elem2>());
     auto allocator = std::make_shared<UserStackAllocation<Elem>>(user);
     return Block<Elem, Rank>(bextents, allocator);
   }
 
   // Manually specified internal heap-allocation
-  static auto heap(SLoc_T bextents) {
+  static Block<Elem,Rank> heap(SLoc_T bextents) {
     return Block<Elem, Rank>(bextents, false);
   }    
 
   // Manually specified user-side heap-allocation  
   template <typename Elem2>
-  static auto heap(SLoc_T bextents, builder::dyn_var<Elem2*> user) {
+  static Block<Elem,Rank> heap(SLoc_T bextents, builder::dyn_var<Elem2*> user) {
     static_assert(std::is_same<Elem,Elem2>());
     auto allocator = std::make_shared<UserHeapAllocation<Elem>>(user);
     return Block<Elem, Rank>(bextents, allocator);
@@ -122,28 +160,57 @@ struct Block {
 
   // Access a single element
   template <typename...Iters>
-  builder::dyn_var<loop_type> operator()(std::tuple<Iters...>);
+  builder::dyn_var<Elem> operator()(std::tuple<Iters...>);
 
   // Access a single element
   template <typename...Iters>
-  builder::dyn_var<loop_type> operator()(Iters...iters);
+  builder::dyn_var<Elem> operator()(Iters...iters);
 
   // Access a single element with a pseudo-linear index
   template <typename LIdx>
-  builder::dyn_var<loop_type> plidx(LIdx lidx);
+  builder::dyn_var<Elem> plidx(LIdx lidx);
 
   // ScalarElem is either Elem of dyn_var<Elem>
   template <typename ScalarElem, typename...Iters>
   void write(ScalarElem val, std::tuple<Iters...> iters);
 
   // Return a simple view over the whole block
-  auto view();
+  View<Elem,Rank> view();
 
   template <typename...Slices>
   View<Elem,Rank> view(Slices...slices);
 
   template <typename Idx>
-  auto operator[](Idx idx);
+  Ref<Block<Elem,Rank>,std::tuple<Idx>> operator[](Idx idx);
+
+  template <typename T=Elem>
+  void dump_data() {
+    // TODO format nicely with the max string length thing
+    static_assert(Rank<=3, "dump_data only supports ranks 1, 2, and 3");
+    if constexpr (Rank == 1) {
+      for (builder::dyn_var<loop_type> i = 0; i < bextents[0]; i=i+1) {
+	dispatch_print_elem<Elem>(cast<Elem>(this->operator()(i)));
+      }
+    } else if constexpr (Rank == 2) {
+      for (builder::dyn_var<loop_type> i = 0; i < bextents[0]; i=i+1) {
+	for (builder::dyn_var<loop_type> j = 0; j < bextents[1]; j=j+1) {
+	  dispatch_print_elem<Elem>(cast<Elem>(this->operator()(i,j)));
+	}
+	print_newline();
+      }
+    } else {
+      for (builder::dyn_var<loop_type> i = 0; i < bextents[0]; i=i+1) {
+	for (builder::dyn_var<loop_type> j = 0; j < bextents[1]; j=j+1) {
+	  for (builder::dyn_var<loop_type> k = 0; k < bextents[2]; k=k+1) {
+	    dispatch_print_elem<Elem>(cast<Elem>(this->operator()(i,j,k)));
+	  }
+	  print_newline();
+	}
+	print_newline();
+	print_newline();
+      }
+    }
+  }
 
   std::shared_ptr<Allocation<Elem>> allocator;
   SLoc_T bextents;
@@ -171,15 +238,15 @@ struct View {
 
   // Access a single element
   template <typename...Iters>
-  builder::dyn_var<loop_type> operator()(std::tuple<Iters...>);
+  builder::dyn_var<Elem> operator()(std::tuple<Iters...>);
 
   // Access a single element
   template <typename...Iters>
-  builder::dyn_var<loop_type> operator()(Iters...iters);
+  builder::dyn_var<Elem> operator()(Iters...iters);
 
   // Access a single element with a pseudo-linear index
   template <typename LIdx>
-  builder::dyn_var<loop_type> plidx(LIdx lidx);
+  builder::dyn_var<Elem> plidx(LIdx lidx);
 
   template <typename ScalarElem, typename...Iters>
   void write(ScalarElem val, std::tuple<Iters...> iters);
@@ -188,7 +255,36 @@ struct View {
   View<Elem,Rank> view(Slices...slices);
 
   template <typename Idx>
-  auto operator[](Idx idx);
+  Ref<View<Elem,Rank>,std::tuple<Idx>> operator[](Idx idx);
+
+  template <typename T=Elem>
+  void dump_data() {
+    // TODO format nicely with the max string length thing
+    static_assert(Rank<=3, "dump_data only supports ranks 1, 2, and 3");
+    if constexpr (Rank == 1) {
+      for (builder::dyn_var<loop_type> i = 0; i < vextents[0]; i=i+1) {
+	dispatch_print_elem<Elem>(cast<Elem>(this->operator()(i)));
+      }
+    } else if constexpr (Rank == 2) {
+      for (builder::dyn_var<loop_type> i = 0; i < vextents[0]; i=i+1) {
+	for (builder::dyn_var<loop_type> j = 0; j < vextents[1]; j=j+1) {
+	  dispatch_print_elem<Elem>(cast<Elem>(this->operator()(i,j)));
+	}
+	print_newline();
+      }
+    } else {
+      for (builder::dyn_var<loop_type> i = 0; i < vextents[0]; i=i+1) {
+	for (builder::dyn_var<loop_type> j = 0; j < vextents[1]; j=j+1) {
+	  for (builder::dyn_var<loop_type> k = 0; k < vextents[2]; k=k+1) {
+	    dispatch_print_elem<Elem>(cast<Elem>(this->operator()(i,j,k)));
+	  }
+	  print_newline();
+	}
+	print_newline();
+	print_newline();
+      }
+    }
+  }
 
   std::shared_ptr<Allocation<Elem>> allocator;
   SLoc_T bextents;
@@ -227,6 +323,15 @@ constexpr bool is_builder() {
   return IsBuilder<T>()();
 }
 
+// tuple<B...,A>
+template <typename A, typename B>
+struct TupleTypeCat { };
+
+template <typename Idx, typename...Idxs>
+struct TupleTypeCat<Idx, std::tuple<Idxs...>> {
+  using type = std::tuple<Idxs...,Idx>;
+};
+
 template <typename BlockLike, typename Idxs>
 struct Ref : public Expr<Ref<BlockLike,Idxs>> {
 
@@ -236,8 +341,8 @@ struct Ref : public Expr<Ref<BlockLike,Idxs>> {
   Ref(BlockLike block_like, Idxs idxs) : block_like(block_like), idxs(idxs) { }
   
   template <typename Idx>
-  auto operator[](Idx idx) {
-    auto args = std::tuple_cat(idxs, std::tuple{idx});
+  Ref<BlockLike,typename TupleTypeCat<Idx,Idxs>::type> operator[](Idx idx) {
+    typename TupleTypeCat<Idx,Idxs>::type args = std::tuple_cat(idxs, std::tuple{idx});
     return Ref<BlockLike,decltype(args)>(block_like, args);
   }
    
@@ -395,7 +500,7 @@ private:
 
 template <typename Elem, int Rank>
 template <typename...Iters>
-builder::dyn_var<loop_type> Block<Elem,Rank>::operator()(std::tuple<Iters...> iters) {
+builder::dyn_var<Elem> Block<Elem,Rank>::operator()(std::tuple<Iters...> iters) {
   static_assert(sizeof...(Iters) <= Rank);
   if constexpr (sizeof...(Iters) < Rank) {
     // we need padding at the front
@@ -410,7 +515,7 @@ builder::dyn_var<loop_type> Block<Elem,Rank>::operator()(std::tuple<Iters...> it
 
 template <typename Elem, int Rank>
 template <typename...Iters>
-builder::dyn_var<loop_type> Block<Elem,Rank>::operator()(Iters...iters) {
+builder::dyn_var<Elem> Block<Elem,Rank>::operator()(Iters...iters) {
   return this->operator()(std::tuple{iters...});
 }
 
@@ -431,20 +536,20 @@ void Block<Elem,Rank>::write(ScalarElem val, std::tuple<Iters...> iters) {
 
 template <typename Elem, int Rank>
 template <typename Idx>
-auto Block<Elem,Rank>::operator[](Idx idx) {
+Ref<Block<Elem,Rank>,std::tuple<Idx>> Block<Elem,Rank>::operator[](Idx idx) {
   return Ref<Block<Elem,Rank>,std::tuple<Idx>>(*this, std::tuple{idx});
 }
 
 template <typename Elem, int Rank>
 template <typename LIdx>
-builder::dyn_var<loop_type> Block<Elem,Rank>::plidx(LIdx lidx) {
+builder::dyn_var<Elem> Block<Elem,Rank>::plidx(LIdx lidx) {
   // don't need to delinearize here since the pseudo index is just a normal
   // index for a block
   return allocator->read(lidx);
 }
 
 template <typename Elem, int Rank>
-auto Block<Elem,Rank>::view() {
+View<Elem,Rank> Block<Elem,Rank>::view() {
   return View<Elem,Rank>(this->bextents, this->bstrides, this->borigin,
 			 this->bextents, this->bstrides, this->borigin,
 			 this->allocator);
@@ -475,7 +580,7 @@ View<Elem,Rank> Block<Elem,Rank>::view(Slices...slices) {
 
 template <typename Elem, int Rank>
 template <typename...Iters>
-builder::dyn_var<loop_type> View<Elem,Rank>::operator()(std::tuple<Iters...> iters) {
+builder::dyn_var<Elem> View<Elem,Rank>::operator()(std::tuple<Iters...> iters) {
   static_assert(sizeof...(Iters) <= Rank);
   if constexpr (sizeof...(Iters) < Rank) {
     // we need padding at the front
@@ -496,7 +601,7 @@ builder::dyn_var<loop_type> View<Elem,Rank>::operator()(std::tuple<Iters...> ite
 
 template <typename Elem, int Rank>
 template <typename...Iters>
-builder::dyn_var<loop_type> View<Elem,Rank>::operator()(Iters...iters) {
+builder::dyn_var<Elem> View<Elem,Rank>::operator()(Iters...iters) {
   return this->operator()(std::tuple{iters...});
 }
 
@@ -522,13 +627,13 @@ void View<Elem,Rank>::write(ScalarElem val, std::tuple<Iters...> iters) {
 
 template <typename Elem, int Rank>
 template <typename Idx>
-auto View<Elem,Rank>::operator[](Idx idx) {
+Ref<View<Elem,Rank>,std::tuple<Idx>> View<Elem,Rank>::operator[](Idx idx) {
   return Ref<View<Elem,Rank>,std::tuple<Idx>>(*this, std::tuple{idx});
 }
 
 template <typename Elem, int Rank>
 template <typename LIdx>
-builder::dyn_var<loop_type> View<Elem,Rank>::plidx(LIdx lidx) {
+builder::dyn_var<Elem> View<Elem,Rank>::plidx(LIdx lidx) {
   // must delinearize relative to the view
   auto coord = delinearize<0>(lidx, this->vextents);
   return this->operator()(coord);

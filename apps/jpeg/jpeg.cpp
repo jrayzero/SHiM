@@ -79,30 +79,30 @@ void color(const RGB_T &RGB, Block<int,3> &YCbCr) {
 // potential for parallelization here across rows/columns (basically breaking the 
 // whole thing into a grid)
 void dct(View<int,3> &obj) {
-  for (int64_t r = 0; r < 8; r++) {
+  for (int r = 0; r < 8; r++) {
     auto row = obj.view(slice(0,1,1),slice(r,r+1,1),slice(0,8,1));
-    int64_t tmp0 = row(0) + row(7);
-    int64_t tmp7 = row(0) - row(7);
-    int64_t tmp1 = row(1) + row(6);
-    int64_t tmp6 = row(1) - row(6);
-    int64_t tmp2 = row(2) + row(5);
-    int64_t tmp5 = row(2) - row(5);
-    int64_t tmp3 = row(3) + row(4);
-    int64_t tmp4 = row(3) - row(4);
-    int64_t tmp10 = tmp0 + tmp3;
-    int64_t tmp13 = tmp0 - tmp3;
-    int64_t tmp11 = tmp1 + tmp2;
-    int64_t tmp12 = tmp1 - tmp2;
+    int tmp0 = row(0) + row(7);
+    int tmp7 = row(0) - row(7);
+    int tmp1 = row(1) + row(6);
+    int tmp6 = row(1) - row(6);
+    int tmp2 = row(2) + row(5);
+    int tmp5 = row(2) - row(5);
+    int tmp3 = row(3) + row(4);
+    int tmp4 = row(3) - row(4);
+    int tmp10 = tmp0 + tmp3;
+    int tmp13 = tmp0 - tmp3;
+    int tmp11 = tmp1 + tmp2;
+    int tmp12 = tmp1 - tmp2;
     row(0) = (tmp10 + tmp11) << 2;
     row(4) = (tmp10 - tmp11) << 2;
-    int64_t z1 = (tmp12 + tmp13) * FIX_0_541196100;
+    int z1 = (tmp12 + tmp13) * FIX_0_541196100;
     row(2) = descale(z1 + tmp13 * FIX_0_765366865, 11);
     row(6) = descale(z1 + tmp12 * -FIX_1_847759065, 11);
     z1 = tmp4 + tmp7;
-    int64_t z2 = tmp5 + tmp6;
-    int64_t z3 = tmp4 + tmp6;
-    int64_t z4 = tmp5 + tmp7;
-    int64_t z5 = (z3 + z4) * FIX_1_175875602;
+    int z2 = tmp5 + tmp6;
+    int z3 = tmp4 + tmp6;
+    int z4 = tmp5 + tmp7;
+    int z5 = (z3 + z4) * FIX_1_175875602;
     tmp4 = tmp4 * FIX_0_298631336;
     tmp5 = tmp5 * FIX_2_053119869;
     tmp6 = tmp6 * FIX_3_072711026;
@@ -118,30 +118,30 @@ void dct(View<int,3> &obj) {
     row(3) = descale(tmp6 + z2 + z3, 11);
     row(1) = descale(tmp7 + z1 + z4, 11);
   }
-  for (int64_t c = 0; c < 8; c++) {
+  for (int c = 0; c < 8; c++) {
     auto col = obj.view(slice(0,1,1), slice(0,8,1), slice(c,c+1,1));    
-    int64_t tmp0 = col(0,0) + col(7,0);
-    int64_t tmp7 = col(0,0) - col(7,0);
-    int64_t tmp1 = col(1,0) + col(6,0);
-    int64_t tmp6 = col(1,0) - col(6,0);
-    int64_t tmp2 = col(2,0) + col(5,0);
-    int64_t tmp5 = col(2,0) - col(5,0);
-    int64_t tmp3 = col(3,0) + col(4,0);
-    int64_t tmp4 = col(3,0) - col(4,0);
-    int64_t tmp10 = tmp0 + tmp3;
-    int64_t tmp13 = tmp0 - tmp3;
-    int64_t tmp11 = tmp1 + tmp2;
-    int64_t tmp12 = tmp1 - tmp2;
+    int tmp0 = col(0,0) + col(7,0);
+    int tmp7 = col(0,0) - col(7,0);
+    int tmp1 = col(1,0) + col(6,0);
+    int tmp6 = col(1,0) - col(6,0);
+    int tmp2 = col(2,0) + col(5,0);
+    int tmp5 = col(2,0) - col(5,0);
+    int tmp3 = col(3,0) + col(4,0);
+    int tmp4 = col(3,0) - col(4,0);
+    int tmp10 = tmp0 + tmp3;
+    int tmp13 = tmp0 - tmp3;
+    int tmp11 = tmp1 + tmp2;
+    int tmp12 = tmp1 - tmp2;
     col(0,0) = descale(tmp10 + tmp11, 2);
     col(4,0) = descale(tmp10 - tmp11, 2);
-    int64_t z1 = (tmp12 + tmp13) * FIX_0_541196100;
+    int z1 = (tmp12 + tmp13) * FIX_0_541196100;
     col(2,0) = descale(z1 + tmp13 * FIX_0_765366865, 15);
     col(6,0) = descale(z1 + tmp12 * -FIX_1_847759065, 15);
     z1 = tmp4 + tmp7;
-    int64_t z2 = tmp5 + tmp6;
-    int64_t z3 = tmp4 + tmp6;
-    int64_t z4 = tmp5 + tmp7;
-    int64_t z5 = (z3 + z4) * FIX_1_175875602;
+    int z2 = tmp5 + tmp6;
+    int z3 = tmp4 + tmp6;
+    int z4 = tmp5 + tmp7;
+    int z5 = (z3 + z4) * FIX_1_175875602;
     tmp4 = tmp4 * FIX_0_298631336;
     tmp5 = tmp5 * FIX_2_053119869;
     tmp6 = tmp6 * FIX_3_072711026;
@@ -160,10 +160,10 @@ void dct(View<int,3> &obj) {
 }
 
 void quant(View<int,3> &obj, const Block<int,2> &quant) {
-  for (int64_t i = 0; i < 8; i++) {
-    for (int64_t j = 0; j < 8; j++) {
-      int64_t v = obj(0,i,j);
-      int64_t q = quant(i,j) * 8;
+  for (int i = 0; i < 8; i++) {
+    for (int j = 0; j < 8; j++) {
+      int v = obj(0,i,j);
+      int q = quant(i,j) * 8;
       if (v < 0) {
 	v = -v;
 	v += (q >> 1);

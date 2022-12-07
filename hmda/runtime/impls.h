@@ -1,5 +1,6 @@
 #pragma once
 
+#include <iostream>
 #include "heaparray.h"
 
 // there phony template parameters here so I can just define everything in the header
@@ -117,5 +118,18 @@ HMEMSET_IMPL(int32_t);
 HMEMSET_IMPL(int64_t);
 HMEMSET_IMPL(float);
 HMEMSET_IMPL(double);
+
+template <typename To, typename From>
+To cast(From val) { return (To)val; }
+
+template <typename Elem>
+void print_elem(Elem elem) {
+  std::cout << elem << " ";
+}
+
+template <bool dummy=false>
+void print_newline() {
+  std::cout << std::endl;
+}
 
 }

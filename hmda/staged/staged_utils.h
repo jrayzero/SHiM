@@ -9,7 +9,45 @@ namespace hmda {
 template <int Rank>
 using Loc_T = builder::dyn_var<loop_type[Rank]>;
 
+builder::dyn_var<void(int)> hexit = builder::as_global("exit");
+
 builder::dyn_var<loop_type(loop_type)> floor_func = builder::as_global("floor");
+
+/*// casting functions (type isn't quite right, but don't care!)
+// these are called on dyn_vars. If you want to cast a Ref, call rcast
+#define CAST(dtype) \
+  builder::dyn_var<dtype(dtype)> cast_##dtype = builder::as_global("cast<"#dtype ">");
+CAST(uint8_t);
+CAST(uint16_t);
+CAST(uint32_t);
+CAST(uint64_t);
+CAST(int16_t);
+CAST(int32_t);
+CAST(int64_t);
+CAST(float);
+CAST(double);
+
+template <typename To, typename From>
+struct DispatchCast { };
+#define DISPATCH_CAST(dtype)						\
+  template <typename From>						\
+  struct DispatchCast<dtype,From> { auto operator()(From val) { return cast_##dtype(val); } };
+DISPATCH_CAST(uint8_t);
+DISPATCH_CAST(uint16_t);
+DISPATCH_CAST(uint32_t);
+DISPATCH_CAST(uint64_t);
+DISPATCH_CAST(int16_t);
+DISPATCH_CAST(int32_t);
+DISPATCH_CAST(int64_t);
+DISPATCH_CAST(float);
+DISPATCH_CAST(double);
+
+// cast a dyn var or plain value
+template <typename To, typename From>
+auto cast(From val) {
+  // don't separately generate the fptr because it will have the wrong type
+  return DispatchCast<To,From>()(val);
+}*/
 
 template <int Idx, typename D, loop_type Val, loop_type...Vals>
 void to_Loc_T(D &dyn) {

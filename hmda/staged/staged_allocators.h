@@ -84,6 +84,7 @@ HEAP_DYN_VAR(HEAP_T<double>);
 
 // general allocators
 
+// TODO for these, I can just have the string name be hmda::read<dtype> and then only need one HMDA function
 // these are all the function wrappers for reading/writing data
 // These aren't exactly the correct signatures since dtype* should actually be heap array for some that case, but it works
 // (i.e. buildit doesn't complain). I have multiple versions so I can specify the element type for the signature
@@ -182,6 +183,11 @@ struct Allocation {
   virtual builder::dyn_var<Elem> read(builder::dyn_var<loop_type> lidx) = 0;
   virtual void write(builder::dyn_var<Elem> val, builder::dyn_var<loop_type> lidx) = 0;
   virtual void memset(builder::dyn_var<loop_type> sz) = 0;
+  // for automatic allocations, we can access the underlying data. For 
+  // user allocations, just use the data you passed in 
+  builder::dyn_var<HEAP_T<Elem>> heap();
+  template <int Sz>
+  builder::dyn_var<Elem[Sz]> stack();
   virtual ~Allocation() = default;
 };
 
@@ -369,3 +375,14 @@ struct UserHeapAllocation : public Allocation<Elem> {
   virtual ~UserHeapAllocation() = default;
 };
 
+template <typename Elem>
+builder::dyn_var<HEAP_T<Elem>> Allocation<Elem>::heap() {
+    assert(is_heap_strategy());
+    return static_cast<HeapAllocation<Elem>*>(this)->data;
+}
+template <typename Elem>
+template <int Sz>
+builder::dyn_var<Elem[Sz]> Allocation<Elem>::stack() {
+  assert(is_stack_strategy());
+  return static_cast<StackAllocation<Elem,Sz>*>(this)->data;
+}

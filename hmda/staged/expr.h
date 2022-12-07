@@ -17,6 +17,8 @@ template <char Ident>
 struct Iter;
 template <typename BlockLIke, typename Idxs>
 struct Ref;
+template <typename To, typename Operand>
+struct TemplateCast;
 
 template <typename T>
 struct IsExpr {
@@ -31,6 +33,11 @@ struct IsExpr<Ref<BlockLike,Idxs>> {
 
 template <typename Functor, typename Operand>
 struct IsExpr<Unary<Functor,Operand>> {
+  constexpr bool operator()() { return true; }
+};
+
+template <typename To, typename Operand>
+struct IsExpr<TemplateCast<To,Operand>> {
   constexpr bool operator()() { return true; }
 };
 
@@ -83,7 +90,6 @@ struct Expr {
   UNARY(BNot, operator~);
   UNARY(Invert, operator-);
 
-
 };
 
 #define FREE_BINARY(functor, name)					\
@@ -93,8 +99,6 @@ struct Expr {
   auto name(Lhs lhs, const Rhs &rhs) {					\
     return Binary<functor##Functor, Lhs, Rhs>(lhs, rhs);		\
   }
-
-
 
 FREE_BINARY(Add, operator+);
 FREE_BINARY(Sub, operator-);
@@ -123,25 +127,162 @@ builder::dyn_var<loop_type> dispatch_realize(T to_realize, const LhsIdxs &lhs_id
   }
 }
 
+// casting functions (type isn't quite right, but don't care!)
+// these are called on dyn_vars. If you want to cast a Ref, call rcast
+#define CAST(dtype) \
+  builder::dyn_var<dtype(dtype)> cast_##dtype = builder::as_global("hmda::cast<"#dtype ">");
+CAST(uint8_t);
+CAST(uint16_t);
+CAST(uint32_t);
+CAST(uint64_t);
+CAST(int16_t);
+CAST(int32_t);
+CAST(int64_t);
+CAST(float);
+CAST(double);
+
+// cast a dyn var or plain value
+template <typename To, typename From>
+auto cast(From val);
+
+template <typename To, typename Operand>
+struct TemplateCast : public Expr<TemplateCast<To,Operand>> {
+
+  using Realized_T = To;
+
+  TemplateCast(const Operand &operand) : operand(operand) { }
+
+  template <typename LhsIdxs, typename Iters>
+  builder::dyn_var<To> realize(const LhsIdxs &lhs_idxs, const Iters &iters) {
+    if constexpr (std::is_fundamental<Operand>::value) {
+      builder::dyn_var<To> casted = cast<To>(operand);
+      return casted;
+    } else {
+      auto op = dispatch_realize(operand, lhs_idxs, iters);
+      builder::dyn_var<To> casted = cast<To>(op);
+      return casted;
+    }
+  }
+
+private:
+  Operand operand;
+};
+
+template <typename To, typename From>
+auto rcast(From val) {
+  return TemplateCast<To,From>(val);
+}
+
+template <typename Elem, int Rank>
+struct Block;
+template <typename Elem, int Rank>
+struct View;
+
+template <typename To, typename From>
+struct DispatchCast { };
+// this defines cast for both plain/dynvars AND if they are wrapped in an Expr
+#define DISPATCH_CAST(dtype)						\
+  template <typename From>						\
+  struct DispatchCast<dtype,From> { auto operator()(From val) { return cast_##dtype(val); } }; \
+  template <typename Elem, int Rank, typename Idxs>			\
+  struct DispatchCast<dtype,Ref<Block<Elem,Rank>,Idxs>> {		\
+    auto operator()(Ref<Block<Elem,Rank>,Idxs> val) { return rcast<dtype>(val); } \
+  };									\
+  template <typename Elem, int Rank, typename Idxs>			\
+  struct DispatchCast<dtype,Ref<View<Elem,Rank>,Idxs>> {		\
+    auto operator()(Ref<View<Elem,Rank>,Idxs> val) { return rcast<dtype>(val); } \
+  };									\
+  template <char C>							\
+  struct DispatchCast<dtype,Iter<C>> {					\
+    auto operator()(Iter<C> val) { return rcast<dtype>(val); }		\
+  };									\
+  template <typename Functor, typename Operand>				\
+  struct DispatchCast<dtype,Unary<Functor,Operand>> {			\
+    auto operator()(Unary<Functor,Operand> val) { return rcast<dtype>(val); } \
+  };									\
+  template <typename Functor, typename Operand0, typename Operand1>	\
+  struct DispatchCast<dtype,Binary<Functor,Operand0,Operand1>> {	\
+    auto operator()(Binary<Functor,Operand0,Operand1> val) { return rcast<dtype>(val); } \
+  };									
+
+DISPATCH_CAST(uint8_t);
+DISPATCH_CAST(uint16_t);
+DISPATCH_CAST(uint32_t);
+DISPATCH_CAST(uint64_t);
+DISPATCH_CAST(int16_t);
+DISPATCH_CAST(int32_t);
+DISPATCH_CAST(int64_t);
+DISPATCH_CAST(float);
+DISPATCH_CAST(double);
+
+// cast a dyn var or plain value
+template <typename To, typename From>
+auto cast(From val) {
+  // don't separately generate the fptr because it will have the wrong type
+  return DispatchCast<To,From>()(val);
+}
+
+template <typename T>
+struct GetRealizedT { };
+
+#define REALIZED(dtype) \
+  template <>						\
+  struct GetRealizedT<dtype> { using Realized_T=dtype; };
+REALIZED(uint8_t);
+REALIZED(uint16_t);
+REALIZED(uint32_t);
+REALIZED(uint64_t);
+REALIZED(int16_t);
+REALIZED(int32_t);
+REALIZED(int64_t);
+REALIZED(float);
+REALIZED(double);
+
+template <typename Elem>
+struct GetRealizedT<builder::dyn_var<Elem>> { using Realized_T=Elem; };
+
+template <typename Elem, int Rank, typename Idxs>
+struct GetRealizedT<Ref<Block<Elem,Rank>,Idxs>> { using Realized_T=Elem; };
+
+template <typename Elem, int Rank, typename Idxs>
+struct GetRealizedT<Ref<View<Elem,Rank>,Idxs>> { using Realized_T=Elem; };
+
+template <typename Functor, typename Operand0, typename Operand1>
+struct GetRealizedT<Binary<Functor,Operand0,Operand1>> { 
+  using Realized_T=typename Binary<Functor,Operand0,Operand1>::Realized_T;
+};
+
+template <char C>
+struct GetRealizedT<Iter<C>> { using Realized_T=typename Iter<C>::Realized_T; };
+
+template <typename T, typename Operand>
+struct GetRealizedT<TemplateCast<T,Operand>> { using Realized_T=typename TemplateCast<T,Operand>::Realized_T; };
+
 template <typename Functor, typename Operand0, typename Operand1>
 struct Binary : public Expr<Binary<Functor, Operand0, Operand1>> {
 
+  using Realized_T = typename GetRealizedT<Operand0>::Realized_T;
+
   Binary(const Operand0 &operand0, const Operand1 &operand1) :
-    operand0(operand0), operand1(operand1) { }
+    operand0(operand0), operand1(operand1) { 
+    static_assert(std::is_same<
+		  typename GetRealizedT<Operand0>::Realized_T,
+		  typename GetRealizedT<Operand1>::Realized_T>());
+  }
 
   template <typename LhsIdxs, typename Iters>
-  auto realize(const LhsIdxs &lhs_idxs, const Iters &iters) {
+  builder::dyn_var<Realized_T> realize(const LhsIdxs &lhs_idxs, const Iters &iters) {
     if constexpr (std::is_fundamental<Operand0>::value && std::is_fundamental<Operand1>::value) {
       return Functor()(operand0, operand1);
     } else if constexpr (std::is_fundamental<Operand0>::value) {
-      auto op1 = dispatch_realize(operand1, lhs_idxs, iters);
+      builder::dyn_var<Realized_T> op1 = dispatch_realize(operand1, lhs_idxs, iters);
       return Functor()(operand0, op1);
     } else if constexpr (std::is_fundamental<Operand1>::value) {
-      auto op0 = dispatch_realize(operand0, lhs_idxs, iters);
+      builder::dyn_var<Realized_T> op0 = dispatch_realize(operand0, lhs_idxs, iters);
       return Functor()(op0, operand1);
     } else {
-      auto op0 = dispatch_realize(operand0, lhs_idxs, iters);
-      auto op1 = dispatch_realize(operand1, lhs_idxs, iters);
+      builder::dyn_var<Realized_T> op0 = dispatch_realize(operand0, lhs_idxs, iters);
+      builder::dyn_var<Realized_T> op1 = dispatch_realize(operand1, lhs_idxs, iters);
       return Functor()(op0, op1);
     }
   }
@@ -165,10 +306,12 @@ private:
 template <char Ident>
 struct Iter : public Expr<Iter<Ident>> {
 
+  using Realized_T = loop_type;
+
   static constexpr char Ident_T = Ident;
 
   template <typename LhsIdxs, typename Iters>
-  auto realize(const LhsIdxs &lhs_idxs, const Iters &iters) {
+  builder::dyn_var<loop_type> realize(const LhsIdxs &lhs_idxs, const Iters &iters) {
     // figure out the index of Ident within lhs_idxs so I can get the correct
     // iter
     constexpr int idx = find_iter_idx<LhsIdxs>();
