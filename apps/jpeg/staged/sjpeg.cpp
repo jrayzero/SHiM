@@ -36,10 +36,18 @@ void scale_quant(Block<int,2> quant, int quality) {
 
 template <typename RGB_T>
 void color(RGB_T RGB, Block<int,3> YCbCr) {
-  // TODO I need a cast operation (both to float and then back to int!)
-  YCbCr[0][i][j] = RGB[i][j][0]*0.299     + RGB[i][j][1]*0.587     + RGB[i][j][2]*0.114;
-  YCbCr[1][i][j] = RGB[i][j][0]*-0.168736 + RGB[i][j][1]*-0.33126  + RGB[i][j][2]*0.500002 + 128;
-  YCbCr[2][i][j] = RGB[i][j][0]*0.5       + RGB[i][j][1]*-0.418688 + RGB[i][j][2]*-0.081312 + 128;
+  YCbCr[0][i][j] = 
+    cast<int>(cast<float>(RGB[i][j][0])*0.299f + 
+	      cast<float>(RGB[i][j][1])*0.587f + 
+	      cast<float>(RGB[i][j][2])*0.114f);
+  YCbCr[1][i][j] = 
+    cast<int>(cast<float>(RGB[i][j][0])*-0.168736f + 
+	      cast<float>(RGB[i][j][1])*-0.33126f + 
+	      cast<float>(RGB[i][j][2])*0.500002f) + 128;
+  YCbCr[2][i][j] = 
+    cast<int>(cast<float>(RGB[i][j][0])*0.5f + 
+	      cast<float>(RGB[i][j][1])*-0.418688f + 
+	      cast<float>(RGB[i][j][2])*-0.081312f) + 128;
 }
 
 // buildit doesn't have shift operators, so use these
@@ -191,7 +199,7 @@ void jpeg_staged(dyn_var<uint8_t*> input, dyn_var<int> H, dyn_var<int> W,
     for (dint c = 0; c < W; c = c + 8) {
       auto mcu = RGB.view(slice(r,r+8,1),slice(c,c+8,1),slice(0,3,1));
       if (r+8>H || c+8>W) {
-	// need padding
+/*	// need padding
 	dint row_pad = 0;
 	dint col_pad = 0;
 	if (r+8>H)
@@ -210,14 +218,17 @@ void jpeg_staged(dyn_var<uint8_t*> input, dyn_var<int> H, dyn_var<int> W,
 	auto col_padding_area = padded.view(slice(0,8,1), slice(last_valid_col,col_pad,1), slice(0,3,1));
 	row_padding_area[i][j][k] = padded[(dint)(last_valid_row-1)][j][k];
 	col_padding_area[i][j][k] = padded[i][(dint)(last_valid_col-1)][k];
-	color(padded, YCbCr);
+	color(padded, YCbCr);*/
       } else {
 	// no padding needed
 	color(mcu, YCbCr);	
+	YCbCr.dump_data();
+	hexit(48);
       }
       // offset
       YCbCr[i][j][k] = YCbCr[i][j][k] - 128;
-      auto Y = YCbCr.view(slice(0,1,1),slice(0,8,1),slice(0,8,1));
+      
+/*      auto Y = YCbCr.view(slice(0,1,1),slice(0,8,1),slice(0,8,1));
       auto Cb = YCbCr.view(slice(1,2,1),slice(0,8,1),slice(0,8,1));
       auto Cr = YCbCr.view(slice(2,3,1),slice(0,8,1),slice(0,8,1));
       dct(Y);
@@ -231,7 +242,7 @@ void jpeg_staged(dyn_var<uint8_t*> input, dyn_var<int> H, dyn_var<int> W,
       huffman_encode_block(Cr.allocator->stack<3*8*8>(), 2, last_Cr, bits, zigzag, chroma_codes);
       last_Y = Y(0,0,0);
       last_Cb = Cb(0,0,0);
-      last_Cr = Cr(0,0,0);
+      last_Cr = Cr(0,0,0);*/
     }
   }
 }
