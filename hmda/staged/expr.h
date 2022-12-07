@@ -17,6 +17,8 @@ template <char Ident>
 struct Iter;
 template <typename BlockLIke, typename Idxs>
 struct Ref;
+template <typename To, typename Operand>
+struct TemplateCast;
 
 template <typename T>
 struct IsExpr {
@@ -31,6 +33,11 @@ struct IsExpr<Ref<BlockLike,Idxs>> {
 
 template <typename Functor, typename Operand>
 struct IsExpr<Unary<Functor,Operand>> {
+  constexpr bool operator()() { return true; }
+};
+
+template <typename To, typename Operand>
+struct IsExpr<TemplateCast<To,Operand>> {
   constexpr bool operator()() { return true; }
 };
 
@@ -94,8 +101,6 @@ struct Expr {
     return Binary<functor##Functor, Lhs, Rhs>(lhs, rhs);		\
   }
 
-
-
 FREE_BINARY(Add, operator+);
 FREE_BINARY(Sub, operator-);
 FREE_BINARY(Mul, operator*);
@@ -122,6 +127,109 @@ builder::dyn_var<loop_type> dispatch_realize(T to_realize, const LhsIdxs &lhs_id
     return to_realize;
   }
 }
+
+// casting functions (type isn't quite right, but don't care!)
+// these are called on dyn_vars. If you want to cast a Ref, call rcast
+#define CAST(dtype) \
+  builder::dyn_var<dtype(dtype)> cast_##dtype = builder::as_global("hmda::cast<"#dtype ">");
+CAST(uint8_t);
+CAST(uint16_t);
+CAST(uint32_t);
+CAST(uint64_t);
+CAST(int16_t);
+CAST(int32_t);
+CAST(int64_t);
+CAST(float);
+CAST(double);
+
+// cast a dyn var or plain value
+template <typename To, typename From>
+auto cast(From val);
+//  // don't separately generate the fptr because it will have the wrong type
+//  return DispatchCast<To,From>()(val);
+//}
+
+template <typename To, typename Operand>
+struct TemplateCast : public Expr<TemplateCast<To,Operand>> {
+  TemplateCast(const Operand &operand) : operand(operand) { }
+
+  template <typename LhsIdxs, typename Iters>
+  auto realize(const LhsIdxs &lhs_idxs, const Iters &iters) {
+    if constexpr (std::is_fundamental<Operand>::value) {
+      return cast<To>(operand);
+    } else {
+      auto op = dispatch_realize(operand, lhs_idxs, iters);
+      return cast<To>(op);
+    }
+  }
+
+private:
+  Operand operand;
+};
+
+template <typename To, typename From>
+auto rcast(From val) {
+  return TemplateCast<To,From>(val);
+}
+
+template <typename Elem, int Rank>
+struct Block;
+template <typename Elem, int Rank>
+struct View;
+
+template <typename To, typename From>
+struct DispatchCast { };
+// this defines cast for both plain/dynvars AND if they are wrapped in an Expr
+#define DISPATCH_CAST(dtype)						\
+  template <typename From>						\
+  struct DispatchCast<dtype,From> { auto operator()(From val) { return cast_##dtype(val); } }; \
+  template <typename Elem, int Rank, typename Idxs>			\
+  struct DispatchCast<dtype,Ref<Block<Elem,Rank>,Idxs>> {		\
+    auto operator()(Ref<Block<Elem,Rank>,Idxs> val) { return rcast<dtype>(val); } \
+  };									\
+  template <typename Elem, int Rank, typename Idxs>			\
+  struct DispatchCast<dtype,Ref<View<Elem,Rank>,Idxs>> {		\
+    auto operator()(Ref<View<Elem,Rank>,Idxs> val) { return rcast<dtype>(val); } \
+  };									\
+  template <char C>							\
+  struct DispatchCast<dtype,Iter<C>> {					\
+    auto operator()(Iter<C> val) { return rcast<dtype>(val); }		\
+  };									\
+  template <typename Functor, typename Operand>				\
+  struct DispatchCast<dtype,Unary<Functor,Operand>> {			\
+    auto operator()(Unary<Functor,Operand> val) { return rcast<dtype>(val); } \
+  };									\
+  template <typename Functor, typename Operand0, typename Operand1>	\
+  struct DispatchCast<dtype,Binary<Functor,Operand0,Operand1>> {	\
+    auto operator()(Binary<Functor,Operand0,Operand1> val) { return rcast<dtype>(val); } \
+  };									
+
+/*  template <typename Wrapper>						\
+  struct DispatchCast<dtype,Wrapper,false> {				\
+    template <typename Wrapper2, typename std::enable_if<is_expr<Wrapper2>()>::type=0> \
+    auto operator()(Wrapper2 val) { return rcast<dtype>(val); }		\
+  };
+*/
+
+
+
+DISPATCH_CAST(uint8_t);
+DISPATCH_CAST(uint16_t);
+DISPATCH_CAST(uint32_t);
+DISPATCH_CAST(uint64_t);
+DISPATCH_CAST(int16_t);
+DISPATCH_CAST(int32_t);
+DISPATCH_CAST(int64_t);
+DISPATCH_CAST(float);
+DISPATCH_CAST(double);
+
+// cast a dyn var or plain value
+template <typename To, typename From>
+auto cast(From val) {
+  // don't separately generate the fptr because it will have the wrong type
+  return DispatchCast<To,From>()(val);
+}
+
 
 template <typename Functor, typename Operand0, typename Operand1>
 struct Binary : public Expr<Binary<Functor, Operand0, Operand1>> {

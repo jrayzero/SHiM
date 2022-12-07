@@ -84,6 +84,7 @@ HEAP_DYN_VAR(HEAP_T<double>);
 
 // general allocators
 
+// TODO for these, I can just have the string name be hmda::read<dtype> and then only need one HMDA function
 // these are all the function wrappers for reading/writing data
 // These aren't exactly the correct signatures since dtype* should actually be heap array for some that case, but it works
 // (i.e. buildit doesn't complain). I have multiple versions so I can specify the element type for the signature

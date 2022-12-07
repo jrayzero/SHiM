@@ -118,4 +118,7 @@ HMEMSET_IMPL(int64_t);
 HMEMSET_IMPL(float);
 HMEMSET_IMPL(double);
 
+template <typename To, typename From>
+To cast(From val) { return (To)val; }
+
 }
