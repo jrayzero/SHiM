@@ -133,9 +133,9 @@ void dispatch_write(builder::dyn_var<Elem> val, builder::dyn_var<loop_type> lidx
   struct DispatchMemset<dtype, IsHeapArr, Data> {			\
     void operator()(Data data, builder::dyn_var<dtype> val, builder::dyn_var<loop_type> sz) { \
       if constexpr (IsHeapArr) {					\
-	memset_heaparr_##dtype(data, val, sz);			\
+	memset_heaparr_##dtype(data, val, sz);				\
       } else {								\
-	memset_##dtype(data, val, sz);				\
+	memset_##dtype(data, val, sz);					\
       }									\
     }									\
   };

@@ -5,12 +5,12 @@
 #include <vector>
 #include <sstream>
 #include "builder/dyn_var.h"
-#include "functors.h"
-#include "staged_utils.h"
-#include "expr.h"
-#include "staged_allocators.h"
 #include "fwddecls.h"
 #include "traits.h"
+#include "functors.h"
+#include "expr.h"
+#include "staged_utils.h"
+#include "staged_allocators.h"
 
 namespace hmda {
 

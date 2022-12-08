@@ -2,6 +2,9 @@
 
 #pragma once
 
+#include "builder/dyn_var.h"
+#include "fwddecls.h"
+
 namespace hmda {
 
 template <typename T>
@@ -76,6 +79,56 @@ struct is_slice {
 
 template <>
 struct is_slice<Slice> { 
+  static constexpr bool value = true;
+};
+
+template <typename T>
+struct is_hmda_fundamental {
+  static constexpr bool value = false;
+};
+
+template <>
+struct is_hmda_fundamental<uint8_t> {
+  static constexpr bool value = true;
+};
+
+template <>
+struct is_hmda_fundamental<uint16_t> {
+  static constexpr bool value = true;
+};
+
+template <>
+struct is_hmda_fundamental<uint32_t> {
+  static constexpr bool value = true;
+};
+
+template <>
+struct is_hmda_fundamental<uint64_t> {
+  static constexpr bool value = true;
+};
+
+template <>
+struct is_hmda_fundamental<int16_t> {
+  static constexpr bool value = true;
+};
+
+template <>
+struct is_hmda_fundamental<int32_t> {
+  static constexpr bool value = true;
+};
+
+template <>
+struct is_hmda_fundamental<int64_t> {
+  static constexpr bool value = true;
+};
+
+template <>
+struct is_hmda_fundamental<float> {
+  static constexpr bool value = true;
+};
+
+template <>
+struct is_hmda_fundamental<double> {
   static constexpr bool value = true;
 };
 

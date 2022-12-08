@@ -2,41 +2,168 @@
 
 namespace hmda {
 
-// These are inline functors (i.e. a+b, not +(a,b))
-#define UNARY_FUNCTOR(name, op)			\
-  struct name##Functor {			\
-    template <typename L>			\
-    auto operator()(const L &l) {		\
-      return op l;				\
-    }						\
-  };
+// These functors are completely generic so they can work with fundamentals, exprs, and dyn_vars
 
-#define BINARY_FUNCTOR(name, op)		\
-  struct name##Functor {			\
-    template <typename L, typename R>		\
-    auto operator()(const L &l, const R &r) {	\
-      return l op r;				\
-    }						\
-  };
+///
+/// Not
+struct NotFunctor {
+  template <typename T>
+  bool operator()(const T op) {
+    return !op;
+  }
+};
 
-BINARY_FUNCTOR(Add, +);
-BINARY_FUNCTOR(Sub, -);
-BINARY_FUNCTOR(Mul, *);
-BINARY_FUNCTOR(Div, /);
-BINARY_FUNCTOR(RShift, >>);
-BINARY_FUNCTOR(LShift, <<);
-BINARY_FUNCTOR(LT, <);
-BINARY_FUNCTOR(LTE, <=);
-BINARY_FUNCTOR(GT, >);
-BINARY_FUNCTOR(GTE, >=);
-BINARY_FUNCTOR(Eq, ==);
-BINARY_FUNCTOR(NEq, !=);
-BINARY_FUNCTOR(And, &&);
-BINARY_FUNCTOR(Or, ||);
-BINARY_FUNCTOR(BAnd, &);
-BINARY_FUNCTOR(BOr, |);
-UNARY_FUNCTOR(Not, !);
-UNARY_FUNCTOR(BNot, ~);
-UNARY_FUNCTOR(Invert, -);
+///
+/// Bitwise invert
+struct BitwiseInvertFunctor {
+  template <typename T>
+  T operator()(const T op) {
+    return ~op;
+  }
+};
+
+///
+/// Negate
+struct NegateFunctor {
+  template <typename T>
+  T operator()(const T op) {
+    return -op;
+  }
+};
+
+///
+/// Addition
+struct AddFunctor {
+  template <typename T, typename U>
+  auto operator()(const T op0, const U op1) {
+    return op0 + op1;
+  }
+};
+
+///
+/// Subtraction
+struct SubFunctor {
+  template <typename T, typename U>
+  auto operator()(const T op0, const U op1) {
+    return op0 - op1;
+  }
+};
+
+///
+/// Multiplication
+struct MulFunctor {
+  template <typename T, typename U>
+  auto operator()(const T op0, const U op1) {
+    return op0 * op1;
+  }
+};
+
+///
+/// Division
+struct DivFunctor {
+  template <typename T, typename U>
+  auto operator()(const T op0, const U op1) {
+    return op0 / op1;
+  }
+};
+
+///
+/// Left shift
+struct LShiftFunctor {
+  template <typename T, typename U>
+  auto operator()(const T op0, const U op1) {
+    return op0 << op1;
+  }
+};
+
+///
+/// Right shift
+struct RShiftFunctor {
+  template <typename T, typename U>
+  auto operator()(const T op0, const U op1) {
+    return op0 >> op1;
+  }
+};
+
+///
+/// Less than
+/// If Eq==true, then it's <=
+template <bool Eq>
+struct LTFunctor {
+  template <typename T, typename U>
+  auto operator()(const T op0, const U op1) {
+    if constexpr (Eq == true) {
+      return op0 <= op1;
+    } else {
+      return op0 < op1;
+    }
+  }
+};
+
+///
+/// Greater than
+/// If Eq==true, then it's >=
+template <bool Eq>
+struct GTFunctor {
+  template <typename T, typename U>
+  auto operator()(const T op0, const U op1) {
+    if constexpr (Eq == true) {
+      return op0 >= op1;
+    } else {
+      return op0 > op1;
+    }
+  }
+};
+
+///
+/// Equality
+/// If Not==true, then it's !=
+template <bool Not>
+struct EqFunctor {
+  template <typename T, typename U>
+  auto operator()(const T op0, const U op1) {
+    if constexpr (Not == true) {
+      return op0 != op1;
+    } else {
+      return op0 == op1;
+    }
+  }
+};
+
+///
+/// Boolean and
+struct AndFunctor {
+  template <typename T, typename U>
+  auto operator()(const T op0, const U op1) {
+    return op0 && op1;
+  }
+};
+
+/// 
+/// Boolean or
+struct OrFunctor {
+  template <typename T, typename U>
+  auto operator()(const T op0, const U op1) {
+    return op0 || op1;
+  }
+};
+
+///
+/// Bitwise and
+struct BitwiseAndFunctor {
+  template <typename T, typename U>
+  auto operator()(const T op0, const U op1) {
+    return op0 & op1;
+  }
+};
+
+/// 
+/// Bitwise or
+struct BitwiseOrFunctor {
+  template <typename T, typename U>
+  auto operator()(const T op0, const U op1) {
+    return op0 | op1;
+  }
+};
 
 }
