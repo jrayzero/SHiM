@@ -31,6 +31,9 @@ struct Ref;
 template <typename To, typename Operand>
 struct TemplateCast;
 
+// Other
+struct Slice;
+
 ///// Types
 
 // Definitions for the HeapArray type

@@ -7,6 +7,7 @@
 #include "common/loop_type.h"
 #include "fwrappers.h"
 #include "fwddecls.h"
+#include "traits.h"
 
 namespace hmda {
 
@@ -129,17 +130,6 @@ auto slice(builder::dyn_var<loop_type> start, builder::dyn_var<loop_type> stop, 
   return Slice(start, stop, stride);
 }
 
-template <typename MaybeSlice>
-struct IsSlice { constexpr bool operator()() { return false; } };
-
-template <>
-struct IsSlice<Slice> { constexpr bool operator()() { return true; } };
-
-template <typename MaybeSlice>
-constexpr bool is_slice() {
-  return IsSlice<MaybeSlice>()();
-}
-
 template <typename Functor, int Rank, int Depth>
 void apply(Loc_T<Rank> vec,
 	   Loc_T<Rank> vec0, 
@@ -161,7 +151,7 @@ Loc_T<Rank> apply(Loc_T<Rank> vec0,
 
 template <int Idx, int Rank, typename Arg, typename...Args>
 void gather_origin(Loc_T<Rank> vec, Arg arg, Args...args) {
-  if constexpr (is_slice<Arg>()) {
+  if constexpr (is_slice<Arg>::value) {
     vec[Idx] = arg.start;
     if constexpr (Idx < Rank - 1) {
       gather_origin<Idx+1,Rank>(vec,args...);
@@ -178,7 +168,7 @@ void gather_origin(Loc_T<Rank> vec, Arg arg, Args...args) {
 
 template <int Idx, int Rank, typename Arg, typename...Args>
 void gather_strides(Loc_T<Rank> vec, Arg arg, Args...args) {
-  if constexpr (is_slice<Arg>()) {
+  if constexpr (is_slice<Arg>::value) {
     vec[Idx] = arg.stride;
     if constexpr (Idx < Rank - 1) {
       gather_strides<Idx+1,Rank>(vec, args...);
@@ -193,7 +183,7 @@ void gather_strides(Loc_T<Rank> vec, Arg arg, Args...args) {
 
 template <int Idx, int Rank, typename Arg, typename...Args>
 void gather_stops(Loc_T<Rank> vec, Loc_T<Rank> extents, Arg arg, Args...args) {
-  if constexpr (is_slice<Arg>()) {
+  if constexpr (is_slice<Arg>::value) {
     builder::dyn_var<loop_type> stop = arg.stop;
     if constexpr (std::is_same<End, decltype(stop)>::value) {
       vec[Idx] = extents[Idx];

@@ -75,7 +75,7 @@ FREE_BINARY(BOr, operator|);
 
 template <typename T, typename LhsIdxs, typename Iters>
 builder::dyn_var<loop_type> dispatch_realize(T to_realize, const LhsIdxs &lhs_idxs, const Iters &iters) {
-  if constexpr (IsExpr<T>()()) {
+  if constexpr (is_expr<T>::value) {
     return to_realize.realize(lhs_idxs, iters);
   } else {
     // something primitive-y, like a loop_type or another builder
@@ -285,20 +285,5 @@ private:
   }
   
 };
-
-template <typename I>
-struct IsIterType {
-  constexpr bool operator()() { return false; }
-};
-
-template <char Ident>
-struct IsIterType<Iter<Ident>> {
-  constexpr bool operator()() { return true; }
-};
-
-template <typename T>
-constexpr bool is_iter() {
-  return IsIterType<T>()();
-}
 
 }

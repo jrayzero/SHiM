@@ -10,6 +10,7 @@
 #include "expr.h"
 #include "staged_allocators.h"
 #include "fwddecls.h"
+#include "traits.h"
 
 namespace hmda {
 
@@ -307,33 +308,6 @@ struct View {
 
 };
 
-template <typename T>
-struct IsDynVar { constexpr bool operator()() { return false; } };
-
-template <typename T>
-struct IsDynVar<builder::dyn_var<T>> { constexpr bool operator()() { return true; } };
-
-template <typename T>
-struct IsBuilder { constexpr bool operator()() { return false; } };
-
-template <>
-struct IsBuilder<builder::builder> { constexpr bool operator()() { return true; } };
-
-template <typename T>
-constexpr bool is_dyn_var() {
-  return IsDynVar<T>()();
-}
-
-template <typename T>
-constexpr bool is_dyn_like() {
-  return IsDynVar<T>()() || IsBuilder<T>()();
-}
-
-template <typename T>
-constexpr bool is_builder() {
-  return IsBuilder<T>()();
-}
-
 // tuple<B...,A>
 template <typename A, typename B>
 struct TupleTypeCat { };
@@ -354,7 +328,7 @@ struct Ref : public Expr<Ref<BlockLike,Idxs>> {
   template <typename Idx>
 //  Ref<BlockLike,typename TupleTypeCat<Idx,Idxs>::type> 
   Ref<BlockLike,typename TupleTypeCat<typename RefIdxType<Idx>::type,Idxs>::type> operator[](Idx idx) {
-    if constexpr (is_dyn_like<Idx>()) {
+    if constexpr (is_dyn_like<Idx>::value) {
       builder::dyn_var<loop_type> didx = idx;
       using DIdx = decltype(didx);
       typename TupleTypeCat<DIdx,Idxs>::type args = std::tuple_cat(idxs, std::tuple{didx});
@@ -397,7 +371,7 @@ struct Ref : public Expr<Ref<BlockLike,Idxs>> {
   template <int Depth, typename LhsIdxs, typename...Iters>
   auto realize_each(LhsIdxs lhs, std::tuple<Iters...> iters) {
     auto i = std::get<Depth>(idxs);
-    if constexpr (is_dyn_like<decltype(i)>() ||
+    if constexpr (is_dyn_like<decltype(i)>::value ||
 		  std::is_same<decltype(i),loop_type>()) {
       if constexpr (Depth < sizeof...(Iters) - 1) {
 	return std::tuple_cat(std::tuple{i}, realize_each<Depth+1>(lhs, iters));
@@ -431,8 +405,8 @@ private:
     auto i = std::get<Depth>(idxs);
     using T = decltype(i);
     static_assert(std::is_integral<T>() || 
-		  is_dyn_like<T>() ||
-		  is_iter<T>(), "LHS indices for inline write must be unadorned.");
+		  is_dyn_like<T>::value ||
+		  is_iter<T>::value, "LHS indices for inline write must be unadorned.");
     if constexpr (Depth < BlockLike::Rank_T - 1) {
       verify_unadorned<Depth+1>();
     }
@@ -444,7 +418,7 @@ private:
     // unadorned must be either an integral, Iter, or dyn_var<loop_type>
     auto i = std::get<Depth>(idxs);
     using T = decltype(i);
-    if constexpr (is_iter<T>()) {
+    if constexpr (is_iter<T>::value) {
       static_assert(VerifyUnique<T::Ident_T, Seen...>()(), "LHS indices for inline write must be unique.");
       if constexpr (Depth < BlockLike::Rank_T - 1) {
 	verify_unique<Depth+1, Seen..., T::Ident_T>();
@@ -466,7 +440,7 @@ private:
     if constexpr (depth < rank) {
       auto dummy = std::get<depth>(idxs);
       if constexpr (std::is_integral<decltype(dummy)>() ||
-		    is_dyn_like<decltype(dummy)>()) {
+		    is_dyn_like<decltype(dummy)>::value) {
 	// single iter
 	builder::dyn_var<loop_type> iter = std::get<depth>(idxs);
 	realize_loop_nest(rhs, iters..., iter);
@@ -488,7 +462,7 @@ private:
       // at the innermost level
       // note: this uses c++'s type coercien here since we don't look if they are actually different types
       if constexpr (std::is_arithmetic<Rhs>() ||
-		    is_dyn_like<Rhs>()) {
+		    is_dyn_like<Rhs>::value) {
 	block_like.write(rhs, std::tuple{iters...});
       } else {
 	block_like.write(rhs.realize(idxs, std::tuple{iters...}), std::tuple{iters...});	  
@@ -556,7 +530,7 @@ void Block<Elem,Rank>::write(ScalarElem val, std::tuple<Iters...> iters) {
 template <typename Elem, int Rank>
 template <typename Idx>
 Ref<Block<Elem,Rank>,std::tuple<typename RefIdxType<Idx>::type>> Block<Elem,Rank>::operator[](Idx idx) {
-  if constexpr (is_dyn_like<Idx>()) {
+  if constexpr (is_dyn_like<Idx>::value) {
     // potentially slice builder::builder to dyn_var 
     builder::dyn_var<loop_type> didx = idx;
     return Ref<Block<Elem,Rank>,std::tuple<decltype(didx)>>(*this, std::tuple{didx});
@@ -653,7 +627,7 @@ void View<Elem,Rank>::write(ScalarElem val, std::tuple<Iters...> iters) {
 template <typename Elem, int Rank>
 template <typename Idx>
 Ref<View<Elem,Rank>,std::tuple<typename RefIdxType<Idx>::type>> View<Elem,Rank>::operator[](Idx idx) {
-  if constexpr (is_dyn_like<Idx>()) {
+  if constexpr (is_dyn_like<Idx>::value) {
     // potentially slice builder::builder to dyn_var 
     builder::dyn_var<loop_type> didx = idx;
     return Ref<View<Elem,Rank>,std::tuple<decltype(didx)>>(*this, std::tuple{didx});
