@@ -1,60 +1,16 @@
+// -*-c++-*-
+
 #pragma once
 
 #include <type_traits>
 #include "builder/dyn_var.h"
 #include "functors.h"
 #include "staged_utils.h"
+#include "fwrappers.h"
+#include "fwddecls.h"
+#include "traits.h"
 
 namespace hmda {
-
-template <typename Derived>
-struct Expr;
-template <typename Functor, typename Operand0>
-struct Unary;
-template <typename Functor, typename Operand0, typename Operand1>
-struct Binary;
-template <char Ident>
-struct Iter;
-template <typename BlockLIke, typename Idxs>
-struct Ref;
-template <typename To, typename Operand>
-struct TemplateCast;
-
-template <typename T>
-struct IsExpr {
-  constexpr bool operator()() { return false; }
-};
-
-template <typename BlockLike, typename Idxs>
-struct IsExpr<Ref<BlockLike,Idxs>> {
-  constexpr bool operator()() { return true; }
-};
-
-
-template <typename Functor, typename Operand>
-struct IsExpr<Unary<Functor,Operand>> {
-  constexpr bool operator()() { return true; }
-};
-
-template <typename To, typename Operand>
-struct IsExpr<TemplateCast<To,Operand>> {
-  constexpr bool operator()() { return true; }
-};
-
-template <typename Functor, typename Operand0, typename Operand1>
-struct IsExpr<Binary<Functor,Operand0,Operand1>> {
-  constexpr bool operator()() { return true; }
-};
-
-template <char Ident>
-struct IsExpr<Iter<Ident>> {
-  constexpr bool operator()() { return true; }
-};
-
-template <typename T>
-constexpr bool is_expr() {
-  return IsExpr<T>()();
-}
 
 template <typename Derived>
 struct Expr {
@@ -95,7 +51,7 @@ struct Expr {
 #define FREE_BINARY(functor, name)					\
   template <typename Lhs, typename Rhs,					\
 	    typename std::enable_if<std::is_fundamental<Lhs>::value, int>::type = 0, \
-	    typename std::enable_if<is_expr<Rhs>(), int>::type = 0>	\
+	    typename std::enable_if<is_expr<Rhs>::value, int>::type = 0> \
   auto name(Lhs lhs, const Rhs &rhs) {					\
     return Binary<functor##Functor, Lhs, Rhs>(lhs, rhs);		\
   }
@@ -126,20 +82,6 @@ builder::dyn_var<loop_type> dispatch_realize(T to_realize, const LhsIdxs &lhs_id
     return to_realize;
   }
 }
-
-// casting functions (type isn't quite right, but don't care!)
-// these are called on dyn_vars. If you want to cast a Ref, call rcast
-#define CAST(dtype) \
-  builder::dyn_var<dtype(dtype)> cast_##dtype = builder::as_global("hmda::cast<"#dtype ">");
-CAST(uint8_t);
-CAST(uint16_t);
-CAST(uint32_t);
-CAST(uint64_t);
-CAST(int16_t);
-CAST(int32_t);
-CAST(int64_t);
-CAST(float);
-CAST(double);
 
 // cast a dyn var or plain value
 template <typename To, typename From>
@@ -287,15 +229,6 @@ struct Binary : public Expr<Binary<Functor, Operand0, Operand1>> {
     }
   }
 
-  // for use with loops
-  template <typename...LoopIters, typename...StmtExtents>
-  static builder::dyn_var<loop_type> realize_from_types(const std::tuple<LoopIters...> &iters, const std::tuple<StmtExtents...> &stmt_extents) {
-    auto op0 = Operand0::realize_from_types(iters, stmt_extents);
-    auto op1 = Operand0::realize_from_types(iters, stmt_extents);
-    return Functor()(op0, op1);
-  }
-
-  
 private:
   
   Operand0 operand0;

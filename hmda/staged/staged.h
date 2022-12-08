@@ -1,3 +1,5 @@
+// -*-c++-*-
+
 #pragma once
 
 #include "blocks/c_code_generator.h"

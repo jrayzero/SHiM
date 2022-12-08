@@ -4,52 +4,15 @@
 
 #include "builder/dyn_var.h"
 #include "staged_utils.h"
+#include "fwddecls.h"
 
 using namespace hmda;
-
-// Only support primitive types for this
-constexpr char uint8_t_name[] = "hmda::HeapArray<uint8_t>";
-constexpr char uint16_t_name[] = "hmda::HeapArray<uint16_t>";
-constexpr char uint32_t_name[] = "hmda::HeapArray<uint32_t>";
-constexpr char uint64_t_name[] = "hmda::HeapArray<uint64_t>";
-constexpr char int16_t_name[] = "hmda::HeapArray<int16_t>";
-constexpr char int32_t_name[] = "hmda::HeapArray<int32_t>";
-constexpr char int64_t_name[] = "hmda::HeapArray<int64_t>";
-constexpr char float_name[] = "hmda::HeapArray<float>";
-constexpr char double_name[] = "hmda::HeapArray<double>";
-
-// constructs the appropriate HeapArray object name so it is a constexpr
-#define CONSTEXPR_HEAP_NAME(dtype)		\
-  template <>					\
-  struct BuildHeapName<dtype> {			\
-    constexpr auto operator()() {		\
-      return dtype##_name;			\
-    }						\
-  };
-
-template <typename Elem>
-struct BuildHeapName { };
-CONSTEXPR_HEAP_NAME(uint8_t);
-CONSTEXPR_HEAP_NAME(uint16_t);
-CONSTEXPR_HEAP_NAME(uint32_t);
-CONSTEXPR_HEAP_NAME(uint64_t);
-CONSTEXPR_HEAP_NAME(int16_t);
-CONSTEXPR_HEAP_NAME(int32_t);
-CONSTEXPR_HEAP_NAME(int64_t);
-CONSTEXPR_HEAP_NAME(float);
-CONSTEXPR_HEAP_NAME(double);
-
-template <typename Elem>
-constexpr auto build_heap_name() {
-  return BuildHeapName<Elem>()();
-}
-
-template <typename Elem>
-using HEAP_T = typename builder::name<build_heap_name<Elem>()>;
 
 namespace builder {
 
 // These allow us to insert HeapArray<Elem> datatypes into the generated code
+// I can't do template <typename Elem> dyn_var<HEAP_T<Elem>> b/c that would be
+// an invalid partial specialization
 #define HEAP_DYN_VAR(type)					\
   template <>							\
   struct dyn_var<type> : public dyn_var_impl<type> {		\
@@ -82,96 +45,9 @@ HEAP_DYN_VAR(HEAP_T<double>);
 
 }
 
+namespace hmda {
+
 // general allocators
-
-// TODO for these, I can just have the string name be hmda::read<dtype> and then only need one HMDA function
-// these are all the function wrappers for reading/writing data
-// These aren't exactly the correct signatures since dtype* should actually be heap array for some that case, but it works
-// (i.e. buildit doesn't complain). I have multiple versions so I can specify the element type for the signature
-#define READER(dtype)							\
-  builder::dyn_var<dtype(dtype*,loop_type)> read_func_##dtype = builder::as_global("hmda::read_" # dtype);
-#define WRITER(dtype)							\
-  builder::dyn_var<void(dtype*,loop_type,dtype)> write_func_##dtype = builder::as_global("hmda::write_" # dtype);
-#define HREADER(dtype)							\
-  builder::dyn_var<dtype(HEAP_T<dtype>,loop_type)> read_heaparr_func_##dtype = builder::as_global("hmda::read_heaparr_" # dtype);
-#define HWRITER(dtype)							\
-  builder::dyn_var<void(HEAP_T<dtype>,loop_type,dtype)> write_heaparr_func_##dtype = builder::as_global("hmda::write_heaparr_" # dtype);
-#define BUILDER(dtype)							\
-  builder::dyn_var<HEAP_T<dtype>(loop_type)> build_heaparr_func_##dtype = builder::as_global("hmda::build_heaparr_" # dtype);
-#define MEMSET(dtype) \
-  builder::dyn_var<void(dtype*,dtype,loop_type)> memset_func_##dtype = builder::as_global("hmda::memset_" # dtype);
-#define HMEMSET(dtype) \
-  builder::dyn_var<void(HEAP_T<dtype>,dtype,loop_type)> memset_heaparr_func_##dtype = builder::as_global("hmda::memset_heaparr_" # dtype);
-
-READER(uint8_t);
-READER(uint16_t);
-READER(uint32_t);
-READER(uint64_t);
-READER(int16_t);
-READER(int32_t);
-READER(int64_t);
-READER(float);
-READER(double);
-
-WRITER(uint8_t);
-WRITER(uint16_t);
-WRITER(uint32_t);
-WRITER(uint64_t);
-WRITER(int16_t);
-WRITER(int32_t);
-WRITER(int64_t);
-WRITER(float);
-WRITER(double);
-
-HREADER(uint8_t);
-HREADER(uint16_t);
-HREADER(uint32_t);
-HREADER(uint64_t);
-HREADER(int16_t);
-HREADER(int32_t);
-HREADER(int64_t);
-HREADER(float);
-HREADER(double);
-
-HWRITER(uint8_t);
-HWRITER(uint16_t);
-HWRITER(uint32_t);
-HWRITER(uint64_t);
-HWRITER(int16_t);
-HWRITER(int32_t);
-HWRITER(int64_t);
-HWRITER(float);
-HWRITER(double);
-
-BUILDER(uint8_t);
-BUILDER(uint16_t);
-BUILDER(uint32_t);
-BUILDER(uint64_t);
-BUILDER(int16_t);
-BUILDER(int32_t);
-BUILDER(int64_t);
-BUILDER(float);
-BUILDER(double);
-
-MEMSET(uint8_t);
-MEMSET(uint16_t);
-MEMSET(uint32_t);
-MEMSET(uint64_t);
-MEMSET(int16_t);
-MEMSET(int32_t);
-MEMSET(int64_t);
-MEMSET(float);
-MEMSET(double);
-
-HMEMSET(uint8_t);
-HMEMSET(uint16_t);
-HMEMSET(uint32_t);
-HMEMSET(uint64_t);
-HMEMSET(int16_t);
-HMEMSET(int32_t);
-HMEMSET(int64_t);
-HMEMSET(float);
-HMEMSET(double);
 
 template <typename Elem>
 struct Allocation {
@@ -197,9 +73,9 @@ struct Allocation {
   struct DispatchRead<dtype, IsHeapArr, Data> {				\
     auto operator()(builder::dyn_var<loop_type> lidx, Data data) {	\
       if constexpr (IsHeapArr) {					\
-	return read_heaparr_func_##dtype(data,lidx);			\
+	return read_heaparr_##dtype(data,lidx);			\
       }	else {								\
-	return read_func_##dtype(data,lidx);				\
+	return read_##dtype(data,lidx);				\
       }									\
     }									\
   };
@@ -227,9 +103,9 @@ auto dispatch_read(builder::dyn_var<loop_type> lidx, Data data) {
   struct DispatchWrite<dtype, IsHeapArr, Data> {			\
     void operator()(builder::dyn_var<dtype> val, builder::dyn_var<loop_type> lidx, Data data) { \
       if constexpr (IsHeapArr) {					\
-	write_heaparr_func_##dtype(data, lidx, val);			\
+	write_heaparr_##dtype(data, lidx, val);			\
       } else {								\
-	write_func_##dtype(data, lidx, val);				\
+	write_##dtype(data, lidx, val);				\
       }									\
     }									\
   };
@@ -257,9 +133,9 @@ void dispatch_write(builder::dyn_var<Elem> val, builder::dyn_var<loop_type> lidx
   struct DispatchMemset<dtype, IsHeapArr, Data> {			\
     void operator()(Data data, builder::dyn_var<dtype> val, builder::dyn_var<loop_type> sz) { \
       if constexpr (IsHeapArr) {					\
-	memset_heaparr_func_##dtype(data, val, sz);			\
+	memset_heaparr_##dtype(data, val, sz);			\
       } else {								\
-	memset_func_##dtype(data, val, sz);				\
+	memset_##dtype(data, val, sz);				\
       }									\
     }									\
   };
@@ -286,7 +162,7 @@ void dispatch_memset(Data data, builder::dyn_var<Elem> val, builder::dyn_var<loo
   template <>						\
   struct DispatchBuildHeap<dtype> {			\
     auto operator()(builder::dyn_var<loop_type> sz) {	\
-      return build_heaparr_func_##dtype(sz);		\
+      return build_heaparr_##dtype(sz);		\
     }							\
   };
 
@@ -385,4 +261,6 @@ template <int Sz>
 builder::dyn_var<Elem[Sz]> Allocation<Elem>::stack() {
   assert(is_stack_strategy());
   return static_cast<StackAllocation<Elem,Sz>*>(this)->data;
+}
+
 }

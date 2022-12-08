@@ -1,3 +1,5 @@
+// -*-c++-*-
+
 #pragma once
 
 #include <vector>
@@ -7,6 +9,7 @@
 #include "staged_utils.h"
 #include "expr.h"
 #include "staged_allocators.h"
+#include "fwddecls.h"
 
 namespace hmda {
 
@@ -18,12 +21,6 @@ namespace hmda {
 // The location information within Blocks and Views is immutable once set, so we
 // don't have to worry about breaking dependencies with dyn_vars when passing
 // them across blocks and views.
-
-template <typename BlockLike, typename Idxs> 
-struct Ref;
-
-template <typename Elem, int Rank>
-struct View;
 
 // If we don't deepcopy, then the user could modify dyn_vars that they use for extents and such, which
 // would affect the location of a given block/view. This is bad. It'd basically be like having a pointer
@@ -242,7 +239,6 @@ struct View {
   static constexpr int Rank_T = Rank;
   static constexpr bool IsBlock_T = false;
 
-  // make private and have block be a friend
   View(SLoc_T bextents, SLoc_T bstrides, SLoc_T borigin,
        SLoc_T vextents, SLoc_T vstrides, SLoc_T vorigin,
        std::shared_ptr<Allocation<Elem>> allocator) :
