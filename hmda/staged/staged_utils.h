@@ -140,4 +140,66 @@ Loc_T<Rank> apply(Loc_T<Rank> arr0,
   return arr;
 }
 
+#define DISPATCH_PRINT_ELEM(dtype)				\
+  template <>							\
+  struct DispatchPrintElem<dtype> {				\
+    template <typename Val>					\
+    void operator()(Val val) { print_elem_##dtype(val); }	\
+  };
+
+template <typename T>
+struct DispatchPrintElem { };
+DISPATCH_PRINT_ELEM(uint8_t);
+DISPATCH_PRINT_ELEM(uint16_t);
+DISPATCH_PRINT_ELEM(uint32_t);
+DISPATCH_PRINT_ELEM(uint64_t);
+DISPATCH_PRINT_ELEM(int16_t);
+DISPATCH_PRINT_ELEM(int32_t);
+DISPATCH_PRINT_ELEM(int64_t);
+DISPATCH_PRINT_ELEM(float);
+DISPATCH_PRINT_ELEM(double);
+
+///
+/// Call the appropriate print_elem function based on Elem
+template <typename Elem, typename Val>
+void dispatch_print_elem(Val val) {
+  DispatchPrintElem<Elem>()(val);
+}
+
+// Create a new Loc_T and copy over the contents of obj
+template <int Rank>
+Loc_T<Rank> deepcopy(Loc_T<Rank> obj) {
+  Loc_T<Rank> copy;
+  for (builder::static_var<int> i = 0; i < Rank; i=i+1) {
+    copy[i] = obj[i];
+  }
+  return copy;
+}
+
+///
+/// Create the type that resultsing from concatenting Idx to tuple<Idxs...>
+template <typename A, typename B>
+struct TupleTypeCat { };
+
+template <typename Idx, typename...Idxs>
+struct TupleTypeCat<Idx, std::tuple<Idxs...>> {
+  using type = std::tuple<Idxs...,Idx>;
+};
+
+// Not sure why I even use this...
+template <typename Idx>
+struct RefIdxType { 
+  using type = Idx;
+};
+
+template <>
+struct RefIdxType<builder::builder> {
+  using type = builder::dyn_var<loop_type>;
+};
+
+template <>
+struct RefIdxType<builder::dyn_var<loop_type>> {
+  using type = builder::dyn_var<loop_type>;
+};
+
 }

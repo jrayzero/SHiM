@@ -14,6 +14,7 @@ namespace hmda {
 
 builder::dyn_var<void(int)> hexit = builder::as_global("exit");
 builder::dyn_var<loop_type(loop_type)> hfloor = builder::as_global("floor");
+builder::dyn_var<void(void)> print_newline = builder::as_global("hmda::print_newline");
 
 // Note: the arg tyoe for these casts isn't right, but I don't want to write every combination
 // of dyn_var<to(from)>, and buildit doesn't seem to care.
@@ -96,5 +97,15 @@ builder::dyn_var<HEAP_T<int32_t>(loop_type)> build_heaparr_int32_t = builder::as
 builder::dyn_var<HEAP_T<int64_t>(loop_type)> build_heaparr_int64_t = builder::as_global("hmda::build_heaparr<int64_t>");
 builder::dyn_var<HEAP_T<float>(loop_type)> build_heaparr_float = builder::as_global("hmda::build_heaparr<float>");
 builder::dyn_var<HEAP_T<double>(loop_type)> build_heaparr_double = builder::as_global("hmda::build_heaparr<double>");
+
+builder::dyn_var<void(uint8_t)> print_elem_uint8_t = builder::as_global("hmda::print_elem");
+builder::dyn_var<void(uint16_t)> print_elem_uint16_t = builder::as_global("hmda::print_elem");
+builder::dyn_var<void(uint32_t)> print_elem_uint32_t = builder::as_global("hmda::print_elem");
+builder::dyn_var<void(uint64_t)> print_elem_uint64_t = builder::as_global("hmda::print_elem");
+builder::dyn_var<void(int16_t)> print_elem_int16_t = builder::as_global("hmda::print_elem");
+builder::dyn_var<void(int32_t)> print_elem_int32_t = builder::as_global("hmda::print_elem");
+builder::dyn_var<void(int64_t)> print_elem_int64_t = builder::as_global("hmda::print_elem");
+builder::dyn_var<void(float)> print_elem_float = builder::as_global("hmda::print_elem");
+builder::dyn_var<void(double)> print_elem_double = builder::as_global("hmda::print_elem");
 
 }
