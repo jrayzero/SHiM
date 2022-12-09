@@ -35,6 +35,21 @@ Loc_T<Rank> deepcopy(Loc_T<Rank> obj) {
   return copy;
 }
 
+// shove in view
+template <int Rank, int Depth, typename...Iters>
+auto compute_block_relative_iters(Loc_T<Rank> vstrides, 
+				  Loc_T<Rank> vorigin,
+				  const std::tuple<Iters...> &viters) {
+  if constexpr (Depth == sizeof...(Iters)) {
+    return std::tuple{};
+  } else {
+    return std::tuple_cat(std::tuple{std::get<Depth>(viters) * vstrides[Depth] +
+	  vorigin[Depth]}, 
+      compute_block_relative_iters<Rank,Depth+1>(vstrides, vorigin, viters));
+  }
+}
+
+
 #define PRINT_ELEM(dtype) \
   builder::dyn_var<void(dtype)> print_elem_##dtype = builder::as_global("hmda::print_elem");
 PRINT_ELEM(uint8_t);

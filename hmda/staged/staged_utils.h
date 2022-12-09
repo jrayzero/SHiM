@@ -11,6 +11,8 @@
 
 namespace hmda {
 
+///
+/// Fill a Loc_T object with template values
 template <int Idx, typename D, loop_type Val, loop_type...Vals>
 void to_Loc_T(D &dyn) {
   dyn[Idx] = Val;
@@ -19,6 +21,8 @@ void to_Loc_T(D &dyn) {
   }
 }
 
+///
+/// Create a Loc_T object from template values
 template <loop_type...Vals>
 Loc_T<sizeof...(Vals)> to_Loc_T() {
   builder::dyn_var<loop_type[sizeof...(Vals)]> loc_t;
@@ -26,6 +30,8 @@ Loc_T<sizeof...(Vals)> to_Loc_T() {
   return loc_t;
 }
 
+///
+/// Make a homogeneous N-tuple containing Val
 template <typename T, T Val, int N>
 auto make_tup() {
   if constexpr (N == 0) {
@@ -35,6 +41,8 @@ auto make_tup() {
   }
 }
 
+///
+/// Convert a coordinate to a linear index 
 template <int Depth, int Rank, typename...TupleTypes>
 static builder::dyn_var<loop_type> linearize(Loc_T<Rank> extents, const std::tuple<TupleTypes...> &coord) {
   builder::dyn_var<loop_type> c = std::get<Rank-1-Depth>(coord);
@@ -45,7 +53,8 @@ static builder::dyn_var<loop_type> linearize(Loc_T<Rank> extents, const std::tup
   }
 }
 
-// perform a reduction across a range of something that works with std::get 
+///
+/// Perform a reduction across a region of obj
 template <typename Functor, int Begin, int End, int Depth, typename Obj>
 auto reduce_region(const Obj &obj) {
   constexpr int tuple_sz = std::tuple_size<Obj>();
@@ -62,6 +71,8 @@ auto reduce_region(const Obj &obj) {
   }
 }
 
+///
+/// Perform a reduction across a region of obj
 template <typename Functor, int Begin, int End, typename Obj>
 auto reduce_region(const Obj &obj) {
   constexpr int tuple_sz = std::tuple_size<Obj>();
@@ -70,6 +81,8 @@ auto reduce_region(const Obj &obj) {
   return reduce_region<Functor,Begin,End,0>(obj);
 }
 
+///
+/// Perform a reduction across a dyn_var<T[]>
 template <typename Functor, int Rank, typename T>
 builder::dyn_var<T> reduce(builder::dyn_var<T[Rank]> arr) {
   builder::dyn_var<T> acc = arr[0];
@@ -79,6 +92,8 @@ builder::dyn_var<T> reduce(builder::dyn_var<T[Rank]> arr) {
   return acc;
 }
 
+///
+/// Perform a multiplication reduction across template values
 template <loop_type Val, loop_type...Vals>
 constexpr loop_type mul_reduce() {
   if constexpr (sizeof...(Vals) == 0) {
@@ -88,6 +103,8 @@ constexpr loop_type mul_reduce() {
   }
 }
 
+///
+/// Convert a linear index to a coordinate
 template <int Depth, typename LIdx, typename Extents>
 auto delinearize(LIdx lidx, const Extents &extents) {
   constexpr int tuple_size = std::tuple_size<Extents>();
@@ -100,124 +117,26 @@ auto delinearize(LIdx lidx, const Extents &extents) {
   }
 }
 
-template <int Rank, int Depth, typename...Iters>
-auto compute_block_relative_iters(Loc_T<Rank> vstrides, 
-				  Loc_T<Rank> vorigin,
-				  const std::tuple<Iters...> &viters) {
-  if constexpr (Depth == sizeof...(Iters)) {
-    return std::tuple{};
-  } else {
-    return std::tuple_cat(std::tuple{std::get<Depth>(viters) * vstrides[Depth] +
-	  vorigin[Depth]}, 
-      compute_block_relative_iters<Rank,Depth+1>(vstrides, vorigin, viters));
-  }
-}
-
-struct End { }; 
-
-struct Slice {
-  builder::dyn_var<loop_type> start;
-  builder::dyn_var<loop_type> stop;
-  builder::dyn_var<loop_type> stride;
-  Slice(builder::dyn_var<loop_type> start, 
-	builder::dyn_var<loop_type> stop, 
-	builder::dyn_var<loop_type> stride) : start(start),
-					      stop(stop),
-					      stride(stride) { }
-};
-
-auto slice(builder::dyn_var<loop_type> start, builder::dyn_var<loop_type> stop, builder::dyn_var<loop_type> stride) {
-  return Slice(start, stop, stride);
-}
-
+///
+/// Apply Functor to the elements in arr0 and arr1 and store the result in arr
 template <typename Functor, int Rank, int Depth>
-void apply(Loc_T<Rank> vec,
-	   Loc_T<Rank> vec0, 
-	   Loc_T<Rank> vec1) {
-  auto applied = Functor()(vec0[Depth], vec1[Depth]);
-  vec[Depth] = applied;
+void apply(Loc_T<Rank> arr,
+	   Loc_T<Rank> arr0, 
+	   Loc_T<Rank> arr1) {
+  auto applied = Functor()(arr0[Depth], arr1[Depth]);
+  arr[Depth] = applied;
   if constexpr (Depth < Rank-1) {
-    apply<Functor,Rank,Depth+1>(vec,vec0, vec1);
+    apply<Functor,Rank,Depth+1>(arr,arr0, arr1);
   }
 }
 
+///
+/// Apply Functor to the elements in arr0 and arr1 and produce the resulting arr
 template <typename Functor, int Rank>
-Loc_T<Rank> apply(Loc_T<Rank> vec0, 
-		  Loc_T<Rank> vec1) {
-  Loc_T<Rank> vec;
-  apply<Functor, Rank, 0>(vec, vec0, vec1);
-  return vec;
-}
-
-template <int Idx, int Rank, typename Arg, typename...Args>
-void gather_origin(Loc_T<Rank> vec, Arg arg, Args...args) {
-  if constexpr (is_slice<Arg>::value) {
-    vec[Idx] = arg.start;
-    if constexpr (Idx < Rank - 1) {
-      gather_origin<Idx+1,Rank>(vec,args...);
-    }
-  } else {
-    // the start is just the value
-    vec[Idx] = arg;
-    if constexpr (Idx < Rank - 1) {
-      gather_origin<Idx+1,Rank>(vec,args...);
-    }
-  }
-}
-
-
-template <int Idx, int Rank, typename Arg, typename...Args>
-void gather_strides(Loc_T<Rank> vec, Arg arg, Args...args) {
-  if constexpr (is_slice<Arg>::value) {
-    vec[Idx] = arg.stride;
-    if constexpr (Idx < Rank - 1) {
-      gather_strides<Idx+1,Rank>(vec, args...);
-    }
-  } else {
-    vec[Idx] = 1;
-    if constexpr (Idx < Rank - 1) {
-      gather_strides<Idx+1,Rank>(vec, args...);
-    }
-  }
-}
-
-template <int Idx, int Rank, typename Arg, typename...Args>
-void gather_stops(Loc_T<Rank> vec, Loc_T<Rank> extents, Arg arg, Args...args) {
-  if constexpr (is_slice<Arg>::value) {
-    builder::dyn_var<loop_type> stop = arg.stop;
-    if constexpr (std::is_same<End, decltype(stop)>::value) {
-      vec[Idx] = extents[Idx];
-      if constexpr (Idx < Rank - 1) {
-	gather_stops<Idx+1,Rank>(vec, extents, args...);
-      }
-    } else {
-      vec[Idx] = stop;
-      if constexpr (Idx < Rank - 1) {
-	gather_stops<Idx+1,Rank>(vec, extents, args...);
-      }
-    }
-  } else {
-    vec[Idx] = arg;
-    if constexpr (Idx < Rank - 1) {
-      gather_stops<Idx+1,Rank>(vec, extents, args...);
-    }    
-  }
-}
-
-template <int Depth, int Rank>
-void convert_stops_to_extents(Loc_T<Rank> arr, Loc_T<Rank> starts, Loc_T<Rank> stops, Loc_T<Rank> strides) {
-  builder::dyn_var<loop_type> extent = hfloor((stops[Depth] - starts[Depth] - (loop_type)1) / 
-					      strides[Depth]) + (loop_type)1;
-  arr[Depth] = extent;
-  if constexpr (Depth < Rank - 1) {
-    convert_stops_to_extents<Depth+1,Rank>(arr, starts, stops, strides);
-  }
-}
-
-template <int Rank>
-Loc_T<Rank> convert_stops_to_extents(Loc_T<Rank> starts, Loc_T<Rank> stops, Loc_T<Rank> strides) {
+Loc_T<Rank> apply(Loc_T<Rank> arr0, 
+		  Loc_T<Rank> arr1) {
   Loc_T<Rank> arr;
-  convert_stops_to_extents<0, Rank>(arr, starts, stops, strides);
+  apply<Functor, Rank, 0>(arr, arr0, arr1);
   return arr;
 }
 

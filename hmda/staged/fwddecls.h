@@ -32,6 +32,7 @@ template <typename To, typename Operand>
 struct TemplateCast;
 
 // Other
+template <bool B>
 struct Slice;
 
 ///// Types

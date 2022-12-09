@@ -11,6 +11,7 @@
 #include "staged/fwddecls.h"
 #include "staged/traits.h"
 #include "staged/staged.h"
+#include "staged/slices.h"
 #include "staged/expr.h"
 #include "staged/staged_utils.h"
 #include "staged/staged_blocklike.h"

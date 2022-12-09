@@ -77,8 +77,18 @@ struct is_slice {
   static constexpr bool value = false;
 };
 
+template <bool B>
+struct is_slice<Slice<B>> { 
+  static constexpr bool value = true;
+};
+
+template <typename T>
+struct is_stop_slice {
+  static constexpr bool value = false;
+};
+
 template <>
-struct is_slice<Slice> { 
+struct is_stop_slice<Slice<true>> {
   static constexpr bool value = true;
 };
 
