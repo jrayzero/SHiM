@@ -1,54 +1,18 @@
+// -*-c++-*-
+
 #pragma once
 
 #include "builder/dyn_var.h"
 #include "builder/static_var.h"
 #include "common/loop_type.h"
+#include "fwrappers.h"
+#include "fwddecls.h"
+#include "traits.h"
 
 namespace hmda {
 
-template <int Rank>
-using Loc_T = builder::dyn_var<loop_type[Rank]>;
-
-builder::dyn_var<void(int)> hexit = builder::as_global("exit");
-
-builder::dyn_var<loop_type(loop_type)> floor_func = builder::as_global("floor");
-
-/*// casting functions (type isn't quite right, but don't care!)
-// these are called on dyn_vars. If you want to cast a Ref, call rcast
-#define CAST(dtype) \
-  builder::dyn_var<dtype(dtype)> cast_##dtype = builder::as_global("cast<"#dtype ">");
-CAST(uint8_t);
-CAST(uint16_t);
-CAST(uint32_t);
-CAST(uint64_t);
-CAST(int16_t);
-CAST(int32_t);
-CAST(int64_t);
-CAST(float);
-CAST(double);
-
-template <typename To, typename From>
-struct DispatchCast { };
-#define DISPATCH_CAST(dtype)						\
-  template <typename From>						\
-  struct DispatchCast<dtype,From> { auto operator()(From val) { return cast_##dtype(val); } };
-DISPATCH_CAST(uint8_t);
-DISPATCH_CAST(uint16_t);
-DISPATCH_CAST(uint32_t);
-DISPATCH_CAST(uint64_t);
-DISPATCH_CAST(int16_t);
-DISPATCH_CAST(int32_t);
-DISPATCH_CAST(int64_t);
-DISPATCH_CAST(float);
-DISPATCH_CAST(double);
-
-// cast a dyn var or plain value
-template <typename To, typename From>
-auto cast(From val) {
-  // don't separately generate the fptr because it will have the wrong type
-  return DispatchCast<To,From>()(val);
-}*/
-
+///
+/// Fill a Loc_T object with template values
 template <int Idx, typename D, loop_type Val, loop_type...Vals>
 void to_Loc_T(D &dyn) {
   dyn[Idx] = Val;
@@ -57,6 +21,8 @@ void to_Loc_T(D &dyn) {
   }
 }
 
+///
+/// Create a Loc_T object from template values
 template <loop_type...Vals>
 Loc_T<sizeof...(Vals)> to_Loc_T() {
   builder::dyn_var<loop_type[sizeof...(Vals)]> loc_t;
@@ -64,6 +30,8 @@ Loc_T<sizeof...(Vals)> to_Loc_T() {
   return loc_t;
 }
 
+///
+/// Make a homogeneous N-tuple containing Val
 template <typename T, T Val, int N>
 auto make_tup() {
   if constexpr (N == 0) {
@@ -73,6 +41,8 @@ auto make_tup() {
   }
 }
 
+///
+/// Convert a coordinate to a linear index 
 template <int Depth, int Rank, typename...TupleTypes>
 static builder::dyn_var<loop_type> linearize(Loc_T<Rank> extents, const std::tuple<TupleTypes...> &coord) {
   builder::dyn_var<loop_type> c = std::get<Rank-1-Depth>(coord);
@@ -83,7 +53,8 @@ static builder::dyn_var<loop_type> linearize(Loc_T<Rank> extents, const std::tup
   }
 }
 
-// perform a reduction across a range of something that works with std::get 
+///
+/// Perform a reduction across a region of obj
 template <typename Functor, int Begin, int End, int Depth, typename Obj>
 auto reduce_region(const Obj &obj) {
   constexpr int tuple_sz = std::tuple_size<Obj>();
@@ -100,6 +71,8 @@ auto reduce_region(const Obj &obj) {
   }
 }
 
+///
+/// Perform a reduction across a region of obj
 template <typename Functor, int Begin, int End, typename Obj>
 auto reduce_region(const Obj &obj) {
   constexpr int tuple_sz = std::tuple_size<Obj>();
@@ -108,6 +81,8 @@ auto reduce_region(const Obj &obj) {
   return reduce_region<Functor,Begin,End,0>(obj);
 }
 
+///
+/// Perform a reduction across a dyn_var<T[]>
 template <typename Functor, int Rank, typename T>
 builder::dyn_var<T> reduce(builder::dyn_var<T[Rank]> arr) {
   builder::dyn_var<T> acc = arr[0];
@@ -117,6 +92,8 @@ builder::dyn_var<T> reduce(builder::dyn_var<T[Rank]> arr) {
   return acc;
 }
 
+///
+/// Perform a multiplication reduction across template values
 template <loop_type Val, loop_type...Vals>
 constexpr loop_type mul_reduce() {
   if constexpr (sizeof...(Vals) == 0) {
@@ -126,6 +103,8 @@ constexpr loop_type mul_reduce() {
   }
 }
 
+///
+/// Convert a linear index to a coordinate
 template <int Depth, typename LIdx, typename Extents>
 auto delinearize(LIdx lidx, const Extents &extents) {
   constexpr int tuple_size = std::tuple_size<Extents>();
@@ -138,136 +117,89 @@ auto delinearize(LIdx lidx, const Extents &extents) {
   }
 }
 
-template <int Rank, int Depth, typename...Iters>
-auto compute_block_relative_iters(Loc_T<Rank> vstrides, 
-				  Loc_T<Rank> vorigin,
-				  const std::tuple<Iters...> &viters) {
-  if constexpr (Depth == sizeof...(Iters)) {
-    return std::tuple{};
-  } else {
-    return std::tuple_cat(std::tuple{std::get<Depth>(viters) * vstrides[Depth] +
-	  vorigin[Depth]}, 
-      compute_block_relative_iters<Rank,Depth+1>(vstrides, vorigin, viters));
-  }
-}
-
-struct End { }; 
-
-struct Slice {
-  builder::dyn_var<loop_type> start;
-  builder::dyn_var<loop_type> stop;
-  builder::dyn_var<loop_type> stride;
-  Slice(builder::dyn_var<loop_type> start, 
-	builder::dyn_var<loop_type> stop, 
-	builder::dyn_var<loop_type> stride) : start(start),
-					      stop(stop),
-					      stride(stride) { }
-};
-
-auto slice(builder::dyn_var<loop_type> start, builder::dyn_var<loop_type> stop, builder::dyn_var<loop_type> stride) {
-  return Slice(start, stop, stride);
-}
-
-template <typename MaybeSlice>
-struct IsSlice { constexpr bool operator()() { return false; } };
-
-template <>
-struct IsSlice<Slice> { constexpr bool operator()() { return true; } };
-
-template <typename MaybeSlice>
-constexpr bool is_slice() {
-  return IsSlice<MaybeSlice>()();
-}
-
+///
+/// Apply Functor to the elements in arr0 and arr1 and store the result in arr
 template <typename Functor, int Rank, int Depth>
-void apply(Loc_T<Rank> vec,
-	   Loc_T<Rank> vec0, 
-	   Loc_T<Rank> vec1) {
-  auto applied = Functor()(vec0[Depth], vec1[Depth]);
-  vec[Depth] = applied;
+void apply(Loc_T<Rank> arr,
+	   Loc_T<Rank> arr0, 
+	   Loc_T<Rank> arr1) {
+  auto applied = Functor()(arr0[Depth], arr1[Depth]);
+  arr[Depth] = applied;
   if constexpr (Depth < Rank-1) {
-    apply<Functor,Rank,Depth+1>(vec,vec0, vec1);
+    apply<Functor,Rank,Depth+1>(arr,arr0, arr1);
   }
 }
 
+///
+/// Apply Functor to the elements in arr0 and arr1 and produce the resulting arr
 template <typename Functor, int Rank>
-Loc_T<Rank> apply(Loc_T<Rank> vec0, 
-		  Loc_T<Rank> vec1) {
-  Loc_T<Rank> vec;
-  apply<Functor, Rank, 0>(vec, vec0, vec1);
-  return vec;
-}
-
-template <int Idx, int Rank, typename Arg, typename...Args>
-void gather_origin(Loc_T<Rank> vec, Arg arg, Args...args) {
-  if constexpr (is_slice<Arg>()) {
-    vec[Idx] = arg.start;
-    if constexpr (Idx < Rank - 1) {
-      gather_origin<Idx+1,Rank>(vec,args...);
-    }
-  } else {
-    // the start is just the value
-    vec[Idx] = arg;
-    if constexpr (Idx < Rank - 1) {
-      gather_origin<Idx+1,Rank>(vec,args...);
-    }
-  }
-}
-
-
-template <int Idx, int Rank, typename Arg, typename...Args>
-void gather_strides(Loc_T<Rank> vec, Arg arg, Args...args) {
-  if constexpr (is_slice<Arg>()) {
-    vec[Idx] = arg.stride;
-    if constexpr (Idx < Rank - 1) {
-      gather_strides<Idx+1,Rank>(vec, args...);
-    }
-  } else {
-    vec[Idx] = 1;
-    if constexpr (Idx < Rank - 1) {
-      gather_strides<Idx+1,Rank>(vec, args...);
-    }
-  }
-}
-
-template <int Idx, int Rank, typename Arg, typename...Args>
-void gather_stops(Loc_T<Rank> vec, Loc_T<Rank> extents, Arg arg, Args...args) {
-  if constexpr (is_slice<Arg>()) {
-    builder::dyn_var<loop_type> stop = arg.stop;
-    if constexpr (std::is_same<End, decltype(stop)>::value) {
-      vec[Idx] = extents[Idx];
-      if constexpr (Idx < Rank - 1) {
-	gather_stops<Idx+1,Rank>(vec, extents, args...);
-      }
-    } else {
-      vec[Idx] = stop;
-      if constexpr (Idx < Rank - 1) {
-	gather_stops<Idx+1,Rank>(vec, extents, args...);
-      }
-    }
-  } else {
-    vec[Idx] = arg;
-    if constexpr (Idx < Rank - 1) {
-      gather_stops<Idx+1,Rank>(vec, extents, args...);
-    }    
-  }
-}
-
-template <int Depth, int Rank>
-void convert_stops_to_extents(Loc_T<Rank> arr, Loc_T<Rank> starts, Loc_T<Rank> stops, Loc_T<Rank> strides) {
-  builder::dyn_var<loop_type> extent = floor_func((stops[Depth] - starts[Depth] - (loop_type)1) / 
-						  strides[Depth]) + (loop_type)1;
-  arr[Depth] = extent;
-  if constexpr (Depth < Rank - 1) {
-    convert_stops_to_extents<Depth+1,Rank>(arr, starts, stops, strides);
-  }
-}
-
-template <int Rank>
-Loc_T<Rank> convert_stops_to_extents(Loc_T<Rank> starts, Loc_T<Rank> stops, Loc_T<Rank> strides) {
+Loc_T<Rank> apply(Loc_T<Rank> arr0, 
+		  Loc_T<Rank> arr1) {
   Loc_T<Rank> arr;
-  convert_stops_to_extents<0, Rank>(arr, starts, stops, strides);
+  apply<Functor, Rank, 0>(arr, arr0, arr1);
   return arr;
 }
+
+#define DISPATCH_PRINT_ELEM(dtype)				\
+  template <>							\
+  struct DispatchPrintElem<dtype> {				\
+    template <typename Val>					\
+    void operator()(Val val) { print_elem_##dtype(val); }	\
+  };
+
+template <typename T>
+struct DispatchPrintElem { };
+DISPATCH_PRINT_ELEM(uint8_t);
+DISPATCH_PRINT_ELEM(uint16_t);
+DISPATCH_PRINT_ELEM(uint32_t);
+DISPATCH_PRINT_ELEM(uint64_t);
+DISPATCH_PRINT_ELEM(int16_t);
+DISPATCH_PRINT_ELEM(int32_t);
+DISPATCH_PRINT_ELEM(int64_t);
+DISPATCH_PRINT_ELEM(float);
+DISPATCH_PRINT_ELEM(double);
+
+///
+/// Call the appropriate print_elem function based on Elem
+template <typename Elem, typename Val>
+void dispatch_print_elem(Val val) {
+  DispatchPrintElem<Elem>()(val);
+}
+
+// Create a new Loc_T and copy over the contents of obj
+template <int Rank>
+Loc_T<Rank> deepcopy(Loc_T<Rank> obj) {
+  Loc_T<Rank> copy;
+  for (builder::static_var<int> i = 0; i < Rank; i=i+1) {
+    copy[i] = obj[i];
+  }
+  return copy;
+}
+
+///
+/// Create the type that resultsing from concatenting Idx to tuple<Idxs...>
+template <typename A, typename B>
+struct TupleTypeCat { };
+
+template <typename Idx, typename...Idxs>
+struct TupleTypeCat<Idx, std::tuple<Idxs...>> {
+  using type = std::tuple<Idxs...,Idx>;
+};
+
+// Not sure why I even use this...
+template <typename Idx>
+struct RefIdxType { 
+  using type = Idx;
+};
+
+template <>
+struct RefIdxType<builder::builder> {
+  using type = builder::dyn_var<loop_type>;
+};
+
+template <>
+struct RefIdxType<builder::dyn_var<loop_type>> {
+  using type = builder::dyn_var<loop_type>;
+};
 
 }
