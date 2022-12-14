@@ -24,10 +24,27 @@ void to_Loc_T(D &dyn) {
 ///
 /// Create a Loc_T object from template values
 template <loop_type...Vals>
-Loc_T<sizeof...(Vals)> to_Loc_T() {
-  builder::dyn_var<loop_type[sizeof...(Vals)]> loc_t;
+void to_Loc_T(Loc_T<sizeof...(Vals)> loc_t) {
+//  builder::dyn_var<loop_type[sizeof...(Vals)]> loc_t;
   to_Loc_T<0,decltype(loc_t),Vals...>(loc_t);
-  return loc_t;
+//  return loc_t;
+}
+
+template <int Idx, typename D, loop_type Val, loop_type...Vals>
+void to_Ext_T(D &ext_t) {
+  ext_t[Idx] = Val;
+  if constexpr (sizeof...(Vals) > 0) {
+    to_Ext_T<Idx+1,D,Vals...>(ext_t);
+  }
+}
+
+///
+/// Create an Ext_T object from template values
+template <loop_type...Vals>
+builder::dyn_var<loop_type[sizeof...(Vals)]> to_Ext_T() {
+  builder::dyn_var<loop_type[sizeof...(Vals)]> ext_t;
+  to_Ext_T<0,decltype(ext_t),Vals...>(ext_t);
+  return ext_t;
 }
 
 ///
@@ -84,7 +101,7 @@ auto reduce_region(const Obj &obj) {
 ///
 /// Perform a reduction across a dyn_var<T[]>
 template <typename Functor, int Rank, typename T>
-builder::dyn_var<T> reduce(builder::dyn_var<T[Rank]> arr) {
+builder::dyn_var<T> reduce(Loc_T<Rank> arr) {
   builder::dyn_var<T> acc = arr[0];
   for (builder::static_var<T> i = 1; i < Rank; i=i+1) {
     acc = Functor()(acc, arr[i]);
@@ -119,7 +136,7 @@ auto delinearize(LIdx lidx, const Extents &extents) {
 
 ///
 /// Apply Functor to the elements in arr0 and arr1 and store the result in arr
-template <typename Functor, int Rank, int Depth>
+template <typename Functor, int Rank, int Depth=0>
 void apply(Loc_T<Rank> arr,
 	   Loc_T<Rank> arr0, 
 	   Loc_T<Rank> arr1) {
@@ -132,13 +149,14 @@ void apply(Loc_T<Rank> arr,
 
 ///
 /// Apply Functor to the elements in arr0 and arr1 and produce the resulting arr
-template <typename Functor, int Rank>
-Loc_T<Rank> apply(Loc_T<Rank> arr0, 
-		  Loc_T<Rank> arr1) {
-  Loc_T<Rank> arr;
+/*template <typename Functor, int Rank>
+void apply(Loc_T<Rank> arr,
+	   Loc_T<Rank> arr0, 
+	   Loc_T<Rank> arr1) {
+//  Loc_T<Rank> arr;
   apply<Functor, Rank, 0>(arr, arr0, arr1);
-  return arr;
-}
+//  return arr;
+}*/
 
 #define DISPATCH_PRINT_ELEM(dtype)				\
   template <>							\
@@ -167,14 +185,21 @@ void dispatch_print_elem(Val val) {
 }
 
 // Create a new Loc_T and copy over the contents of obj
-template <int Rank>
-Loc_T<Rank> deepcopy(Loc_T<Rank> obj) {
-  Loc_T<Rank> copy;
-  for (builder::static_var<int> i = 0; i < Rank; i=i+1) {
-    copy[i] = obj[i];
-  }
-  return copy;
-}
+//template <int Rank>
+//Loc_T<Rank> deepcopy(Loc_T<Rank> obj) {
+//void deepcopy(Loc_T<Rank> copy, Loc_T<Rank> obj) {
+//  Loc_T<Rank> copy;
+//  for (builder::static_var<int> i = 0; i < Rank; i=i+1) {
+//    copy[i] = obj[i];
+//  }
+//  return copy;
+//}
+
+//void deepcopy(Loc_T<Rank> copy, builder::dyn_var<loop_type[Rank]> obj) {
+//  for (builder::static_var<int> i = 0; i < Rank; i=i+1) {
+//    copy[i] = obj[i];
+//  }
+//}
 
 ///
 /// Create the type that resultsing from concatenting Idx to tuple<Idxs...>
