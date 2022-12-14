@@ -10,6 +10,9 @@
 
 namespace hmda {
 
+// TODO: most of the templates on the rhs aren't necessary, but too lazy to remove
+// TODO: just create single globals as auto foo = builder::as_global(...) and then cast it to the correct fptr type in my dispatchers
+
 builder::dyn_var<void(int)> hexit = builder::as_global("exit");
 builder::dyn_var<loop_type(loop_type)> hfloor = builder::as_global("floor");
 builder::dyn_var<void(void)> print_newline = builder::as_global("hmda::print_newline");
