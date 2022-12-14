@@ -23,35 +23,32 @@ namespace hmda {
 // don't have to worry about breaking dependencies with dyn_vars when passing
 // them across blocks and views.
 
-// 3. If we don't deepcopy, then the user could modify dyn_vars that they use for extents and such, which
-// would affect the location of a given block/view. This is bad. It'd basically be like having a pointer
-// represent the location information.
-
 ///
 /// A region of data with a location
 template <typename Elem, int Rank>
 struct Block {
 
   using SLoc_T = Loc_T<Rank>;
+  using Ext_T = builder::dyn_var<loop_type[Rank]>;
   using Elem_T = Elem;
   static constexpr int Rank_T = Rank;
   static constexpr bool IsBlock_T = true;  
 
   ///
   /// Create an internally-managed heap Block
-  Block(SLoc_T bextents, SLoc_T bstrides, SLoc_T borigin, bool memset_data=false);
+  Block(Ext_T bextents, Ext_T bstrides, Ext_T borigin, bool memset_data=false);
 
   ///
   /// Create an internally-managed heap Block
-  Block(SLoc_T bextents, bool memset_data=false);
+  Block(Ext_T bextents, bool memset_data=false);
 
   ///
   /// Create a Block with the specifed Allocation
-  Block(SLoc_T bextents, std::shared_ptr<Allocation<Elem>> allocator, bool memset_data=false);
+  Block(Ext_T bextents, std::shared_ptr<Allocation<Elem>> allocator, bool memset_data=false);
 
   ///
   /// Create an internally-managed heap Block
-  static Block<Elem,Rank> heap(SLoc_T bextents);
+  static Block<Elem,Rank> heap(Ext_T bextents);
 
   ///
   /// Create an internally-managed stack Block
@@ -61,12 +58,12 @@ struct Block {
   ///
   /// Create a user-managed heap Block
   template <typename Elem2>
-  static Block<Elem,Rank> heap(SLoc_T bextents, builder::dyn_var<Elem2*> user);
+  static Block<Elem,Rank> heap(Ext_T bextents, builder::dyn_var<Elem2*> user);
   
   ///
   /// Create a user-managed stack Block
   template <typename Elem2>
-  static Block<Elem,Rank> stack(SLoc_T bextents, builder::dyn_var<Elem2[]> user);
+  static Block<Elem,Rank> stack(Ext_T bextents, builder::dyn_var<Elem2[]> user);
 
   ///
   /// Read a single element at the specified coordinate
@@ -120,7 +117,7 @@ struct Block {
 template <typename Elem, int Rank>
 struct View {
 
-  using SLoc_T = builder::dyn_var<loop_type[Rank]>;
+  using SLoc_T = Loc_T<Rank>;
   using Elem_T = Elem;
   static constexpr int Rank_T = Rank;
   static constexpr bool IsBlock_T = false;
@@ -130,10 +127,16 @@ struct View {
   View(SLoc_T bextents, SLoc_T bstrides, SLoc_T borigin,
        SLoc_T vextents, SLoc_T vstrides, SLoc_T vorigin,
        std::shared_ptr<Allocation<Elem>> allocator) :
-    bextents(deepcopy(bextents)), bstrides(deepcopy(bstrides)), 
-    borigin(deepcopy(borigin)), vextents(deepcopy(vextents)), 
-    vstrides(deepcopy(vstrides)), vorigin(deepcopy(vorigin)),
-    allocator(allocator) { }
+    allocator(allocator) { 
+    for (builder::static_var<int> i = 0; i < Rank; i=i+1) {
+      this->bextents[i] = bextents[i];
+      this->borigin[i] = borigin[i];
+      this->bstrides[i] = bstrides[i];
+      this->vextents[i] = vextents[i];
+      this->vorigin[i] = vorigin[i];
+      this->vstrides[i] = vstrides[i];
+    }
+  }
 
   ///
   /// Read a single element at the specified coordinate
@@ -331,12 +334,15 @@ View<Elem,Rank> Block<Elem,Rank>::view(Slices...slices) {
   SLoc_T vorigin;
   gather_origin<0,Rank>(vorigin, slices...);
   // convert vstops into extents
-  SLoc_T vextents = convert_stops_to_extents<Rank>(vorigin, vstops, vstrides);
+  SLoc_T vextents;
+  convert_stops_to_extents<Rank>(vextents, vorigin, vstops, vstrides);
   // now make everything relative to the prior block
   // new origin = old origin + vorigin * old strides
-  SLoc_T origin = apply<AddFunctor,Rank>(this->borigin, apply<MulFunctor,Rank>(vorigin, this->bstrides));
-  // new strides = old strides * new strides
-  SLoc_T strides = apply<MulFunctor,Rank>(this->bstrides, vstrides);
+  SLoc_T origin;
+  apply<MulFunctor,Rank>(origin, vorigin, this->bstrides);
+  apply<AddFunctor,Rank>(origin, this->borigin, origin);
+  SLoc_T strides;
+  apply<MulFunctor,Rank>(strides, this->bstrides, vstrides);
   return View<Elem,Rank>(this->bextents, this->bstrides, this->borigin,
 			 vextents, strides, vorigin,
 			 this->allocator);  
@@ -373,47 +379,52 @@ void Block<Elem,Rank>::dump_data() {
 }
 
 template <typename Elem, int Rank>
-Block<Elem,Rank>::Block(SLoc_T bextents, SLoc_T bstrides, SLoc_T borigin, bool memset_data) :
-  bextents(deepcopy(bextents)), bstrides(deepcopy(bstrides)), borigin(deepcopy(borigin)) {
-  this->allocator = std::make_shared<HeapAllocation<Elem>>(reduce<MulFunctor>(bextents));
+Block<Elem,Rank>::Block(Ext_T bextents, Ext_T bstrides, Ext_T borigin, bool memset_data) {
+  for (builder::static_var<int> i = 0; i < Rank; i=i+1) {
+    this->bextents[i] = bextents[i];
+    this->bstrides[i] = bstrides[i];
+    this->borigin[i] = borigin[i];
+  }
+  this->allocator = std::make_shared<HeapAllocation<Elem>>(reduce<MulFunctor>(this->bextents));
   if (memset_data) {
     int elem_size = sizeof(Elem);
-    builder::dyn_var<int> sz(reduce<MulFunctor>(bextents) * elem_size);
+    builder::dyn_var<int> sz(reduce<MulFunctor>(this->bextents) * elem_size);
     allocator->memset(sz);
   }
 }
 
 template <typename Elem, int Rank>
-Block<Elem,Rank>::Block(SLoc_T bextents, bool memset_data) :
-  bextents(std::move(bextents)) {
+Block<Elem,Rank>::Block(Ext_T bextents, bool memset_data) {
   for (builder::static_var<int> i = 0; i < Rank; i=i+1) {
+    this->bextents[i] = bextents[i];
     bstrides[i] = 1;
     borigin[i] = 0;
   }
-  this->allocator = std::make_shared<HeapAllocation<Elem>>(reduce<MulFunctor>(bextents));
+  this->allocator = std::make_shared<HeapAllocation<Elem>>(reduce<MulFunctor>(this->bextents));
   if (memset_data) {
     int elem_size = sizeof(Elem);
-    builder::dyn_var<int> sz(reduce<MulFunctor>(bextents) * elem_size);
+    builder::dyn_var<int> sz(reduce<MulFunctor>(this->bextents) * elem_size);
     allocator->memset(sz);
   }
 }
 
 template <typename Elem, int Rank>
-Block<Elem,Rank>::Block(SLoc_T bextents, std::shared_ptr<Allocation<Elem>> allocator, bool memset_data) :
-  bextents(std::move(bextents)), allocator(allocator) {
+Block<Elem,Rank>::Block(Ext_T bextents, std::shared_ptr<Allocation<Elem>> allocator, bool memset_data) :
+  allocator(allocator) {
   for (builder::static_var<int> i = 0; i < Rank; i=i+1) {
+    this->bextents[i] = bextents[i];
     bstrides[i] = 1;
     borigin[i] = 0;
   }
   if (memset_data) {
     int elem_size = sizeof(Elem);
-    builder::dyn_var<int> sz(reduce<MulFunctor>(bextents) * elem_size);
+    builder::dyn_var<int> sz(reduce<MulFunctor,Rank,loop_type>(this->bextents) * elem_size);
     allocator->memset(sz);
   }
 }
 
 template <typename Elem, int Rank>
-Block<Elem,Rank> Block<Elem,Rank>::heap(SLoc_T bextents) {
+Block<Elem,Rank> Block<Elem,Rank>::heap(Ext_T bextents) {
   return Block<Elem, Rank>(bextents, false);
 }    
 
@@ -422,13 +433,13 @@ template <loop_type...Extents>
 Block<Elem,Rank> Block<Elem,Rank>::stack() {
   static_assert(Rank == sizeof...(Extents));
   auto allocator = std::make_shared<StackAllocation<Elem,mul_reduce<Extents...>()>>();
-  auto bextents = to_Loc_T<Extents...>();
+  Ext_T bextents = to_Ext_T<Extents...>();
   return Block<Elem, Rank>(bextents, allocator);
 }
 
 template <typename Elem, int Rank>
 template <typename Elem2>
-Block<Elem,Rank> Block<Elem,Rank>::heap(SLoc_T bextents, builder::dyn_var<Elem2*> user) {
+Block<Elem,Rank> Block<Elem,Rank>::heap(Ext_T bextents, builder::dyn_var<Elem2*> user) {
   // without this and Elem2, typechecker thinks dyn_var<float*> and dyn_var<int*> are the same
   static_assert(std::is_same<Elem,Elem2>());
   auto allocator = std::make_shared<UserHeapAllocation<Elem>>(user);
@@ -437,7 +448,7 @@ Block<Elem,Rank> Block<Elem,Rank>::heap(SLoc_T bextents, builder::dyn_var<Elem2*
 
 template <typename Elem, int Rank>
 template <typename Elem2>
-Block<Elem,Rank> Block<Elem,Rank>::stack(SLoc_T bextents, builder::dyn_var<Elem2[]> user) {
+Block<Elem,Rank> Block<Elem,Rank>::stack(Ext_T bextents, builder::dyn_var<Elem2[]> user) {
   // without this and Elem2, typechecker thinks dyn_var<float[]> and dyn_var<int[]> are the same
   static_assert(std::is_same<Elem,Elem2>());
   auto allocator = std::make_shared<UserStackAllocation<Elem>>(user);
@@ -523,12 +534,16 @@ View<Elem,Rank> View<Elem,Rank>::view(Slices...slices) {
   SLoc_T vorigin;
   gather_origin<0,Rank>(vorigin, slices...);
   // convert vstops into extents
-  SLoc_T vextents = convert_stops_to_extents<Rank>(vorigin, vstops, vstrides);
+  SLoc_T vextents;
+  convert_stops_to_extents<Rank>(vextents, vorigin, vstops, vstrides);
   // now make everything relative to the prior view
   // new origin = old origin + vorigin * old strides
-  SLoc_T origin = apply<AddFunctor,Rank>(this->vorigin, apply<MulFunctor,Rank>(vorigin, this->vstrides));
+  SLoc_T origin;
+  apply<MulFunctor,Rank>(origin, vorigin, this->vstrides);
+  apply<AddFunctor,Rank>(origin, this->vorigin, origin);
   // new strides = old strides * new strides
-  SLoc_T strides = apply<MulFunctor,Rank>(this->vstrides, vstrides);
+  SLoc_T strides;
+  apply<MulFunctor,Rank>(strides, this->vstrides, vstrides);
   return View<Elem,Rank>(this->bextents, this->bstrides, this->borigin,
 			 vextents, strides, origin,
 			 this->allocator);

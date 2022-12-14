@@ -81,6 +81,6 @@ using HEAP_T = typename builder::name<build_heap_name<Elem>()>;
 
 /// The type for location information in blocks and views
 template <int Rank>
-using Loc_T = builder::dyn_var<loop_type[Rank]>;
+using Loc_T = builder::dyn_var<loop_type>[Rank];//builder::dyn_var<loop_type[Rank]>;
 
 }
