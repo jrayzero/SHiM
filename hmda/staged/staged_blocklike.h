@@ -23,10 +23,6 @@ namespace hmda {
 // don't have to worry about breaking dependencies with dyn_vars when passing
 // them across blocks and views.
 
-// 3. If we don't deepcopy, then the user could modify dyn_vars that they use for extents and such, which
-// would affect the location of a given block/view. This is bad. It'd basically be like having a pointer
-// represent the location information.
-
 ///
 /// A region of data with a location
 template <typename Elem, int Rank>
@@ -40,17 +36,14 @@ struct Block {
 
   ///
   /// Create an internally-managed heap Block
-//  Block(SLoc_T bextents, SLoc_T bstrides, SLoc_T borigin, bool memset_data=false);
   Block(Ext_T bextents, Ext_T bstrides, Ext_T borigin, bool memset_data=false);
 
   ///
   /// Create an internally-managed heap Block
-//  Block(SLoc_T bextents, bool memset_data=false);
   Block(Ext_T bextents, bool memset_data=false);
 
   ///
   /// Create a Block with the specifed Allocation
-//  Block(SLoc_T bextents, std::shared_ptr<Allocation<Elem>> allocator, bool memset_data=false);
   Block(Ext_T bextents, std::shared_ptr<Allocation<Elem>> allocator, bool memset_data=false);
 
   ///
@@ -71,16 +64,6 @@ struct Block {
   /// Create a user-managed stack Block
   template <typename Elem2>
   static Block<Elem,Rank> stack(Ext_T bextents, builder::dyn_var<Elem2[]> user);
-
-  ///
-  /// Create a user-managed heap Block
-//  template <typename Elem2>
-//  static Block<Elem,Rank> heap(Ext_T bextents, builder::dyn_var<Elem2*> user);
-  
-  ///
-  /// Create a user-managed stack Block
-//  template <typename Elem2>
-//  static Block<Elem,Rank> stack(Ext_T bextents, builder::dyn_var<Elem2[]> user);
 
   ///
   /// Read a single element at the specified coordinate
@@ -144,9 +127,6 @@ struct View {
   View(SLoc_T bextents, SLoc_T bstrides, SLoc_T borigin,
        SLoc_T vextents, SLoc_T vstrides, SLoc_T vorigin,
        std::shared_ptr<Allocation<Elem>> allocator) :
-//    bextents(deepcopy(bextents)), bstrides(deepcopy(bstrides)), 
-//    borigin(deepcopy(borigin)), vextents(deepcopy(vextents)), 
-//    vstrides(deepcopy(vstrides)), vorigin(deepcopy(vorigin)),
     allocator(allocator) { 
     for (builder::static_var<int> i = 0; i < Rank; i=i+1) {
       this->bextents[i] = bextents[i];
@@ -355,17 +335,13 @@ View<Elem,Rank> Block<Elem,Rank>::view(Slices...slices) {
   gather_origin<0,Rank>(vorigin, slices...);
   // convert vstops into extents
   SLoc_T vextents;
-//  SLoc_T vextents = convert_stops_to_extents<Rank>(vorigin, vstops, vstrides);
   convert_stops_to_extents<Rank>(vextents, vorigin, vstops, vstrides);
   // now make everything relative to the prior block
   // new origin = old origin + vorigin * old strides
   SLoc_T origin;
-  //  SLoc_T origin = 
   apply<MulFunctor,Rank>(origin, vorigin, this->bstrides);
   apply<AddFunctor,Rank>(origin, this->borigin, origin);
-  // new strides = old strides * new strides
   SLoc_T strides;
-//  SLoc_T strides = 
   apply<MulFunctor,Rank>(strides, this->bstrides, vstrides);
   return View<Elem,Rank>(this->bextents, this->bstrides, this->borigin,
 			 vextents, strides, vorigin,
@@ -404,7 +380,6 @@ void Block<Elem,Rank>::dump_data() {
 
 template <typename Elem, int Rank>
 Block<Elem,Rank>::Block(Ext_T bextents, Ext_T bstrides, Ext_T borigin, bool memset_data) {
-//  bextents(deepcopy(bextents)), bstrides(deepcopy(bstrides)), borigin(deepcopy(borigin)) {
   for (builder::static_var<int> i = 0; i < Rank; i=i+1) {
     this->bextents[i] = bextents[i];
     this->bstrides[i] = bstrides[i];
@@ -420,7 +395,6 @@ Block<Elem,Rank>::Block(Ext_T bextents, Ext_T bstrides, Ext_T borigin, bool mems
 
 template <typename Elem, int Rank>
 Block<Elem,Rank>::Block(Ext_T bextents, bool memset_data) {
-//  bextents(std::move(bextents)) {
   for (builder::static_var<int> i = 0; i < Rank; i=i+1) {
     this->bextents[i] = bextents[i];
     bstrides[i] = 1;
@@ -436,7 +410,7 @@ Block<Elem,Rank>::Block(Ext_T bextents, bool memset_data) {
 
 template <typename Elem, int Rank>
 Block<Elem,Rank>::Block(Ext_T bextents, std::shared_ptr<Allocation<Elem>> allocator, bool memset_data) :
-  /*bextents(std::move(bextents)),*/ allocator(allocator) {
+  allocator(allocator) {
   for (builder::static_var<int> i = 0; i < Rank; i=i+1) {
     this->bextents[i] = bextents[i];
     bstrides[i] = 1;
@@ -459,8 +433,6 @@ template <loop_type...Extents>
 Block<Elem,Rank> Block<Elem,Rank>::stack() {
   static_assert(Rank == sizeof...(Extents));
   auto allocator = std::make_shared<StackAllocation<Elem,mul_reduce<Extents...>()>>();
-//  Loc_T<Rank> bextents;
-//  auto bextents = to_Loc_T<Extents...>();
   Ext_T bextents = to_Ext_T<Extents...>();
   return Block<Elem, Rank>(bextents, allocator);
 }
@@ -566,12 +538,10 @@ View<Elem,Rank> View<Elem,Rank>::view(Slices...slices) {
   convert_stops_to_extents<Rank>(vextents, vorigin, vstops, vstrides);
   // now make everything relative to the prior view
   // new origin = old origin + vorigin * old strides
-  //  SLoc_T origin = 
   SLoc_T origin;
   apply<MulFunctor,Rank>(origin, vorigin, this->vstrides);
   apply<AddFunctor,Rank>(origin, this->vorigin, origin);
   // new strides = old strides * new strides
-//  SLoc_T strides = apply<MulFunctor,Rank>(this->vstrides, vstrides);
   SLoc_T strides;
   apply<MulFunctor,Rank>(strides, this->vstrides, vstrides);
   return View<Elem,Rank>(this->bextents, this->bstrides, this->borigin,

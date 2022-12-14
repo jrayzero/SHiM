@@ -11,25 +11,6 @@
 
 namespace hmda {
 
-///
-/// Fill a Loc_T object with template values
-template <int Idx, typename D, loop_type Val, loop_type...Vals>
-void to_Loc_T(D &dyn) {
-  dyn[Idx] = Val;
-  if constexpr (sizeof...(Vals) > 0) {
-    to_Loc_T<Idx+1,D,Vals...>(dyn);
-  }
-}
-
-///
-/// Create a Loc_T object from template values
-template <loop_type...Vals>
-void to_Loc_T(Loc_T<sizeof...(Vals)> loc_t) {
-//  builder::dyn_var<loop_type[sizeof...(Vals)]> loc_t;
-  to_Loc_T<0,decltype(loc_t),Vals...>(loc_t);
-//  return loc_t;
-}
-
 template <int Idx, typename D, loop_type Val, loop_type...Vals>
 void to_Ext_T(D &ext_t) {
   ext_t[Idx] = Val;
@@ -147,17 +128,6 @@ void apply(Loc_T<Rank> arr,
   }
 }
 
-///
-/// Apply Functor to the elements in arr0 and arr1 and produce the resulting arr
-/*template <typename Functor, int Rank>
-void apply(Loc_T<Rank> arr,
-	   Loc_T<Rank> arr0, 
-	   Loc_T<Rank> arr1) {
-//  Loc_T<Rank> arr;
-  apply<Functor, Rank, 0>(arr, arr0, arr1);
-//  return arr;
-}*/
-
 #define DISPATCH_PRINT_ELEM(dtype)				\
   template <>							\
   struct DispatchPrintElem<dtype> {				\
@@ -183,23 +153,6 @@ template <typename Elem, typename Val>
 void dispatch_print_elem(Val val) {
   DispatchPrintElem<Elem>()(val);
 }
-
-// Create a new Loc_T and copy over the contents of obj
-//template <int Rank>
-//Loc_T<Rank> deepcopy(Loc_T<Rank> obj) {
-//void deepcopy(Loc_T<Rank> copy, Loc_T<Rank> obj) {
-//  Loc_T<Rank> copy;
-//  for (builder::static_var<int> i = 0; i < Rank; i=i+1) {
-//    copy[i] = obj[i];
-//  }
-//  return copy;
-//}
-
-//void deepcopy(Loc_T<Rank> copy, builder::dyn_var<loop_type[Rank]> obj) {
-//  for (builder::static_var<int> i = 0; i < Rank; i=i+1) {
-//    copy[i] = obj[i];
-//  }
-//}
 
 ///
 /// Create the type that resultsing from concatenting Idx to tuple<Idxs...>

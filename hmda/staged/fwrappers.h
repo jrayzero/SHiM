@@ -8,8 +8,6 @@
 
 // These are the wrappers for various functions that we want to generate calls for in the generated code.
 
-// I think these need to be generated outside the staging itself, so I don't really know what a better way
-// to write these is other than manually enumerating them.
 namespace hmda {
 
 builder::dyn_var<void(int)> hexit = builder::as_global("exit");
