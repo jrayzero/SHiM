@@ -7,3 +7,12 @@ cmake-build-release
 hmda/staged/loops.h
 hmda/staged/schedule.h
 .idea
+**/*jpg
+**/*ppm
+**/out
+**/*.o
+apps/jpeg/staged/jpeg
+apps/jpeg/staged/jpeg.ll
+examples.old
+notes.txt
+simple.cpp
