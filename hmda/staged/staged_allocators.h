@@ -47,7 +47,6 @@ HEAP_DYN_VAR(HEAP_T<double>);
 
 namespace hmda {
 
-
 /// 
 /// Base class for defining the type of allocation to use for blocks and views
 template <typename Elem>
@@ -90,7 +89,7 @@ struct Allocation {
   ///
   /// Get the underlying stack allocation. Only valid for internally-managed stack allocations.
   template <int Sz>
-  builder::dyn_var<Elem[Sz]> stack();
+  builder::dyn_var<Elem*> stack();
 
 };
 
@@ -240,6 +239,8 @@ struct HeapAllocation : public Allocation<Elem> {
 template <typename Elem, int Size>
 struct StackAllocation : public Allocation<Elem> {
 
+  StackAllocation();
+
   virtual ~StackAllocation() = default;
 
   bool is_stack_strategy() const override { return true; }
@@ -250,18 +251,20 @@ struct StackAllocation : public Allocation<Elem> {
 
   void memset(builder::dyn_var<loop_type> sz) override;
 
-  builder::dyn_var<Elem[Size]> data;
+  // Things go south if I do dyn_var<Elem[]>, so I will use a pointer to access the 
+  // stack-allocated bufferx
+  builder::dyn_var<Elem*> data;
 
 };
 
 ///
 /// Defines a user-allocated heap
 template <typename Elem>
-struct UserHeapAllocation : public Allocation<Elem> {
+struct UserAllocation : public Allocation<Elem> {
 
-  virtual ~UserHeapAllocation() = default;
+  virtual ~UserAllocation() = default;
 
-  explicit UserHeapAllocation(builder::dyn_var<Elem*> data) : data(data) { }
+  explicit UserAllocation(builder::dyn_var<Elem*> data) : data(data) { }
 
   bool is_user_heap_strategy() const override { return true; }
 
@@ -275,26 +278,6 @@ struct UserHeapAllocation : public Allocation<Elem> {
 
 };
 
-///
-/// Defines a user-allocated stack
-template <typename Elem>
-struct UserStackAllocation : public Allocation<Elem> {
-
-  virtual ~UserStackAllocation() = default;
-
-  explicit UserStackAllocation(builder::dyn_var<Elem[]> data) : data(data) { }
-
-  bool is_user_stack_strategy() const override { return true; }
-
-  builder::dyn_var<Elem> read(builder::dyn_var<loop_type> lidx) override;
-
-  void write(builder::dyn_var<Elem> val, builder::dyn_var<loop_type> lidx) override;
-
-  void memset(builder::dyn_var<loop_type> sz) override;
-
-  builder::dyn_var<Elem[]> data;
-};
-
 template <typename Elem>
 builder::dyn_var<HEAP_T<Elem>> Allocation<Elem>::heap() {
   assert(is_heap_strategy());
@@ -302,7 +285,7 @@ builder::dyn_var<HEAP_T<Elem>> Allocation<Elem>::heap() {
 }
 template <typename Elem>
 template <int Sz>
-builder::dyn_var<Elem[Sz]> Allocation<Elem>::stack() {
+builder::dyn_var<Elem*> Allocation<Elem>::stack() {
   assert(is_stack_strategy());
   return static_cast<StackAllocation<Elem,Sz>*>(this)->data;
 }
@@ -323,6 +306,12 @@ void HeapAllocation<Elem>::memset(builder::dyn_var<loop_type> sz) {
 }
 
 template <typename Elem, int Sz>
+StackAllocation<Elem,Sz>::StackAllocation() {
+  // make the actual stack thing, but access later through the pointer to it
+  this->data = builder::dyn_var<Elem[Sz]>();
+}
+
+template <typename Elem, int Sz>
 builder::dyn_var<Elem> StackAllocation<Elem,Sz>::read(builder::dyn_var<loop_type> lidx) { 
   return dispatch_read<Elem,false>(lidx, data);
 }
@@ -338,32 +327,17 @@ void StackAllocation<Elem,Sz>::memset(builder::dyn_var<loop_type> sz) {
 }  
 
 template <typename Elem>
-builder::dyn_var<Elem> UserHeapAllocation<Elem>::read(builder::dyn_var<loop_type> lidx) { 
+builder::dyn_var<Elem> UserAllocation<Elem>::read(builder::dyn_var<loop_type> lidx) { 
   return dispatch_read<Elem,false>(lidx, data);
 }
 
 template <typename Elem>
-void UserHeapAllocation<Elem>::write(builder::dyn_var<Elem> val, builder::dyn_var<loop_type> lidx) { 
+void UserAllocation<Elem>::write(builder::dyn_var<Elem> val, builder::dyn_var<loop_type> lidx) { 
   dispatch_write<Elem,false>(val, lidx, data);
 }
 
 template <typename Elem>
-void UserHeapAllocation<Elem>::memset(builder::dyn_var<loop_type> sz) {
-  dispatch_memset<Elem,false>(data, Elem(0), sz);
-}  
-
-template <typename Elem>
-builder::dyn_var<Elem> UserStackAllocation<Elem>::read(builder::dyn_var<loop_type> lidx) { 
-  return dispatch_read<Elem,false>(lidx, data);
-}
-
-template <typename Elem>
-void UserStackAllocation<Elem>::write(builder::dyn_var<Elem> val, builder::dyn_var<loop_type> lidx) { 
-  dispatch_write<Elem,false>(val, lidx, data);
-}
-
-template <typename Elem>
-void UserStackAllocation<Elem>::memset(builder::dyn_var<loop_type> sz) {
+void UserAllocation<Elem>::memset(builder::dyn_var<loop_type> sz) {
   dispatch_memset<Elem,false>(data, Elem(0), sz);
 }  
 

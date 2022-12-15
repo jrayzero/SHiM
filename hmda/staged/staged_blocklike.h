@@ -29,26 +29,27 @@ template <typename Elem, int Rank>
 struct Block {
 
   using SLoc_T = Loc_T<Rank>;
-  using Ext_T = builder::dyn_var<loop_type[Rank]>;
   using Elem_T = Elem;
   static constexpr int Rank_T = Rank;
   static constexpr bool IsBlock_T = true;  
 
   ///
   /// Create an internally-managed heap Block
-  Block(Ext_T bextents, Ext_T bstrides, Ext_T borigin, bool memset_data=false);
+  Block(SLoc_T bextents, SLoc_T bstrides, SLoc_T borigin, bool memset_data=false);
 
   ///
   /// Create an internally-managed heap Block
-  Block(Ext_T bextents, bool memset_data=false);
+  Block(SLoc_T bextents, bool memset_data=false);
 
   ///
   /// Create a Block with the specifed Allocation
-  Block(Ext_T bextents, std::shared_ptr<Allocation<Elem>> allocator, bool memset_data=false);
+  Block(SLoc_T bextents, std::shared_ptr<Allocation<Elem>> allocator, bool memset_data=false);
 
   ///
   /// Create an internally-managed heap Block
-  static Block<Elem,Rank> heap(Ext_T bextents);
+  static Block<Elem,Rank> heap(SLoc_T bextents);
+  template <typename...BExtents>
+  static Block<Elem,Rank> heap(BExtents...bextents);
 
   ///
   /// Create an internally-managed stack Block
@@ -56,14 +57,11 @@ struct Block {
   static Block<Elem,Rank> stack();
 
   ///
-  /// Create a user-managed heap Block
+  /// Create a user-managed allocation
   template <typename Elem2>
-  static Block<Elem,Rank> heap(Ext_T bextents, builder::dyn_var<Elem2*> user);
-  
-  ///
-  /// Create a user-managed stack Block
-  template <typename Elem2>
-  static Block<Elem,Rank> stack(Ext_T bextents, builder::dyn_var<Elem2[]> user);
+  static Block<Elem,Rank> user(SLoc_T bextents, builder::dyn_var<Elem2*> user);
+  template <typename Elem2, typename...BExtents>
+  static Block<Elem,Rank> user(builder::dyn_var<Elem2*> user, BExtents...bextents);
 
   ///
   /// Read a single element at the specified coordinate
@@ -345,7 +343,8 @@ View<Elem,Rank> Block<Elem,Rank>::view(Slices...slices) {
   apply<MulFunctor,Rank>(strides, this->bstrides, vstrides);
   return View<Elem,Rank>(this->bextents, this->bstrides, this->borigin,
 			 vextents, strides, vorigin,
-			 this->allocator);  
+			 this->allocator);
+  return this->view();
 }
 
 template <typename Elem, int Rank>
@@ -379,7 +378,7 @@ void Block<Elem,Rank>::dump_data() {
 }
 
 template <typename Elem, int Rank>
-Block<Elem,Rank>::Block(Ext_T bextents, Ext_T bstrides, Ext_T borigin, bool memset_data) {
+Block<Elem,Rank>::Block(SLoc_T bextents, SLoc_T bstrides, SLoc_T borigin, bool memset_data) {
   for (builder::static_var<int> i = 0; i < Rank; i=i+1) {
     this->bextents[i] = bextents[i];
     this->bstrides[i] = bstrides[i];
@@ -394,7 +393,7 @@ Block<Elem,Rank>::Block(Ext_T bextents, Ext_T bstrides, Ext_T borigin, bool mems
 }
 
 template <typename Elem, int Rank>
-Block<Elem,Rank>::Block(Ext_T bextents, bool memset_data) {
+Block<Elem,Rank>::Block(SLoc_T bextents, bool memset_data) {
   for (builder::static_var<int> i = 0; i < Rank; i=i+1) {
     this->bextents[i] = bextents[i];
     bstrides[i] = 1;
@@ -409,7 +408,7 @@ Block<Elem,Rank>::Block(Ext_T bextents, bool memset_data) {
 }
 
 template <typename Elem, int Rank>
-Block<Elem,Rank>::Block(Ext_T bextents, std::shared_ptr<Allocation<Elem>> allocator, bool memset_data) :
+Block<Elem,Rank>::Block(SLoc_T bextents, std::shared_ptr<Allocation<Elem>> allocator, bool memset_data) :
   allocator(allocator) {
   for (builder::static_var<int> i = 0; i < Rank; i=i+1) {
     this->bextents[i] = bextents[i];
@@ -424,8 +423,16 @@ Block<Elem,Rank>::Block(Ext_T bextents, std::shared_ptr<Allocation<Elem>> alloca
 }
 
 template <typename Elem, int Rank>
-Block<Elem,Rank> Block<Elem,Rank>::heap(Ext_T bextents) {
+Block<Elem,Rank> Block<Elem,Rank>::heap(SLoc_T bextents) {
   return Block<Elem, Rank>(bextents, false);
+}    
+
+template <typename Elem, int Rank>
+template <typename...BExtents>
+Block<Elem,Rank> Block<Elem,Rank>::heap(BExtents...bextents) {
+  SLoc_T grouped;
+  to_Loc_T<0, Rank>(grouped, bextents...);
+  return Block<Elem, Rank>(grouped, false);
 }    
 
 template <typename Elem, int Rank>
@@ -433,27 +440,30 @@ template <loop_type...Extents>
 Block<Elem,Rank> Block<Elem,Rank>::stack() {
   static_assert(Rank == sizeof...(Extents));
   auto allocator = std::make_shared<StackAllocation<Elem,mul_reduce<Extents...>()>>();
-  Ext_T bextents = to_Ext_T<Extents...>();
+  SLoc_T bextents;
+  to_Loc_T<0, Rank, Extents...>(bextents);
   return Block<Elem, Rank>(bextents, allocator);
 }
 
 template <typename Elem, int Rank>
 template <typename Elem2>
-Block<Elem,Rank> Block<Elem,Rank>::heap(Ext_T bextents, builder::dyn_var<Elem2*> user) {
+Block<Elem,Rank> Block<Elem,Rank>::user(SLoc_T bextents, builder::dyn_var<Elem2*> user) {
   // without this and Elem2, typechecker thinks dyn_var<float*> and dyn_var<int*> are the same
   static_assert(std::is_same<Elem,Elem2>());
-  auto allocator = std::make_shared<UserHeapAllocation<Elem>>(user);
+  auto allocator = std::make_shared<UserAllocation<Elem>>(user);
   return Block<Elem, Rank>(bextents, allocator);
 }  
 
 template <typename Elem, int Rank>
-template <typename Elem2>
-Block<Elem,Rank> Block<Elem,Rank>::stack(Ext_T bextents, builder::dyn_var<Elem2[]> user) {
-  // without this and Elem2, typechecker thinks dyn_var<float[]> and dyn_var<int[]> are the same
+template <typename Elem2, typename...BExtents>
+Block<Elem,Rank> Block<Elem,Rank>::user(builder::dyn_var<Elem2*> user, BExtents...bextents) {
+  // without this and Elem2, typechecker thinks dyn_var<float*> and dyn_var<int*> are the same
   static_assert(std::is_same<Elem,Elem2>());
-  auto allocator = std::make_shared<UserStackAllocation<Elem>>(user);
-  return Block<Elem, Rank>(bextents, allocator);
-}
+  auto allocator = std::make_shared<UserAllocation<Elem>>(user);
+  SLoc_T grouped;
+  to_Loc_T<0, Rank>(grouped, bextents...);
+  return Block<Elem, Rank>(grouped, allocator);
+}  
 
 template <typename Elem, int Rank>
 template <typename...Iters>
@@ -712,7 +722,6 @@ void Ref<BlockLike,Idxs>::realize_loop_nest(Rhs rhs, Iters...iters) {
     }
   } else {
     // at the innermost level
-    // note: this uses c++'s type coercien here since we don't look if they are actually different types
     if constexpr (std::is_arithmetic<Rhs>() ||
 		  is_dyn_like<Rhs>::value) {
       block_like.write(rhs, std::tuple{iters...});

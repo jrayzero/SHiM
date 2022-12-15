@@ -11,21 +11,20 @@
 
 namespace hmda {
 
-template <int Idx, typename D, loop_type Val, loop_type...Vals>
-void to_Ext_T(D &ext_t) {
-  ext_t[Idx] = Val;
+template <int Idx, int Rank, loop_type Val, loop_type...Vals>
+void to_Loc_T(builder::dyn_var<loop_type> loc_t[Rank]) {
+  loc_t[Idx] = Val;
   if constexpr (sizeof...(Vals) > 0) {
-    to_Ext_T<Idx+1,D,Vals...>(ext_t);
+    to_Loc_T<Idx+1,Rank,Vals...>(loc_t);
   }
 }
 
-///
-/// Create an Ext_T object from template values
-template <loop_type...Vals>
-builder::dyn_var<loop_type[sizeof...(Vals)]> to_Ext_T() {
-  builder::dyn_var<loop_type[sizeof...(Vals)]> ext_t;
-  to_Ext_T<0,decltype(ext_t),Vals...>(ext_t);
-  return ext_t;
+template <int Idx, int Rank, typename Val, typename...Vals>
+void to_Loc_T(builder::dyn_var<loop_type> loc_t[Rank], Val val, Vals...vals) {
+  loc_t[Idx] = val;
+  if constexpr (sizeof...(Vals) > 0) {
+    to_Loc_T<Idx+1,Rank>(loc_t, vals...);
+  }
 }
 
 ///
@@ -80,7 +79,7 @@ auto reduce_region(const Obj &obj) {
 }
 
 ///
-/// Perform a reduction across a dyn_var<T[]>
+/// Perform a reduction across a dyn_var<T>[]
 template <typename Functor, int Rank, typename T>
 builder::dyn_var<T> reduce(Loc_T<Rank> arr) {
   builder::dyn_var<T> acc = arr[0];

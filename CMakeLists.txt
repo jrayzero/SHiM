@@ -14,6 +14,33 @@ link_directories(${CMAKE_SOURCE_DIR}/buildit/build)
 
 # unstaged jpeg
 add_executable(jpegc apps/jpeg/jpeg.cpp apps/jpeg/syntax.cpp apps/jpeg/huffman.cpp apps/jpeg/bits.cpp)
+
 # staged jpeg
-add_executable(sjpegc apps/jpeg/staged/sjpeg.cpp)
-target_link_libraries(sjpegc buildit)
+function (staged_jpeg ver)
+ # build the staged code
+ add_executable(sjpegc_v${ver} ${CMAKE_SOURCE_DIR}/apps/jpeg/staged/sjpeg.cpp)
+ target_link_libraries(sjpegc_v${ver} buildit)
+ target_compile_definitions(sjpegc_v${ver} PUBLIC VERSION=${ver})	 
+ # now run the staged code 
+ add_custom_command(OUTPUT ${CMAKE_BINARY_DIR}/sjpeg_v${ver}.cpp ${CMAKE_BINARY_DIR}/sjpeg_v${ver}.h
+                    COMMAND ${CMAKE_BINARY_DIR}/sjpegc_v${ver} ARGS sjpeg_v${ver}
+		    # make it depend on the binary since cmake is dump and won't let me just depend on the target...
+		    DEPENDS ${CMAKE_BINARY_DIR}/sjpegc_v${ver}) 
+		    
+ # and build it with the unstaged part
+ add_executable(jpeg_v${ver} ${CMAKE_BINARY_DIR}/sjpeg_v${ver}.cpp 
+                             ${CMAKE_SOURCE_DIR}/apps/jpeg/staged/jpeg.cpp 
+		             ${CMAKE_SOURCE_DIR}/apps/jpeg/staged/huffman.cpp 
+		             ${CMAKE_SOURCE_DIR}/apps/jpeg/staged/syntax.cpp 
+		             ${CMAKE_SOURCE_DIR}/apps/jpeg/staged/bits.cpp )
+ target_include_directories(jpeg_v${ver} PUBLIC ${CMAKE_SOURCE_DIR}/hmda 
+ 					 	${CMAKE_SOURCE_DIR}/apps/jpeg/staged
+						${CMAKE_BINARY_DIR})
+ target_compile_definitions(jpeg_v${ver} PUBLIC VERSION=${ver})
+endfunction() 
+
+staged_jpeg(1)
+staged_jpeg(2)
+#add_executable(sjpegc apps/jpeg/staged/sjpeg.cpp)
+#target_link_libraries(sjpegc buildit)
+#target_compile_definitions(sjpegc_v1 VERSION=1)

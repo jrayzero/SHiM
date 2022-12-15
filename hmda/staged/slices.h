@@ -19,11 +19,15 @@ struct Slice {
 
   Slice(builder::dyn_var<loop_type> start, 
 	builder::dyn_var<loop_type> stop, 
-	builder::dyn_var<loop_type> stride) : params({start,stop,stride}) { }
+	builder::dyn_var<loop_type> stride) {
+    params[0] = start;
+    params[1] = stop;
+    params[2] = stride;
+  }
 
   builder::dyn_var<loop_type> operator[](loop_type idx) { return params[idx]; }
 
-  builder::dyn_var<loop_type[3]> params;
+  builder::dyn_var<loop_type> params[3];
 
 };
 
