@@ -516,7 +516,7 @@ Binary<BitwiseOrFunctor,Lhs,Rhs> operator|(const Lhs &lhs, const Rhs &rhs) {
 /// Unwind an Expr by realizing the subexpressions, or just return the value if not
 /// an Expr.
 template <typename T, typename LhsIdxs, typename Iters>
-builder::dyn_var<loop_type> dispatch_realize(T to_realize, const LhsIdxs &lhs_idxs, const Iters &iters) {
+builder::dyn_var<typename GetCoreT<T>::Core_T> dispatch_realize(T to_realize, const LhsIdxs &lhs_idxs, const Iters &iters) {
   if constexpr (is_expr<T>::value) {
     return to_realize.realize(lhs_idxs, iters);
   } else {
@@ -551,49 +551,48 @@ struct DispatchCast { };
 ///
 /// Cast to uint8_t
 template <typename From>
-struct DispatchCast<uint8_t,From> { auto operator()(From val) { return cast_uint8_t(val); } };
+struct DispatchCast<uint8_t,From> { builder::dyn_var<uint8_t> operator()(From val) { return cast_uint8_t(val); } };
   
 ///
 /// Cast to uint16_t
 template <typename From>
-struct DispatchCast<uint16_t,From> { auto operator()(From val) { return cast_uint16_t(val); } };
+struct DispatchCast<uint16_t,From> { builder::dyn_var<uint16_t> operator()(From val) { return cast_uint16_t(val); } };
 
 ///
 /// Cast to uint32_t
 template <typename From>
-struct DispatchCast<uint32_t,From> { auto operator()(From val) { return cast_uint32_t(val); } };
+struct DispatchCast<uint32_t,From> { builder::dyn_var<uint32_t> operator()(From val) { return cast_uint32_t(val); } };
 
 ///
 /// Cast to uint64_t
 template <typename From>
-struct DispatchCast<uint64_t,From> { auto operator()(From val) { return cast_uint64_t(val); } };
+struct DispatchCast<uint64_t,From> { builder::dyn_var<uint64_t> operator()(From val) { return cast_uint64_t(val); } };
 
 ///
 /// Cast to int16_t
 template <typename From>
-struct DispatchCast<int16_t,From> { auto operator()(From val) { return cast_int16_t(val); } };
+struct DispatchCast<int16_t,From> { builder::dyn_var<int16_t> operator()(From val) { return cast_int16_t(val); } };
 
 ///
 /// Cast to int32_t
 template <typename From>
-struct DispatchCast<int32_t,From> { auto operator()(From val) { return cast_int32_t(val); } };
+struct DispatchCast<int32_t,From> { builder::dyn_var<int32_t> operator()(From val) { return cast_int32_t(val); } };
 
 ///
 /// Cast to int64_t
 template <typename From>
-struct DispatchCast<int64_t,From> { auto operator()(From val) { return cast_int64_t(val); } };
+struct DispatchCast<int64_t,From> { builder::dyn_var<int64_t> operator()(From val) { return cast_int64_t(val); } };
     
 ///
 /// Cast to float
 template <typename From>
-struct DispatchCast<float,From> { auto operator()(From val) { return cast_float(val); } };
+struct DispatchCast<float,From> { builder::dyn_var<float> operator()(From val) { return cast_float(val); } };
 
 ///
 /// Cast to double
 template <typename From>
-struct DispatchCast<double,From> { auto operator()(From val) { return cast_double(val); } };
-
-    
+struct DispatchCast<double,From> { builder::dyn_var<double> operator()(From val) { return cast_double(val); } };
+ 
 ///
 /// Syntactic sugar for creating a TemplateCast
 template <typename To, typename From>
