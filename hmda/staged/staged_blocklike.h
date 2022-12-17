@@ -59,14 +59,19 @@ struct Block {
   static Block<Elem,Rank> stack();
 
   ///
-  /// Create a user-managed heap Block
+  /// Create a user-managed allocation
   template <typename Elem2>
-  static Block<Elem,Rank> heap(SLoc_T bextents, builder::dyn_var<Elem2*> user);
+  static Block<Elem,Rank> user(SLoc_T bextents, builder::dyn_var<Elem2*> user);
+  
+  ///
+  /// Create a user-managed heap Block
+  //  template <typename Elem2>
+  //  static Block<Elem,Rank> heap(SLoc_T bextents, builder::dyn_var<Elem2*> user);
   
   ///
   /// Create a user-managed stack Block
-  template <typename Elem2>
-  static Block<Elem,Rank> stack(SLoc_T bextents, builder::dyn_var<Elem2[]> user);
+  //  template <typename Elem2>
+  //  static Block<Elem,Rank> stack(SLoc_T bextents, builder::dyn_var<Elem2[]> user);
 
   ///
   /// Read a single element at the specified coordinate
@@ -428,6 +433,14 @@ Block<Elem,Rank> Block<Elem,Rank>::stack() {
 
 template <typename Elem, int Rank>
 template <typename Elem2>
+Block<Elem,Rank> Block<Elem,Rank>::user(SLoc_T bextents, builder::dyn_var<Elem2*> user) {                                    
+  static_assert(std::is_same<Elem,Elem2>());
+  auto allocator = std::make_shared<UserAllocation<Elem>>(user);
+  return Block<Elem, Rank>(bextents, allocator);
+}
+
+  /*template <typename Elem, int Rank>
+template <typename Elem2>
 Block<Elem,Rank> Block<Elem,Rank>::heap(SLoc_T bextents, builder::dyn_var<Elem2*> user) {
   // without this and Elem2, typechecker thinks dyn_var<float*> and dyn_var<int*> are the same
   static_assert(std::is_same<Elem,Elem2>());
@@ -442,7 +455,7 @@ Block<Elem,Rank> Block<Elem,Rank>::stack(SLoc_T bextents, builder::dyn_var<Elem2
   static_assert(std::is_same<Elem,Elem2>());
   auto allocator = std::make_shared<UserStackAllocation<Elem>>(user);
   return Block<Elem, Rank>(bextents, allocator);
-}
+  }*/
 
 template <typename Elem, int Rank>
 template <typename...Iters>

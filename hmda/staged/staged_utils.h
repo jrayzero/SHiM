@@ -145,7 +145,7 @@ Loc_T<Rank> apply(Loc_T<Rank> arr0,
   struct DispatchPrintElem<dtype> {				\
     template <typename Val>					\
     void operator()(Val val) { print_elem_##dtype(val); }	\
-  };
+  }
 
 template <typename T>
 struct DispatchPrintElem { };

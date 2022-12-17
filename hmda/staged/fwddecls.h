@@ -54,7 +54,7 @@ constexpr char double_name[] = "hmda::HeapArray<double>";
     constexpr auto operator()() {		\
       return dtype##_name;			\
     }						\
-  };
+  }
 
 template <typename Elem>
 struct BuildHeapName { };

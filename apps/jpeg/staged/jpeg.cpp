@@ -1,5 +1,7 @@
 #include <iostream>
-#include "sjpeg.h"
+#include <chrono>
+#include <cstring>
+#include "sjpeg_v1.h"
 #include "bits.h"
 #include "syntax.h"
 

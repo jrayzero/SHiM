@@ -31,7 +31,7 @@ namespace builder {
       return (cast)this->operator[](lidx);			\
     }								\
 								\
-  };
+  }
 
 HEAP_DYN_VAR(HEAP_T<uint8_t>);
 HEAP_DYN_VAR(HEAP_T<uint16_t>);
@@ -104,7 +104,7 @@ struct Allocation {
 	return read_##dtype(data,lidx);					\
       }									\
     }									\
-  };
+  }
 
 #define DISPATCH_WRITER(dtype)						\
   template <typename Data, bool IsHeapArr>				\
@@ -116,7 +116,7 @@ struct Allocation {
 	write_##dtype(data, lidx, val);					\
       }									\
     }									\
-  };
+}
 
 #define DISPATCH_MEMSET(dtype)						\
   template <typename Data, bool IsHeapArr>				\
@@ -128,7 +128,7 @@ struct Allocation {
 	memset_##dtype(data, val, sz);					\
       }									\
     }									\
-  };
+  }
 
 // calls the appropriate heap builder function
 #define DISPATCH_BUILDER(dtype)				\
@@ -137,7 +137,7 @@ struct Allocation {
     auto operator()(builder::dyn_var<loop_type> sz) {	\
       return build_heaparr_##dtype(sz);			\
     }							\
-  };
+  }
 
 template <typename Elem, bool IsHeapArr, typename Data>
 struct DispatchRead { };
@@ -254,7 +254,7 @@ struct StackAllocation : public Allocation<Elem> {
 
 };
 
-///
+  /*///
 /// Defines a user-allocated heap
 template <typename Elem>
 struct UserHeapAllocation : public Allocation<Elem> {
@@ -293,7 +293,29 @@ struct UserStackAllocation : public Allocation<Elem> {
   void memset(builder::dyn_var<loop_type> sz) override;
 
   builder::dyn_var<Elem[]> data;
+  };*/
+
+  ///                                                                                                                                                                                                                                                                                                                  
+/// Defines a user-allocated heap                                                                                                                                                                                                                                                                                   
+template <typename Elem>
+struct UserAllocation : public Allocation<Elem> {
+
+  virtual ~UserAllocation() = default;
+
+  explicit UserAllocation(builder::dyn_var<Elem*> data) : data(data) { }
+
+  bool is_user_heap_strategy() const override { return true; }
+
+  builder::dyn_var<Elem> read(builder::dyn_var<loop_type> lidx) override;
+
+  void write(builder::dyn_var<Elem> val, builder::dyn_var<loop_type> lidx) override;
+
+  void memset(builder::dyn_var<loop_type> sz) override;
+
+  builder::dyn_var<Elem*> data;
+
 };
+
 
 template <typename Elem>
 builder::dyn_var<HEAP_T<Elem>> Allocation<Elem>::heap() {
@@ -337,7 +359,7 @@ void StackAllocation<Elem,Sz>::memset(builder::dyn_var<loop_type> sz) {
   dispatch_memset<Elem,false>(data, Elem(0), sz);
 }  
 
-template <typename Elem>
+  /*template <typename Elem>
 builder::dyn_var<Elem> UserHeapAllocation<Elem>::read(builder::dyn_var<loop_type> lidx) { 
   return dispatch_read<Elem,false>(lidx, data);
 }
@@ -365,6 +387,21 @@ void UserStackAllocation<Elem>::write(builder::dyn_var<Elem> val, builder::dyn_v
 template <typename Elem>
 void UserStackAllocation<Elem>::memset(builder::dyn_var<loop_type> sz) {
   dispatch_memset<Elem,false>(data, Elem(0), sz);
-}  
+  }  */
+
+template <typename Elem>  
+builder::dyn_var<Elem> UserAllocation<Elem>::read(builder::dyn_var<loop_type> lidx) {
+  return dispatch_read<Elem,false>(lidx, data);
+}
+
+template <typename Elem>
+void UserAllocation<Elem>::write(builder::dyn_var<Elem> val, builder::dyn_var<loop_type> lidx) {
+  dispatch_write<Elem,false>(val, lidx, data);
+}
+
+template <typename Elem>
+void UserAllocation<Elem>::memset(builder::dyn_var<loop_type> sz) {
+  dispatch_memset<Elem,false>(data, Elem(0), sz);
+}
 
 }

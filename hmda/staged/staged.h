@@ -10,6 +10,7 @@ namespace hmda {
 // dyn_var<T[]>
 // buildit prints "T[] arg", but correct syntax is "T arg[]"
 class hmda_cpp_code_generator : public block::c_code_generator {
+  using c_code_generator::visit;
 public:
   hmda_cpp_code_generator(std::ostream &_oss) : block::c_code_generator(_oss) { }
   static void generate_code(block::block::Ptr ast, std::ostream &oss, int indent = 0) {
@@ -19,7 +20,7 @@ public:
     oss << std::endl;
   }
 
-  void visit(block::func_decl::Ptr a) override {
+  void visit(block::func_decl::Ptr a) {
     a->return_type->accept(this);
     if (a->hasMetadata<std::vector<std::string>>("attributes")) {
       const auto &attributes = a->getMetadata<std::vector<std::string>>("attributes");

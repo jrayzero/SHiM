@@ -1,6 +1,7 @@
 #include <iostream>
 #include <fstream>
 #include <sstream>
+#include <chrono>
 
 #include "builder/dyn_var.h"
 #include "blocks/c_code_generator.h"
@@ -173,19 +174,19 @@ void quant(View<int,3> obj, Block<int,2> quant) {
 }
 
 void jpeg_staged(dyn_var<uint8_t*> input, dyn_var<int> H, dyn_var<int> W, 
-		 dyn_var<int[]> luma_quant_arr, 
-		 dyn_var<int[]> chroma_quant_arr,
-		 dyn_var<int[]> zigzag, 
+		 dyn_var<int*> luma_quant_arr, 
+		 dyn_var<int*> chroma_quant_arr,
+		 dyn_var<int*> zigzag, 
 		 dyn_var<HuffmanCodes> luma_codes, 
 		 dyn_var<HuffmanCodes> chroma_codes,
 		 dyn_var<Bits> bits) {
 
   // Tables (these are already scaled)
-  auto luma_quant = Block<int,2>::stack({8,8}, luma_quant_arr);
-  auto chroma_quant = Block<int,2>::stack({8,8}, chroma_quant_arr);
+  auto luma_quant = Block<int,2>::user({8,8}, luma_quant_arr);
+  auto chroma_quant = Block<int,2>::user({8,8}, chroma_quant_arr);
     
   // start it up
-  auto RGB = Block<uint8_t,3>::heap({H, W, 3}, input);
+  auto RGB = Block<uint8_t,3>::user({H, W, 3}, input);
   dint last_Y = 0;
   dint last_Cb = 0;
   dint last_Cr = 0;
