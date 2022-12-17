@@ -1,5 +1,7 @@
 #pragma once
 
+#include <iostream>
+#include <cstring>
 #include <array>
 #include "common/loop_type.h"
 #include "ref_count.h"
