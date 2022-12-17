@@ -58,7 +58,8 @@ void read_ppm_header(FILE *fd, int &H, int &W, int &max_val) {
 
 void read_ppm_body(FILE *fd, uint8_t *image, int H, int W) {
   int sz = 3 * H * W;
-  fread(image, 1, sz, fd); 
+  size_t read = fread(image, 1, sz, fd);
+  assert(read == sz);
 }
 
 void scale_quant(int quant[], int quality) {

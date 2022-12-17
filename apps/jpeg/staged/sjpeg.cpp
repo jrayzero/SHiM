@@ -159,7 +159,15 @@ void quant(View<int,3> obj, Block<int,2> quant) {
     for (dint j = 0; j < 8; j=j+1) {
       dint v = obj(0,i,j);
       dint q = quant(i,j) * 8;
-      if (v < 0) {
+      dint mult = v < 0 ? -1 : 1;
+      v = v * mult;
+      v = v + rshift(q, 1);
+      if (v >= q) {
+	v = v * mult;
+      } else {
+	v = 0;
+      }
+      /*      if (v < 0) {
 	v = -1*v;
 	v = v + rshift(q, 1);
 	v = v / q;
@@ -167,7 +175,7 @@ void quant(View<int,3> obj, Block<int,2> quant) {
       } else {
 	v = v + rshift(q, 1);
 	v = v / q;
-      }
+	}*/
       obj[0][i][j] = v;
     }
   }
