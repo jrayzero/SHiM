@@ -692,25 +692,22 @@ void Ref<BlockLike,Idxs>::realize_loop_nest(Rhs rhs, Iters...iters) {
     if constexpr (std::is_integral<decltype(dummy)>() ||
 		  is_dyn_like<decltype(dummy)>::value) {
       // single iter
-      builder::dyn_var<loop_type> iter = std::get<depth>(idxs);
-      realize_loop_nest(rhs, iters..., iter);
+	builder::dyn_var<loop_type> iter = std::get<depth>(idxs);
+	realize_loop_nest(rhs, iters..., iter);
     } else {
       // loop
       if constexpr (BlockLike::IsBlock_T) {
-	auto extent = block_like.bextents[depth];	  
-	for (builder::dyn_var<loop_type> iter = 0; iter < extent; iter = iter + 1) {
+	for (builder::dyn_var<loop_type> iter = 0; iter < block_like.bextents[depth]; iter = iter + 1) {
 	  realize_loop_nest(rhs, iters..., iter);
 	}
       } else {
-	auto extent = block_like.vextents[depth];
-	for (builder::dyn_var<loop_type> iter = 0; iter < extent; iter = iter + 1) {
+	for (builder::dyn_var<loop_type> iter = 0; iter < block_like.vextents[depth]; iter = iter + 1) {
 	  realize_loop_nest(rhs, iters..., iter);
 	}
       }
     }
   } else {
     // at the innermost level
-    // note: this uses c++'s type coercien here since we don't look if they are actually different types
     if constexpr (std::is_arithmetic<Rhs>() ||
 		  is_dyn_like<Rhs>::value) {
       block_like.write(rhs, std::tuple{iters...});
