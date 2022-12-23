@@ -163,6 +163,7 @@ void quant(View<int,3> obj, Block<int,2> quant) {
       v = v * mult;
       v = v + rshift(q, 1);
       if (v >= q) {
+	v = v / q;
 	v = v * mult;
       } else {
 	v = 0;
