@@ -1,4 +1,11 @@
 #include <iostream>
+#if VERSION==1
+#include "sjpeg_v1.h"
+#elif VERSION==2
+#include "sjpeg_v2.h"
+#else
+static_assert(false, "Set VERSION=1||2");
+#endif
 #include <chrono>
 #include <cstring>
 #include "sjpeg_v1.h"

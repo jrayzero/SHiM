@@ -38,4 +38,4 @@ function (staged_jpeg ver)
 endfunction()
 
 staged_jpeg(1)
-#staged_jpeg(2)
+staged_jpeg(2)
