@@ -11,23 +11,20 @@
 
 namespace hmda {
 
-///
-/// Fill a Loc_T object with template values
-template <int Idx, typename D, loop_type Val, loop_type...Vals>
-void to_Loc_T(D &dyn) {
-  dyn[Idx] = Val;
+template <int Idx, int Rank, loop_type Val, loop_type...Vals>
+void to_Loc_T(builder::dyn_var<loop_type> loc_t[Rank]) {
+  loc_t[Idx] = Val;
   if constexpr (sizeof...(Vals) > 0) {
-    to_Loc_T<Idx+1,D,Vals...>(dyn);
+    to_Loc_T<Idx+1,Rank,Vals...>(loc_t);
   }
 }
 
-///
-/// Create a Loc_T object from template values
-template <loop_type...Vals>
-Loc_T<sizeof...(Vals)> to_Loc_T() {
-  builder::dyn_var<loop_type[sizeof...(Vals)]> loc_t;
-  to_Loc_T<0,decltype(loc_t),Vals...>(loc_t);
-  return loc_t;
+template <int Idx, int Rank, typename Val, typename...Vals>
+void to_Loc_T(builder::dyn_var<loop_type> loc_t[Rank], Val val, Vals...vals) {
+  loc_t[Idx] = val;
+  if constexpr (sizeof...(Vals) > 0) {
+    to_Loc_T<Idx+1,Rank>(loc_t, vals...);
+  }
 }
 
 ///
@@ -82,9 +79,9 @@ auto reduce_region(const Obj &obj) {
 }
 
 ///
-/// Perform a reduction across a dyn_var<T[]>
+/// Perform a reduction across a dyn_var<T>[]
 template <typename Functor, int Rank, typename T>
-builder::dyn_var<T> reduce(builder::dyn_var<T[Rank]> arr) {
+builder::dyn_var<T> reduce(Loc_T<Rank> arr) {
   builder::dyn_var<T> acc = arr[0];
   for (builder::static_var<T> i = 1; i < Rank; i=i+1) {
     acc = Functor()(acc, arr[i]);
@@ -119,7 +116,7 @@ auto delinearize(LIdx lidx, const Extents &extents) {
 
 ///
 /// Apply Functor to the elements in arr0 and arr1 and store the result in arr
-template <typename Functor, int Rank, int Depth>
+template <typename Functor, int Rank, int Depth=0>
 void apply(Loc_T<Rank> arr,
 	   Loc_T<Rank> arr0, 
 	   Loc_T<Rank> arr1) {
@@ -128,16 +125,6 @@ void apply(Loc_T<Rank> arr,
   if constexpr (Depth < Rank-1) {
     apply<Functor,Rank,Depth+1>(arr,arr0, arr1);
   }
-}
-
-///
-/// Apply Functor to the elements in arr0 and arr1 and produce the resulting arr
-template <typename Functor, int Rank>
-Loc_T<Rank> apply(Loc_T<Rank> arr0, 
-		  Loc_T<Rank> arr1) {
-  Loc_T<Rank> arr;
-  apply<Functor, Rank, 0>(arr, arr0, arr1);
-  return arr;
 }
 
 #define DISPATCH_PRINT_ELEM(dtype)				\
@@ -164,16 +151,6 @@ DISPATCH_PRINT_ELEM(double);
 template <typename Elem, typename Val>
 void dispatch_print_elem(Val val) {
   DispatchPrintElem<Elem>()(val);
-}
-
-// Create a new Loc_T and copy over the contents of obj
-template <int Rank>
-Loc_T<Rank> deepcopy(Loc_T<Rank> obj) {
-  Loc_T<Rank> copy;
-  for (builder::static_var<int> i = 0; i < Rank; i=i+1) {
-    copy[i] = obj[i];
-  }
-  return copy;
 }
 
 ///

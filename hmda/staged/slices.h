@@ -19,11 +19,15 @@ struct Slice {
 
   Slice(builder::dyn_var<loop_type> start, 
 	builder::dyn_var<loop_type> stop, 
-	builder::dyn_var<loop_type> stride) : params({start,stop,stride}) { }
+	builder::dyn_var<loop_type> stride) {
+    params[0] = start;
+    params[1] = stop;
+    params[2] = stride;
+  }
 
   builder::dyn_var<loop_type> operator[](loop_type idx) { return params[idx]; }
 
-  builder::dyn_var<loop_type[3]> params;
+  builder::dyn_var<loop_type> params[3];
 
 };
 
@@ -157,10 +161,9 @@ void convert_stops_to_extents(Loc_T<Rank> arr, Loc_T<Rank> starts, Loc_T<Rank> s
 ///
 /// Convert the stop parameter from a slice into an extent
 template <int Rank>
-Loc_T<Rank> convert_stops_to_extents(Loc_T<Rank> starts, Loc_T<Rank> stops, Loc_T<Rank> strides) {
-  Loc_T<Rank> arr;
+void convert_stops_to_extents(Loc_T<Rank> arr, Loc_T<Rank> starts, Loc_T<Rank> stops, Loc_T<Rank> strides) {
   convert_stops_to_extents<0, Rank>(arr, starts, stops, strides);
-  return arr;
+//  return arr;
 }
 
 }
