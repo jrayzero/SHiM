@@ -355,9 +355,13 @@ void jpeg_staged(dyn_var<uint8_t*> input,
   dint WP = W%8;
   if (HP != 0) {
     HP = H + 8-HP;
+  } else {
+    HP = H;
   }
   if (WP != 0) {
     WP = W + 8-WP;
+  } else {
+    WP = W;
   }
   // will hold everthing before huffman
   auto processed = Block<int,3>::heap({3,HP,WP});
