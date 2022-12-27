@@ -2,8 +2,10 @@
 
 #pragma once
 
+#include "common/utils.h"
 #include "blocks/c_code_generator.h"
 #include "builder/builder_dynamic.h"
+#include "annotations.h"
 
 namespace hmda {
 // fixes the syntax for staged function args of the form
@@ -68,6 +70,41 @@ public:
       curr_indent--;
     }    
   }
+
+  // apply string-matching based optimizations
+  void visit(block::for_stmt::Ptr s) {
+    std::string annot = s->annotation;
+    // first split on different optimizations
+    std::vector<std::string> opts = split_on(annot, ";");
+    if (opts.size() > 1) {
+      std::cerr << "Only supporting single opt applications currently." << std::endl;
+      exit(-1);
+    }
+    if (!opts.empty()) {
+      std::vector<std::string> comps = split_on(opts[0], ":");
+      if (!comps[0].compare(0, Optimization::opt_prefix.size(), Optimization::opt_prefix)) {
+	// okay, it's an optimization!
+	if (comps.size() == 1) {
+	  std::cerr << "Not enough components in optimization: " << opts[0] << std::endl;
+	  exit(-1);
+	}
+	if (!comps[1].compare(0, Parallel::repr.size(), Parallel::repr)) {
+	  std::stringstream prg;
+	  prg << "#pragma omp parallel for";
+	  int nworkers = stoi(comps[2]);
+	  if (nworkers > 0) {
+	    prg << " num_threads(" << nworkers << ")" << std::endl;
+	  } else {
+	    prg << std::endl;
+	  }
+	  oss << prg.str();
+	  printer::indent(oss, curr_indent);
+	}
+      }
+    }
+    block::c_code_generator::visit(s);
+  }
+  
 };
 
 template <typename Func, typename...Args>
@@ -75,7 +112,6 @@ void stage(Func func, std::string name, std::ostream &output, Args...args) {
   if (name.empty()) name = "__my_staged_func";
   auto ast = builder::builder_context().extract_function_ast(func, name, args...);
   block::eliminate_redundant_vars(ast);
-  output << "#include \"hmda_runtime.h\"" << std::endl;
   hmda_cpp_code_generator::generate_code(ast, output, 0);
 }
 

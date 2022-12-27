@@ -8,7 +8,6 @@ static_assert(false, "Set VERSION=1||2");
 #endif
 #include <chrono>
 #include <cstring>
-#include "sjpeg_v1.h"
 #include "bits.h"
 #include "syntax.h"
 
@@ -83,12 +82,12 @@ int main(int argc, char **argv) {
     cerr << "Usage: ./jpeg <ppm> <jpg>" << endl;
     exit(-1);
   }
-
+  //  std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
+  struct timespec begin, end;
+  clock_gettime(CLOCK_MONOTONIC, &begin);
   // prep bits
   FILE *jpg = fopen(argv[2], "wb");
   Bits bits(jpg);
-
-  std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
   // prep huffman encoder
   HuffmanCodes luma_codes = generate_codes(luma_DC_huffbits, luma_DC_huffvals, luma_AC_huffbits, luma_AC_huffvals);
   HuffmanCodes chroma_codes = generate_codes(chroma_DC_huffbits, chroma_DC_huffvals, chroma_AC_huffbits, chroma_AC_huffvals); 
@@ -136,6 +135,11 @@ int main(int argc, char **argv) {
   bits.flush_bits();
   fflush(jpg);
   fclose(jpg);
-  std::chrono::steady_clock::time_point stop = std::chrono::steady_clock::now();
-  std::cout << "Program took " << std::chrono::duration_cast<std::chrono::nanoseconds> (stop - start).count()/1e9 << "s" << std::endl;
+  clock_gettime(CLOCK_MONOTONIC, &end);
+  long seconds = end.tv_sec - begin.tv_sec;
+  long nanoseconds = end.tv_nsec - begin.tv_nsec;
+  double elapsed = seconds + nanoseconds*1e-9;
+  std::cout << "Program took " << elapsed << "s" << std::endl;
+  //std::chrono::steady_clock::time_point stop = std::chrono::steady_clock::now();
+  //std::cout << "Program took " << std::chrono::duration_cast<std::chrono::nanoseconds> (stop - start).count()/1e9 << "s" << std::endl;
 }

@@ -55,4 +55,9 @@ void print_newline() {
   std::cout << std::endl;
 }
 
+template <bool dummy=false>
+void print_string(std::string s) {
+  std::cout << s;
+}
+
 }

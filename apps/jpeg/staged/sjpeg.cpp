@@ -6,7 +6,7 @@
 #include "builder/dyn_var.h"
 #include "blocks/c_code_generator.h"
 #include "blocks/rce.h"
-#include "hmda_staged.h" 
+#include "hmda_staged.h"
 
 using namespace std;
 using namespace hmda;
@@ -57,8 +57,8 @@ void color_one(RGB_T RGB, Block<int,3> YCbCr, dint comp) {
   }
 }
 
-template <typename RGB_T>
-void color(RGB_T RGB, Block<int,3> YCbCr) {
+template <typename RGB_T, typename YCbCr_T>
+void color(RGB_T RGB, YCbCr_T YCbCr) {
   YCbCr[0][i][j] = 
     cast<int>(cast<double>(RGB[i][j][0])*0.299 + 
 	      cast<double>(RGB[i][j][1])*0.587 + 
@@ -79,7 +79,70 @@ dyn_var<int(int,int)> rshift = builder::as_global("rshift");
 
 // the external things to call for doing huffman
 // these are completely the wrong types but w/e
+//#if VERSION==1
 dyn_var<void(HEAP_T<int>,int,int,void*,void*,void*)> huffman_encode_block = builder::as_global("huffman_encode_block");
+/*#else 
+// TODO I screwed this up somewhere
+dyn_var<void(void*,void*,void*)> pack_DC = builder::as_global("pack_DC");
+dyn_var<void(void*,void*,void*)> pack_AC = builder::as_global("pack_AC");
+dyn_var<void(void*,void*,void*)> pack_and_stuff = builder::as_global("pack_and_stuff");
+void huffman_encode_block(View<int,3> obj, dint last_val,
+			  dyn_var<Bits> bits, Block<int,2> zigzag,
+			  dyn_var<HuffmanCodes> codes) {
+  // DC
+  dint dc = obj(0,0,0);
+  dint temp = dc - last_val;
+  dint temp2 = temp;
+  if (temp < 0) {
+    temp = -temp;
+    temp2 = temp2-1;
+  }
+  dint nbits = 0;
+  while (temp > 0) {
+    nbits=nbits+1;
+    temp = temp >> 1;
+  }
+  pack_DC(bits, nbits, codes);
+  if (nbits != 0) {
+    pack_and_stuff(bits, temp2, nbits);
+  }
+  // AC
+  dint run = 0;
+  for (dint e0 = 0; e0 < 8; e0 = e0+1) {
+    for (dint e1 = 0; e1 < 8; e1 = e1+1) {
+      if (e0==0 && e1==0) {
+      } else {
+	temp = obj.plidx(zigzag(e0,e1));
+	if (temp == 0)
+	  run = run + 1;
+	else {
+	  while (run > 15) {
+	    pack_AC(bits, 0xF0, codes);
+	    run = run - 16;
+	  }
+	  temp2 = temp;
+	  if (temp < 0) {
+	    temp = -temp;
+	    temp2 = temp2-1;
+	  }
+	  nbits = 1;
+	  temp = temp >> 1;
+	  while (temp > 0) {
+	    nbits++;
+	    temp = temp >> 1;
+	  }
+	  dint i = (run << 4) + nbits;
+	  pack_AC(bits, i, codes);
+	  pack_and_stuff(bits, temp2, nbits);
+	  run = 0;
+	}
+      }
+    }
+  }
+  if (run > 0)
+    pack_AC(bits, 0, codes);
+}
+#endif*/
 
 void dct(View<int,3> obj) { 
 #define descale(x,n) rshift((x + (lshift(1, (n-1)))), n)
@@ -254,7 +317,8 @@ void jpeg_staged(dyn_var<uint8_t*> input, dyn_var<int> H, dyn_var<int> W,
       dct(Cr);
       quant(Y, luma_quant);
       quant(Cb, chroma_quant);
-      quant(Cr, chroma_quant);      
+      quant(Cr, chroma_quant);
+      // get the base lidx for each
       huffman_encode_block(Y.allocator->stack<3*8*8>(), 0, last_Y, bits, zigzag, luma_codes);
       huffman_encode_block(Cb.allocator->stack<3*8*8>(), 1, last_Cb, bits, zigzag, chroma_codes);
       huffman_encode_block(Cr.allocator->stack<3*8*8>(), 2, last_Cr, bits, zigzag, chroma_codes);
@@ -266,7 +330,8 @@ void jpeg_staged(dyn_var<uint8_t*> input, dyn_var<int> H, dyn_var<int> W,
 }
 #elif VERSION == 2
 // This parallelizes on the color component
-void jpeg_staged(dyn_var<uint8_t*> input, dyn_var<int> H, dyn_var<int> W, 
+void jpeg_staged(dyn_var<uint8_t*> input,
+		 dyn_var<int> H, dyn_var<int> W, 
 		 dyn_var<int*> luma_quant_arr, 
 		 dyn_var<int*> chroma_quant_arr,
 		 dyn_var<int*> zigzag, 
@@ -277,6 +342,7 @@ void jpeg_staged(dyn_var<uint8_t*> input, dyn_var<int> H, dyn_var<int> W,
   // Tables (these are already scaled)
   auto luma_quant = Block<int,2>::user({8,8}, luma_quant_arr);
   auto chroma_quant = Block<int,2>::user({8,8}, chroma_quant_arr);
+  auto zigzag_b = Block<int,2>::user({8,8}, zigzag);  
     
   // start it up
   auto RGB = Block<uint8_t,3>::user({H, W, 3}, input);
@@ -284,12 +350,23 @@ void jpeg_staged(dyn_var<uint8_t*> input, dyn_var<int> H, dyn_var<int> W,
   dint last_Cb = 0;
   dint last_Cr = 0;
 
-  auto YCbCr = Block<int,3>::stack<3,8,8>();
-  
+  // figure out how much padding needed
+  dint HP = H%8;
+  dint WP = W%8;
+  if (HP != 0) {
+    HP = H + 8-HP;
+  }
+  if (WP != 0) {
+    WP = W + 8-WP;
+  }
+  // will hold everthing before huffman
+  auto processed = Block<int,3>::heap({3,HP,WP});
+  Parallel::apply();
   for (dint r = 0; r < H; r = r + 8) {
     for (dint c = 0; c < W; c = c + 8) {
       // pad and color convert the whole thing in one operation without parallel
       auto mcu = RGB.view(slice(r,r+8,1),slice(c,c+8,1),slice(0,3,1));
+      auto YCbCr = Block<int,3>::stack<3,8,8>();      
       if (r+8>H || c+8>W) {
 	// need padding
 	dint row_pad = 0;
@@ -309,32 +386,41 @@ void jpeg_staged(dyn_var<uint8_t*> input, dyn_var<int> H, dyn_var<int> W,
 	auto row_padding_area = padded.view(slice(last_valid_row,last_valid_row+row_pad,1),slice(0,8,1),slice(0,3,1));
 	auto col_padding_area = padded.view(slice(0,8,1), slice(last_valid_col,last_valid_col+col_pad,1), slice(0,3,1));
 	row_padding_area[i][j][k] = padded[(last_valid_row-1)][j][k];
-	col_padding_area[i][j][k] = padded[i][(last_valid_col-1)][k];
-	for (dint comp = 0; comp < 3; comp = comp + 1) {
-	  color_one(padded, YCbCr, comp);
-	}
+	col_padding_area[i][j][k] = padded[i][(last_valid_col-1)][k];	
+	color(padded, YCbCr);
       } else {
 	// no padding needed
-	for (dint comp = 0; comp < 3; comp = comp + 1) {
-	  color_one(mcu, YCbCr, comp);	
-	}
+	color(mcu, YCbCr);
       }
-      // can't do huffman encoding within this because it depends on the order (unless I want to play with parallelizing bit
-      // packing)
-      for (dint comp = 0; comp < 3; comp = comp + 1) {
-	// offset
-	YCbCr[comp][j][k] = YCbCr[comp][j][k] - 128;
-	auto clr = YCbCr.view(slice(comp,comp+1,1),slice(0,8,1),slice(0,8,1));
-	dct(clr);
-	if (comp == 0) {
-	  quant(clr, luma_quant);
-	} else {
-	  quant(clr, chroma_quant);
-	}
-      }
-      huffman_encode_block(YCbCr.allocator->stack<3*8*8>(), 0, last_Y, bits, zigzag, luma_codes);
-      huffman_encode_block(YCbCr.allocator->stack<3*8*8>(), 1, last_Cb, bits, zigzag, chroma_codes);
-      huffman_encode_block(YCbCr.allocator->stack<3*8*8>(), 2, last_Cr, bits, zigzag, chroma_codes);
+      YCbCr[i][j][k] = YCbCr[i][j][k] - 128;
+      auto Y = YCbCr.view(slice(0,1,1),slice(0,8,1),slice(0,8,1));
+      auto Cb = YCbCr.view(slice(1,2,1),slice(0,8,1),slice(0,8,1));
+      auto Cr = YCbCr.view(slice(2,3,1),slice(0,8,1),slice(0,8,1));
+      dct(Y);      
+      dct(Cb);
+      dct(Cr);
+      quant(Y, luma_quant);
+      quant(Cb, chroma_quant);
+      quant(Cr, chroma_quant);
+      // write it back
+      auto write_back = processed.view(slice(0,3,1),slice(r,r+8,1),slice(c,c+8,1));
+      // TODO vectorize this
+      write_back[i][j][k] = YCbCr[i][j][k];
+    }
+  }
+  // this has to be sequential
+  for (dint r = 0; r < H; r = r + 8) {
+    for (dint c = 0; c < W; c = c + 8) {
+      auto read_back = processed.view(slice(0,3,1),slice(r,r+8,1),slice(c,c+8,1));      
+      auto YCbCr = Block<int,3>::stack<3,8,8>();
+      YCbCr[i][j][k] = read_back[i][j][k];
+      auto Y = YCbCr.view(slice(0,1,1),slice(0,8,1),slice(0,8,1));
+      auto Cb = YCbCr.view(slice(1,2,1),slice(0,8,1),slice(0,8,1));
+      auto Cr = YCbCr.view(slice(2,3,1),slice(0,8,1),slice(0,8,1));
+      // TODO make this be 3,8,8 and then multiply together in the API
+      huffman_encode_block(Y.allocator->stack<3*8*8>(), 0, last_Y, bits, zigzag, luma_codes);
+      huffman_encode_block(Cb.allocator->stack<3*8*8>(), 1, last_Cb, bits, zigzag, chroma_codes);
+      huffman_encode_block(Cr.allocator->stack<3*8*8>(), 2, last_Cr, bits, zigzag, chroma_codes);
       last_Y = YCbCr(0,0,0);
       last_Cb = YCbCr(1,0,0);
       last_Cr = YCbCr(2,0,0);
@@ -351,9 +437,6 @@ int main(int argc, char **argv) {
     exit(-1);
   }
   std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
-  builder::builder_context context;
-  auto ast = context.extract_function_ast(jpeg_staged, "jpeg");
-  block::eliminate_redundant_vars(ast);	
   ofstream src;
   ofstream hdr;
   string source = string(argv[1]) + ".cpp";
@@ -372,8 +455,7 @@ int main(int argc, char **argv) {
   src << "int lshift(int a, int b) { return a << b; }" << endl;
   src << "int rshift(int a, int b) { return a >> b; }" << endl;  
   stringstream ss;
-  hmda::hmda_cpp_code_generator::generate_code(ast, ss, 0);
-  cout << ss.str() << endl;
+  stage(jpeg_staged, "jpeg", ss);
   src << ss.str() << endl;
   src.flush();
   src.close();

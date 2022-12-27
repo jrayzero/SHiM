@@ -1,3 +1,4 @@
+#include <chrono>
 #include "hmda_unstaged.h"
 #include "bits.h"
 #include "syntax.h"
@@ -204,7 +205,7 @@ int main(int argc, char **argv) {
     cerr << "Usage: ./jpeg <ppm> <jpg>" << endl;
     exit(-1);
   }
-
+  std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
   // prep quant  
   Block<int,2> luma_quant({8,8}, _luma_quant);
   Block<int,2> chroma_quant({8,8}, _chroma_quant);
@@ -216,7 +217,6 @@ int main(int argc, char **argv) {
   FILE *jpg = fopen(argv[2], "wb");
   Bits bits(jpg);
 
-  std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
   // prep huffman encoder
   HuffmanCodes luma_codes = generate_codes(luma_DC_huffbits, luma_DC_huffvals, luma_AC_huffbits, luma_AC_huffvals);
   HuffmanCodes chroma_codes = generate_codes(chroma_DC_huffbits, chroma_DC_huffvals, chroma_AC_huffbits, chroma_AC_huffvals);  
