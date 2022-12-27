@@ -140,3 +140,15 @@ void huffman_encode_block(int *obj, int color_idx, int last_val,
   if (run > 0)
     bits.pack_and_stuff(codes.ac_ehufco[0], codes.ac_ehufsz[0], 0xFF, 0);
 }
+
+void pack_DC(Bits &bits, int idx, const HuffmanCodes &codes) {
+  bits.pack_and_stuff(codes.dc_ehufco[idx], codes.dc_ehufsz[idx], 0xFF, 0);  
+}
+
+void pack_AC(Bits &bits, int idx, const HuffmanCodes &codes) {
+  bits.pack_and_stuff(codes.ac_ehufco[idx], codes.ac_ehufsz[idx], 0xFF, 0);
+}
+
+void pack_and_stuff(Bits &bits, int val, int nbits) {
+  bits.pack_and_stuff(val, nbits, 0xFF, 0);
+}

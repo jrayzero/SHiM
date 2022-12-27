@@ -14,7 +14,7 @@ struct Def { };
 
 ///
 /// Represents a region to access within a block or a view
-template <bool Stop>
+template <bool Stop> // if Stop = true, then need to infer this value as the extent when use
 struct Slice {
 
   Slice(builder::dyn_var<loop_type> start, 
@@ -38,9 +38,9 @@ auto slice() {
 template <typename Start>
 auto slice(Start start) {    
   if constexpr (std::is_same<Start,Def>::value) {
-    return Slice<false>(0,0,1);
+    return Slice<false>(0,1,1);
   } else {
-    return Slice<false>(start,0,1);
+    return Slice<false>(start,start+1,1);
   }
 }
 
@@ -49,13 +49,13 @@ auto slice(Start start) {
 template <typename Start, typename Stop>
 auto slice(Start start, Stop stop) {
   if constexpr (std::is_same<Start,Def>::value && std::is_same<Stop,Def>::value) {
-    return Slice<false>(0,0,1);
+    return Slice<true>(0,0,1);
   } else if constexpr (std::is_same<Start,Def>::value && !std::is_same<Stop,Def>::value) {
-    return Slice<true>(0,stop,1);
+    return Slice<false>(0,stop,1);
   } else if constexpr (!std::is_same<Start,Def>::value && std::is_same<Stop,Def>::value) {
-    return Slice<false>(start,0,1);
+    return Slice<true>(start,0,1);
   } else { // (!std::is_same<Start,Def>::value && !std::is_same<Stop,Def>::value)
-    return Slice<true>(start,stop,1);
+    return Slice<false>(start,stop,1);
   }
 }
 
@@ -64,21 +64,21 @@ auto slice(Start start, Stop stop) {
 template <typename Start, typename Stop, typename Stride>
 auto slice(Start start, Stop stop, Stride stride) {
   if constexpr (std::is_same<Start,Def>::value && std::is_same<Stop,Def>::value && std::is_same<Stride,Def>::value) {
-    return Slice<false>(0,0,1);
+    return Slice<true>(0,0,1);
   } else if constexpr (std::is_same<Start,Def>::value && std::is_same<Stop,Def>::value && !std::is_same<Stride,Def>::value) {
-    return Slice<false>(0,0,stride);
+    return Slice<true>(0,0,stride);
   } else if constexpr (std::is_same<Start,Def>::value && !std::is_same<Stop,Def>::value && std::is_same<Stride,Def>::value) {
-    return Slice<true>(0,stop,1);
+    return Slice<false>(0,stop,1);
   } else if constexpr (std::is_same<Start,Def>::value && !std::is_same<Stop,Def>::value && !std::is_same<Stride,Def>::value) {
-    return Slice<true>(0,stop,stride);
+    return Slice<false>(0,stop,stride);
   } else if constexpr (!std::is_same<Start,Def>::value && std::is_same<Stop,Def>::value && std::is_same<Stride,Def>::value) {
-    return Slice<false>(start,0,1);
+    return Slice<true>(start,0,1);
   } else if constexpr (!std::is_same<Start,Def>::value && std::is_same<Stop,Def>::value && !std::is_same<Stride,Def>::value) {
-    return Slice<false>(start,0,stride);
+    return Slice<true>(start,0,stride);
   } else if constexpr (!std::is_same<Start,Def>::value && !std::is_same<Stop,Def>::value && std::is_same<Stride,Def>::value) {
-    return Slice<true>(start,stop,1);
+    return Slice<false>(start,stop,1);
   } else { // (!std::is_same<Start,Def>::value && !std::is_same<Stop,Def>::value && !std::is_same<Stride,Def>::value)
-    return Slice<true>(start,stop,stride);
+    return Slice<false>(start,stop,stride);
   }
 }
 
@@ -105,6 +105,28 @@ void gather_origin(Loc_T<Rank> origin, Arg arg, Args...args) {
 template <int Idx, int Rank, typename Arg, typename...Args>
 void gather_stops(Loc_T<Rank> vec, Loc_T<Rank> extents, Arg arg, Args...args) {
   if constexpr (is_slice<Arg>::value) {
+      // specified as slice(a,b,c)
+      if constexpr (is_stop_slice<Arg>::value) {
+	  // we need to infer this
+	vec[Idx] = extents[Idx];
+        if constexpr (Idx < Rank - 1) {
+	  gather_stops<Idx+1,Rank>(vec, extents, args...);
+        }	
+      } else {
+	// use the value as is
+	vec[Idx] = arg[1];
+	if constexpr (Idx < Rank - 1) {
+	  gather_stops<Idx+1,Rank>(vec, extents, args...);
+	}
+      }
+  } else {
+    // only a single value specified, meaning the stop is value+1
+    vec[Idx] = arg + 1;
+    if constexpr (Idx < Rank - 1) {
+      gather_stops<Idx+1,Rank>(vec, extents, args...);
+    }
+  }
+  /*  if constexpr (is_slice<Arg>::value) {
     if constexpr (is_stop_slice<Arg>::value) {
       vec[Idx] = extents[Idx];
       if constexpr (Idx < Rank - 1) {
@@ -121,7 +143,7 @@ void gather_stops(Loc_T<Rank> vec, Loc_T<Rank> extents, Arg arg, Args...args) {
     if constexpr (Idx < Rank - 1) {
       gather_stops<Idx+1,Rank>(vec, extents, args...);
     }    
-  }
+    }*/
 }
 
 ///

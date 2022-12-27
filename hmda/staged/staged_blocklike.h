@@ -176,6 +176,9 @@ struct View {
   template <typename T=Elem>
   void dump_data();
 
+  // print out the location info
+  void dump_loc();
+
   std::shared_ptr<Allocation<Elem>> allocator;
   SLoc_T bextents;
   SLoc_T bstrides;
@@ -520,7 +523,7 @@ template <typename Elem, int Rank>
 template <typename LIdx>
 builder::dyn_var<Elem> View<Elem,Rank>::plidx(LIdx lidx) {
   // must delinearize relative to the view
-  auto coord = delinearize<0>(lidx, this->vextents);
+  auto coord = delinearize<0,Rank>(lidx, this->vextents);
   return this->operator()(coord);
 }
 
@@ -587,6 +590,48 @@ void View<Elem, Rank>::dump_data() {
       print_newline();
     }
   }
+}
+
+template <typename Elem, int Rank>
+void View<Elem,Rank>::dump_loc() {
+  print_string("View location info");
+  print_newline();
+  print_string("  BExtents:");
+  for (builder::static_var<int> r = 0; r < Rank; r=r+1) {
+    print_string(" ");
+    dispatch_print_elem<int>(bextents[r]);    
+  }
+  print_newline();
+  print_string("  BStrides:");
+  for (builder::static_var<int> r = 0; r < Rank; r=r+1) {
+    print_string(" ");
+    dispatch_print_elem<int>(bstrides[r]);    
+  }
+  print_newline();
+  print_string("  BOrigin:");
+  for (builder::static_var<int> r = 0; r < Rank; r=r+1) {
+    print_string(" ");
+    dispatch_print_elem<int>(borigin[r]);    
+  }
+  print_newline();
+  print_string("  VExtents:");
+  for (builder::static_var<int> r = 0; r < Rank; r=r+1) {
+    print_string(" ");
+    dispatch_print_elem<int>(vextents[r]);    
+  }
+  print_newline();
+  print_string("  VStrides:");
+  for (builder::static_var<int> r = 0; r < Rank; r=r+1) {
+    print_string(" ");
+    dispatch_print_elem<int>(vstrides[r]);    
+  }
+  print_newline();
+  print_string("  VOrigin:");
+  for (builder::static_var<int> r = 0; r < Rank; r=r+1) {
+    print_string(" ");
+    dispatch_print_elem<int>(vorigin[r]);    
+  }  
+  print_newline();
 }
 
 ///
@@ -691,7 +736,7 @@ void Ref<BlockLike,Idxs>::realize_loop_nest(Rhs rhs, Iters...iters) {
     auto dummy = std::get<depth>(idxs);
     if constexpr (std::is_integral<decltype(dummy)>() ||
 		  is_dyn_like<decltype(dummy)>::value) {
-      // single iter
+	// single iter
 	builder::dyn_var<loop_type> iter = std::get<depth>(idxs);
 	realize_loop_nest(rhs, iters..., iter);
     } else {

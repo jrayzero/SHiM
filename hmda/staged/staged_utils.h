@@ -56,29 +56,26 @@ static builder::dyn_var<loop_type> linearize(Loc_T<Rank> extents, const std::tup
 ///
 /// Perform a reduction across a region of obj
 template <typename Functor, int Begin, int End, int Depth, typename Obj>
-auto reduce_region(const Obj &obj) {
-  constexpr int tuple_sz = std::tuple_size<Obj>();
+auto reduce_region_inner(Obj obj) {
   if constexpr (Depth >= Begin && Depth < End) {
     builder::dyn_var<loop_type> item = obj[Depth];
     if constexpr (Depth < End - 1) {
-      return Functor()(item, reduce_region<Functor,Begin,End,Depth+1>(obj));
+      return Functor()(item, reduce_region_inner<Functor,Begin,End,Depth+1>(obj));
     } else {
       return item;
     }
   } else {
     // won't be hit if Depth >= End
-    return reduce_region<Functor,Begin,End,Depth+1>(obj);
+    return reduce_region_inner<Functor,Begin,End,Depth+1>(obj);
   }
 }
 
 ///
 /// Perform a reduction across a region of obj
-template <typename Functor, int Begin, int End, typename Obj>
-auto reduce_region(const Obj &obj) {
-  constexpr int tuple_sz = std::tuple_size<Obj>();
-  static_assert(Begin < tuple_sz && End <= tuple_sz && Begin < End);
-  static_assert(tuple_sz > 0);
-  return reduce_region<Functor,Begin,End,0>(obj);
+template <typename Functor, int Begin, int End, int Rank, typename Obj>
+auto reduce_region(Obj obj) {
+  static_assert(Begin < Rank && End <= Rank && Begin < End);
+  return reduce_region_inner<Functor,Begin,End,0>(obj);
 }
 
 ///
@@ -105,15 +102,14 @@ constexpr loop_type mul_reduce() {
 
 ///
 /// Convert a linear index to a coordinate
-template <int Depth, typename LIdx, typename Extents>
+template <int Depth, int Rank, typename LIdx, typename Extents>
 auto delinearize(LIdx lidx, const Extents &extents) {
-  constexpr int tuple_size = std::tuple_size<Extents>();
-  if constexpr (Depth+1 == tuple_size) {
+  if constexpr (Depth+1 == Rank) {
     return std::tuple{lidx};
   } else {
-    builder::dyn_var<loop_type> m = reduce_region<MulFunctor, Depth+1, tuple_size>(extents);
+    builder::dyn_var<loop_type> m = reduce_region<MulFunctor, Depth+1, Rank, Rank>(extents);
     builder::dyn_var<loop_type> c = lidx / m;
-    return std::tuple_cat(std::tuple{c}, delinearize<Depth+1>(lidx % m, extents));
+    return std::tuple_cat(std::tuple{c}, delinearize<Depth+1, Rank>(lidx % m, extents));
   }
 }
 
