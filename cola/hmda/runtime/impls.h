@@ -60,4 +60,14 @@ void print_string(std::string s) {
   std::cout << s;
 }
 
+template <typename V, typename S>
+V lshift(V val, S amt) {
+  return val << amt;
+}
+
+template <typename V, typename S>
+V rshift(V val, S amt) {
+  return val >> amt;
+}
+
 }

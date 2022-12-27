@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include <sstream>
 #include <vector>
 #include "builder/builder.h"
 #include "common/defs.h"

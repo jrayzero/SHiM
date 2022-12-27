@@ -16,6 +16,8 @@ builder::dyn_var<void(int)> hexit = builder::as_global("exit");
 builder::dyn_var<loop_type(loop_type)> hfloor = builder::as_global("floor");
 builder::dyn_var<void(void)> print_newline = builder::as_global("hmda::print_newline");
 builder::dyn_var<void(char*)> print_string = builder::as_global("hmda::print_string");
+builder::dyn_var<int(int,int)> lshift = builder::as_global("hmda::lshift");
+builder::dyn_var<int(int,int)> rshift = builder::as_global("hmda::rshift");
 
 // Note: the arg tyoe for these casts isn't right, but I don't want to write every combination
 // of dyn_var<to(from)>, and buildit doesn't seem to care.
