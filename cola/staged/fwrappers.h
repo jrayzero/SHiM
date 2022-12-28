@@ -17,8 +17,12 @@ builder::dyn_var<loop_type(loop_type)> hfloor = builder::as_global("floor");
 builder::dyn_var<void(void)> print_newline = builder::as_global("cola::print_newline");
 builder::dyn_var<void(char*)> print_string = builder::as_global("cola::print_string");
 builder::dyn_var<void(void*)> print = builder::as_global("cola::print");
+builder::dyn_var<void(void*)> printn = builder::as_global("cola::printn");
+builder::dyn_var<void*(void*,void*)> scat_items = builder::as_global("cola::scat_items");
 builder::dyn_var<int(int,int)> lshift = builder::as_global("cola::lshift");
 builder::dyn_var<int(int,int)> rshift = builder::as_global("cola::rshift");
+builder::dyn_var<int(int,int)> bor = builder::as_global("cola::bor");
+builder::dyn_var<int(int,int)> band = builder::as_global("cola::band");
 
 // Note: the arg tyoe for these casts isn't right, but I don't want to write every combination
 // of dyn_var<to(from)>, and buildit doesn't seem to care.
@@ -111,5 +115,19 @@ builder::dyn_var<void(int32_t)> print_elem_int32_t = builder::as_global("cola::p
 builder::dyn_var<void(int64_t)> print_elem_int64_t = builder::as_global("cola::print_elem");
 builder::dyn_var<void(float)> print_elem_float = builder::as_global("cola::print_elem");
 builder::dyn_var<void(double)> print_elem_double = builder::as_global("cola::print_elem");
+
+//template <typename Arg0, typename...Args>
+//buil scat_inner(builder::dyn_var<void*> &cur, Arg0 arg0, Args...args) {
+//  cur = scat_items(cur, arg0);
+//}
+
+template <typename Arg0, typename...Args>
+builder::dyn_var<void*> scat(Arg0 arg0, Args...args) {
+  if constexpr (sizeof...(Args) == 0) {
+    return arg0;
+  } else {
+    return scat_items(arg0, scat(args...));
+  }
+}
 
 }

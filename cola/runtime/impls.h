@@ -1,5 +1,6 @@
 #pragma once
 
+#include <sstream>
 #include <iostream>
 #include "heaparray.h"
 
@@ -70,9 +71,29 @@ V rshift(V val, S amt) {
   return val >> amt;
 }
 
-template <typename T>
-void print(T val) {
-  std::cout << val;
+template <typename V, typename S>
+V bor(V left, S right) {
+  return left | right;
+}
+
+template <typename V, typename S>
+V band(V left, S right) {
+  return left & right;
+}
+
+template <typename Arg, typename...Args>
+void cat(std::stringstream &ss, Arg arg, Args...args) {
+  ss << arg;
+  if constexpr (sizeof...(Args) > 0) {
+    cat(ss, args...);
+  }
+}
+
+template <typename...Args>
+void printn(Args...args) {
+  std::stringstream ss;
+  cat(ss, args...);  
+  std::cout << ss.str() << std::endl;
 }
 
 }
