@@ -7,7 +7,7 @@
 #include "fwddecls.h"
 #include "fwrappers.h"
 
-namespace hmda {
+namespace cola {
 
 // A default slice parameter value
 struct Def { };

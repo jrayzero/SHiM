@@ -5,7 +5,7 @@
 #include "builder/dyn_var.h"
 #include "fwddecls.h"
 
-namespace hmda {
+namespace cola {
 
 template <typename T>
 struct is_expr {

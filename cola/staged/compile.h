@@ -7,7 +7,7 @@
 #include "builder/builder_dynamic.h"
 #include "annotations.h"
 
-namespace hmda {
+namespace cola {
 // fixes the syntax for staged function args of the form
 // dyn_var<T[]>
 // buildit prints "T[] arg", but correct syntax is "T arg[]"

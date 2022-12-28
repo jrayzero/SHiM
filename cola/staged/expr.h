@@ -4,12 +4,12 @@
 
 #include <type_traits>
 #include "builder/dyn_var.h"
-#include "common/functors.h"
+#include "functors.h"
 #include "fwrappers.h"
 #include "fwddecls.h"
 #include "traits.h"
 
-namespace hmda {
+namespace cola {
 
 ///
 /// Unspecialized template to determine the core type of a compound expression

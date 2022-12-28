@@ -6,10 +6,10 @@
 #include "builder/dyn_var.h"
 #include "blocks/c_code_generator.h"
 #include "blocks/rce.h"
-#include "hmda_staged.h"
+#include "staged/staged.h"
 
 using namespace std;
-using namespace hmda;
+using namespace cola;
 using builder::dyn_var;
 using builder::static_var;
 
@@ -72,10 +72,6 @@ void color(RGB_T RGB, YCbCr_T YCbCr) {
 	      cast<double>(RGB[i][j][1])*-0.418688 + 
 	      cast<double>(RGB[i][j][2])*-0.081312) + 128;
 }
-
-// buildit doesn't have shift operators, so use these
-dyn_var<int(int,int)> lshift = builder::as_global("lshift");
-dyn_var<int(int,int)> rshift = builder::as_global("rshift");
 
 // the external things to call for doing huffman
 // these are completely the wrong types but w/e
@@ -455,9 +451,7 @@ int main(int argc, char **argv) {
   hdr.flush();
   hdr.close();
   src << "#include \"" << header << "\"" << endl;
-  src << "#include \"hmda_runtime.h\"" << endl;
-  src << "int lshift(int a, int b) { return a << b; }" << endl;
-  src << "int rshift(int a, int b) { return a >> b; }" << endl;  
+  src << "#include \"runtime/runtime.h\"" << endl;
   stringstream ss;
   stage(jpeg_staged, "jpeg", ss);
   src << ss.str() << endl;

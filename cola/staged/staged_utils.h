@@ -9,7 +9,7 @@
 #include "fwddecls.h"
 #include "traits.h"
 
-namespace hmda {
+namespace cola {
 
 ///
 /// Fill a Loc_T object with template values

@@ -3,7 +3,7 @@
 #include <iostream>
 #include "heaparray.h"
 
-namespace hmda {
+namespace cola {
 
 template <typename Elem>
 HeapArray<Elem> build_heaparr(loop_type sz) {
@@ -68,6 +68,11 @@ V lshift(V val, S amt) {
 template <typename V, typename S>
 V rshift(V val, S amt) {
   return val >> amt;
+}
+
+template <typename T>
+void print(T val) {
+  std::cout << val;
 }
 
 }

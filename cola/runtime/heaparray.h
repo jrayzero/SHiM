@@ -8,7 +8,7 @@
 
 using namespace std;
 
-namespace hmda {
+namespace cola {
 
 template <typename Elem>
 struct HeapArray;

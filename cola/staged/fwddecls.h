@@ -5,7 +5,7 @@
 // forward declarations for a bunch of things I need
 // also includes some general type definitions
 
-namespace hmda {
+namespace cola {
 
 ///// Forward declarations
 
@@ -38,15 +38,15 @@ struct Slice;
 ///// Types
 
 // Definitions for the HeapArray type
-constexpr char uint8_t_name[] = "hmda::HeapArray<uint8_t>";
-constexpr char uint16_t_name[] = "hmda::HeapArray<uint16_t>";
-constexpr char uint32_t_name[] = "hmda::HeapArray<uint32_t>";
-constexpr char uint64_t_name[] = "hmda::HeapArray<uint64_t>";
-constexpr char int16_t_name[] = "hmda::HeapArray<int16_t>";
-constexpr char int32_t_name[] = "hmda::HeapArray<int32_t>";
-constexpr char int64_t_name[] = "hmda::HeapArray<int64_t>";
-constexpr char float_name[] = "hmda::HeapArray<float>";
-constexpr char double_name[] = "hmda::HeapArray<double>";
+constexpr char uint8_t_name[] = "cola::HeapArray<uint8_t>";
+constexpr char uint16_t_name[] = "cola::HeapArray<uint16_t>";
+constexpr char uint32_t_name[] = "cola::HeapArray<uint32_t>";
+constexpr char uint64_t_name[] = "cola::HeapArray<uint64_t>";
+constexpr char int16_t_name[] = "cola::HeapArray<int16_t>";
+constexpr char int32_t_name[] = "cola::HeapArray<int32_t>";
+constexpr char int64_t_name[] = "cola::HeapArray<int64_t>";
+constexpr char float_name[] = "cola::HeapArray<float>";
+constexpr char double_name[] = "cola::HeapArray<double>";
 
 #define CONSTEXPR_HEAP_NAME(dtype)		\
   template <>					\

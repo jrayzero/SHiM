@@ -6,7 +6,7 @@
 #include "staged_utils.h"
 #include "fwddecls.h"
 
-using namespace hmda;
+using namespace cola;
 
 namespace builder {
 
@@ -45,7 +45,7 @@ HEAP_DYN_VAR(HEAP_T<double>);
 
 }
 
-namespace hmda {
+namespace cola {
 
 
 /// 

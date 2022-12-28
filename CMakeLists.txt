@@ -17,7 +17,7 @@ endif()
 set(CMAKE_CXX_FLAGS_RELEASE "-O3")
 set(CMAKE_CXX_FLAGS_DEBUG "-g -O0 -DBOUNDS_CHECK")
 
-include_directories(cola/hmda cola/hmda/common cola/bits ${CMAKE_SOURCE_DIR}/buildit/include ${CMAKE_SOURCE_DIR}/buildit/build/gen_headers)
+include_directories(cola ${CMAKE_SOURCE_DIR}/buildit/include ${CMAKE_SOURCE_DIR}/buildit/build/gen_headers)
 link_directories(${CMAKE_SOURCE_DIR}/buildit/build)
 
 # unstaged jpeg
