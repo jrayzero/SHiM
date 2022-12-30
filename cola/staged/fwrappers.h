@@ -23,6 +23,8 @@ builder::dyn_var<int(int,int)> lshift = builder::as_global("cola::lshift");
 builder::dyn_var<int(int,int)> rshift = builder::as_global("cola::rshift");
 builder::dyn_var<int(int,int)> bor = builder::as_global("cola::bor");
 builder::dyn_var<int(int,int)> band = builder::as_global("cola::band");
+builder::dyn_var<int(int,int)> pow = builder::as_global("cola::pow");
+builder::dyn_var<int(int,int)> ceil = builder::as_global("cola::ceil");
 
 // Note: the arg tyoe for these casts isn't right, but I don't want to write every combination
 // of dyn_var<to(from)>, and buildit doesn't seem to care.

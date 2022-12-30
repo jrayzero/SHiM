@@ -53,4 +53,13 @@ struct Parallel : Optimization {
 
 };
 
+struct Comment {
+  inline static std::string repr = "comment";
+  static void apply(std::string msg) {
+    std::stringstream ss;
+    ss << repr << ":" << msg;
+    builder::annotate(ss.str());
+  }
+};
+
 }

@@ -73,29 +73,30 @@ template <typename Ret>
 builder::dyn_var<Ret> Bitstream::peek(builder::dyn_var<int> n) {
   builder::dyn_var<uint64_t> bit_idx = cursor % 8;
   builder::dyn_var<uint8_t> peeked = 0;
-  if (bit_idx == 0) {
+  if (n == 0) {
+    peeked = 0;
+  } else if (bit_idx == 0) {
     // this is byte aligned
     peeked = peek_aligned<Ret>(n);
-  } else {
+  } else {    
     // not byte aligned
     // read up to factor bits, where factor is how many bits til aligned
-//    builder::dyn_var<Ret> peeked = 0;
     builder::dyn_var<uint64_t> byte_idx = cursor / 8;
     builder::dyn_var<int> bits_left = n;
     builder::dyn_var<uint8_t> byte = bitstream[byte_idx];
     byte_idx = byte_idx + 1;
+
     builder::dyn_var<int> factor = 0;
     if (bits_left < (8-bit_idx)) {
       factor = bits_left;
     } else {
       factor = 8 - bit_idx;
     }
-//    builder::dyn_var<int> shift_amt = 8 - bit_idx - factor;
-//    byte = cola::rshift(byte, shift_amt);
-    builder::dyn_var<uint8_t> shift_val = 0xFF;
-    builder::dyn_var<uint8_t> mask = cola::rshift(shift_val, 8-factor);
+    byte = cola::rshift(byte, 8 - (factor+bit_idx));
+    // now clear out any MSB bits that aren't needed
+    builder::dyn_var<uint8_t> mask = lshift(1, factor) - 1;
     peeked = band(byte, mask);
-    bits_left = bits_left - factor;    
+    bits_left = bits_left - factor;
     // now we are aligned, so we can read the remainder
     peeked = cola::lshift(peeked, bits_left);
     // temporarily adjust the cursor though

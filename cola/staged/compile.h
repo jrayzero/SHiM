@@ -104,6 +104,25 @@ public:
     }
     block::c_code_generator::visit(s);
   }
+
+/*  void visit(block::stmt::Ptr s) {
+    std::string annot = s->annotation;
+    std::vector<std::string> annots = split_on(annot, ";");
+    if (annots.size() > 1) {
+      std::cerr << "Only supporting single annotations applications currently." << std::endl;
+      exit(-1);
+    }
+    if (!annots.empty()) {
+      std::vector<std::string> comps = split_on(annots[0], ":");
+      if (!comps[0].compare(0, Comment::repr.size(), Comment::repr)) {
+	std::stringstream prg;
+	prg << "// " << comps[1];
+	oss << prg.str();
+	printer::indent(oss, curr_indent);
+      }      
+    }
+    block::c_code_generator::visit(s);
+  }*/
   
 };
 
