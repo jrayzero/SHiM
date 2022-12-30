@@ -106,4 +106,11 @@ void printn(Args...args) {
   std::cout << ss.str() << std::endl;
 }
 
+template <typename...Args>
+void print(Args...args) {
+  std::stringstream ss;
+  cat(ss, args...);  
+  std::cout << ss.str();
+}
+
 }
