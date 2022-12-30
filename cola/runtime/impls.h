@@ -81,6 +81,16 @@ V band(V left, S right) {
   return left & right;
 }
 
+template <typename V, typename S>
+V pow(V left, S right) {
+  return std::pow(left, right);
+}
+
+template <typename V>
+V ceil(V val) {
+  return std::ceil(val);
+}
+
 template <typename Arg, typename...Args>
 void cat(std::stringstream &ss, Arg arg, Args...args) {
   ss << arg;
