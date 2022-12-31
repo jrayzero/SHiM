@@ -6,6 +6,7 @@
 #include "blocks/c_code_generator.h"
 #include "builder/builder_dynamic.h"
 #include "annotations.h"
+#include "object.h"
 
 namespace cola {
 // fixes the syntax for staged function args of the form
@@ -74,18 +75,33 @@ public:
   // apply string-matching based optimizations
   void visit(block::for_stmt::Ptr s) {
     std::string annot = s->annotation;
-    // first split on different optimizations
-    std::vector<std::string> opts = split_on(annot, ";");
-    if (opts.size() > 1) {
+    // first split on different annotations
+    std::vector<std::string> annots = split_on(annot, ";");
+    if (annots.size() > 1) {
       std::cerr << "Only supporting single opt applications currently." << std::endl;
       exit(-1);
     }
-    if (!opts.empty()) {
-      std::vector<std::string> comps = split_on(opts[0], ":");
-      if (!comps[0].compare(0, Optimization::opt_prefix.size(), Optimization::opt_prefix)) {
+    if (!annots.empty()) {
+      std::vector<std::string> comps = split_on(annots[0], ":");
+      // TODO don't hardcode the annot name--make a static variable in StagedObject for it
+      if (is_same(comps[0], StagedObject::build_staged_object_repr)) {
+	std::stringstream prg;
+	prg << comps[1] << " " << comps[2] << ";";
+	oss << prg.str();
+	printer::indent(oss, curr_indent);
+	// don't generate the actual loop--it's just a dummy
+      } else if (is_same(comps[0], BareSField::repr)) {
+	// This doesn't directly generate code--rather, there should be a Var access after
+	// this. we will replace that var with this
+	std::stringstream prg;
+	prg << comps[2] << "." << comps[1];
+	is_delayed_var = true;
+	delayed_var_repl = prg.str();
+	// don't generate the actual loop--it's just a dummy
+      } else if (!comps[0].compare(0, Optimization::opt_prefix.size(), Optimization::opt_prefix)) {
 	// okay, it's an optimization!
 	if (comps.size() == 1) {
-	  std::cerr << "Not enough components in optimization: " << opts[0] << std::endl;
+	  std::cerr << "Not enough components in optimization: " << annots[0] << std::endl;
 	  exit(-1);
 	}
 	if (!comps[1].compare(0, Parallel::repr.size(), Parallel::repr)) {
@@ -100,29 +116,69 @@ public:
 	  oss << prg.str();
 	  printer::indent(oss, curr_indent);
 	}
+	block::c_code_generator::visit(s);
+      } else {
+	std::cerr << "Unknown AST annotation: " << annot << std::endl;
+	exit(48);
       }
+    } else {
+      block::c_code_generator::visit(s);
     }
-    block::c_code_generator::visit(s);
   }
 
-/*  void visit(block::stmt::Ptr s) {
+  // Mostly deals with finding my annotations for staged objects
+  void visit(block::decl_stmt::Ptr s) {
     std::string annot = s->annotation;
     std::vector<std::string> annots = split_on(annot, ";");
     if (annots.size() > 1) {
-      std::cerr << "Only supporting single annotations applications currently." << std::endl;
+      std::cerr << "Only supporting single opt applications currently." << std::endl;
       exit(-1);
     }
     if (!annots.empty()) {
       std::vector<std::string> comps = split_on(annots[0], ":");
-      if (!comps[0].compare(0, Comment::repr.size(), Comment::repr)) {
+      // TODO don't hardcode the annot name--make a static variable in StagedObject for it
+      if (is_same(comps[0], StagedObject::build_staged_object_repr)) {
 	std::stringstream prg;
-	prg << "// " << comps[1];
+	prg << comps[1] << " " << comps[2] << ";";
 	oss << prg.str();
 	printer::indent(oss, curr_indent);
-      }      
+	// don't generate the actual loop--it's just a dummy
+      } else if (is_same(comps[0], BareSField::repr)) {
+	// This doesn't directly generate code--rather, there should be a Var access after
+	// this. we will replace that var with this
+	std::stringstream prg;
+	prg << comps[2] << "." << comps[1];
+	is_delayed_var = true;
+	delayed_var_repl = prg.str();
+	// don't generate the actual loop--it's just a dummy
+      } else {
+	std::cerr << "Unknown AST annotation: " << annot << std::endl;
+	exit(48);
+      }
+    } else {
+      block::c_code_generator::visit(s);
     }
-    block::c_code_generator::visit(s);
-  }*/
+  }
+
+  void visit(block::var_expr::Ptr s) {
+    if (is_delayed_var) {
+      assert(!delayed_var_repl.empty());
+      oss << delayed_var_repl;
+      is_delayed_var = false;
+      delayed_var_repl = "";
+    } else {
+      block::c_code_generator::visit(s);
+    }
+  }
+
+private:
+
+  bool is_delayed_var = false;
+  std::string delayed_var_repl;
+
+  bool is_same(std::string is, std::string should_be) {
+    return !is.compare(0, should_be.size(), should_be);
+  }
   
 };
 
