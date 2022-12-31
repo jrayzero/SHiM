@@ -8,6 +8,9 @@
 
 namespace cola {
 
+// TODO fields in the struct aren't not necessarily in the order the user specified. Make sure to put them
+// in the same order
+
 template <typename Elem>
 std::string elem_to_str() {
   if constexpr (std::is_same<uint8_t,Elem>::value) {
@@ -115,7 +118,7 @@ struct SField {
       exit(48);
     }
     StagedObject::object_fields.top()[this->name] = elem_to_str<Elem>();
-    this->value = def_val;
+    this->operator=(def_val);
   }
 
   void operator=(builder::dyn_var<Elem> rhs) {
@@ -131,8 +134,6 @@ struct SField {
   }
   
 private:
-
-//  static inline int64_t next_field = 0;
 
   builder::dyn_var<Elem> value;
   // Name of this field

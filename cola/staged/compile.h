@@ -94,22 +94,7 @@ public:
     }
     if (!annots.empty()) {
       std::vector<std::string> comps = split_on(annots[0], ":");
-      // TODO don't hardcode the annot name--make a static variable in StagedObject for it
-      if (is_same(comps[0], StagedObject::build_staged_object_repr)) {
-	std::stringstream prg;
-	prg << comps[1] << " " << comps[2] << ";";
-	oss << prg.str();
-	printer::indent(oss, curr_indent);
-	// don't generate the actual loop--it's just a dummy
-      } else if (is_same(comps[0], BareSField::repr)) {
-	// This doesn't directly generate code--rather, there should be a Var access after
-	// this. we will replace that var with this
-	std::stringstream prg;
-	prg << comps[2] << "." << comps[1];
-	is_delayed_var = true;
-	delayed_var_repl = prg.str();
-	// don't generate the actual loop--it's just a dummy
-      } else if (!comps[0].compare(0, Optimization::opt_prefix.size(), Optimization::opt_prefix)) {
+      if (!comps[0].compare(0, Optimization::opt_prefix.size(), Optimization::opt_prefix)) {
 	// okay, it's an optimization!
 	if (comps.size() == 1) {
 	  std::cerr << "Not enough components in optimization: " << annots[0] << std::endl;
@@ -154,9 +139,15 @@ public:
 	oss << prg.str();
 	printer::indent(oss, curr_indent);
 	// don't generate the actual loop--it's just a dummy
-      } else if (is_same(comps[0], BareSField::repr)) {
-	// This doesn't directly generate code--rather, there should be a Var access after
-	// this. we will replace that var with this
+      } else if (is_same(comps[0], BareSField::repr_read)) {
+	// Delay until var_expr
+	std::stringstream prg;
+	prg << comps[2] << "." << comps[1];
+	is_delayed_var = true;
+	delayed_var_repl = prg.str();
+	// don't generate the actual loop--it's just a dummy
+      } else if (is_same(comps[0], BareSField::repr_write)) {
+	// Delay until var_expr
 	std::stringstream prg;
 	prg << comps[2] << "." << comps[1];
 	is_delayed_var = true;
@@ -181,6 +172,18 @@ public:
       block::c_code_generator::visit(s);
     }
   }
+
+/*  void visit(block::assign_expr::Ptr s) {
+    if (is_delayed_var) {
+      assert(!delayed_var_repl.empty());
+      oss << delayed_var_repl << " = ";
+      s->expr1->accept(this);
+      is_delayed_var = false;
+      delayed_var_repl = "";
+    } else {
+      block::c_code_generator::visit(s);
+    }
+  }*/
 
 private:
 
