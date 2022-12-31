@@ -8,6 +8,32 @@
 
 namespace cola {
 
+template <typename Elem>
+std::string elem_to_str() {
+  if constexpr (std::is_same<uint8_t,Elem>::value) {
+    return "uint8_t";
+  } else if constexpr (std::is_same<uint16_t,Elem>::value) {
+    return "uint16_t";
+  } else if constexpr (std::is_same<uint32_t,Elem>::value) {
+    return "uint32_t";
+  } else if constexpr (std::is_same<uint64_t,Elem>::value) {
+    return "uint64_t";
+  } else if constexpr (std::is_same<int16_t,Elem>::value) {
+    return "int16_t";
+  } else if constexpr (std::is_same<int32_t,Elem>::value) {
+    return "int32_t";
+  } else if constexpr (std::is_same<int64_t,Elem>::value) {
+    return "int64_t";
+  } else if constexpr (std::is_same<float,Elem>::value) {
+    return "float";
+  } else if constexpr (std::is_same<double,Elem>::value) {
+    return "double";
+  } else {
+    // this better be a user type
+    return Elem::type_to_str();
+  }
+}
+
 // dummy decl for finding annotation
 template <bool Dummy=false>
 void dummy_decl() {
@@ -110,7 +136,7 @@ struct SField {
       exit(48);
     }
     // TODO string type
-    StagedObject::object_fields.top()[name] = "sfield<TODO>";
+    StagedObject::object_fields.top()[name] = elem_to_str<Elem>();
   }
 
   operator builder::dyn_var<Elem>() {

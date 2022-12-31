@@ -19,6 +19,17 @@ public:
   static void generate_code(block::block::Ptr ast, std::ostream &oss, int indent = 0) {
     hmda_cpp_code_generator generator(oss);
     generator.curr_indent = indent;
+    // first generate all the struct definitions
+    std::stringstream structs;
+    for (auto kv : StagedObject::collection) {
+      structs << "struct " << kv.first << " {" << std::endl;
+      for (auto kv2 : kv.second) {
+	structs << "  " << kv2.second << " " << kv2.first << ";" << std::endl;
+      }
+      structs << "};" << std::endl;
+    }
+    oss << structs.str();
+    // then back to the usual
     ast->accept(&generator);
     oss << std::endl;
   }
