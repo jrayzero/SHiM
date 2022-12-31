@@ -47,7 +47,7 @@ struct StagedObject {
   // (this maybe where buildit's novel static tag idea helps in buildit itself). But I don't want to
   // deal with that, so I just make the user specify the name
   explicit StagedObject(std::string name, std::string instance_name) : 
-  registered(false), name(name), instance_name(instance_name) { 
+    name(name), instance_name(instance_name) { 
     object_fields.push({});
     builder::annotate(build_staged_object_repr + ":" + name + ":" + instance_name);
     dummy_decl();
@@ -60,31 +60,11 @@ struct StagedObject {
   StagedObject& operator=(StagedObject&&) = delete;
   
   virtual ~StagedObject() {
-    // as a safe guard, check if register was called
-    // this only helps if you allocate on the stack since it's guaranteed to go out of scope
-    // since we don't support copy/move initialization and all that jazz, we only could come from the
-    // constructor!
-/*    if (!registered) {
-      std::cerr << "Object " << name << " went out of scope but was never registered." <<  std::endl;
-      exit(48);
-    }*/
     if (collection.count(name) == 0) {
       assert(!object_fields.empty());
       collection[name] = object_fields.top();
-//      objects.pop();
     }
     object_fields.pop();
-//    object_instances.pop();
-  }
-
-  void do_register() {
-/*    registered = true;
-    if (collection.count(name) == 0) {
-      assert(!object_fields.empty());
-      collection[name] = object_fields.top();
-      object_fields.pop();
-//      objects.pop();
-    }*/
   }
 
   // struct name -> {field name -> field type}
@@ -93,12 +73,6 @@ struct StagedObject {
   // the set of fields for the current object being created (it's a stack
   // since you can have nested objects)
   static inline std::stack<std::map<std::string, std::string>> object_fields;
-
-  // the current objects (struct names)
-//  static inline std::stack<std::string> objects;
-
-  // the current objects (instance names)
-//  static inline std::stack<std::string> object_instances;
 
   static inline const std::string build_staged_object_repr = "build_staged_object";
 
@@ -128,15 +102,18 @@ struct BareSField {
 template <typename Elem>
 struct SField {
 
-  explicit SField(std::string name, StagedObject *container) : 
-  name(name), object_name(container->name), instance_name(container->instance_name) { 
+  // TODO only allow default values for fundamental types
+  explicit SField(StagedObject *container, std::string name="", builder::dyn_var<Elem> def_val=0) : 
+    name(name.empty() ? "__field" + std::to_string(next_field++) : name), def_val(def_val),
+    object_name(container->name), instance_name(container->instance_name) {
     assert(!StagedObject::object_fields.empty());
-    if (StagedObject::object_fields.top().count(name) != 0) {
-      std::cerr << "Duplicate field " << name << " for user-defined StagedObject " << object_name << std::endl;
+    if (StagedObject::object_fields.top().count(this->name) != 0) {
+      std::cerr << "Duplicate field " << this->name << " for user-defined StagedObject " << object_name << std::endl;
       exit(48);
     }
-    // TODO string type
-    StagedObject::object_fields.top()[name] = elem_to_str<Elem>();
+    StagedObject::object_fields.top()[this->name] = elem_to_str<Elem>();
+    // TODO the def_val needs to use operator=  (once I implement it) so that I overwrite it appropriately
+    // and point to the struct
   }
 
   operator builder::dyn_var<Elem>() {
@@ -147,11 +124,14 @@ struct SField {
   
 private:
 
+  static inline int64_t next_field = 0;
+
   builder::dyn_var<Elem> value;
   // Name of this field
   std::string name;
-  // Name of the struct and particular instance that this belongs to
+  // Name of the struct this belongs to
   std::string object_name;
+  // Name of the particular struct instance this belongs to
   std::string instance_name;
 };
 
