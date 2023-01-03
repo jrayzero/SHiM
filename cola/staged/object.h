@@ -103,6 +103,18 @@ struct BareSField {
   static inline const std::string repr_write = "sfield_write";
 };
 
+// for an operation between an SField and a primitive (or dyn_var), return a dummy expression
+// that can be used for resolving the type based on cpp automatictype conversions
+template <typename Elem, typename Rhs>
+auto determine_ret_type() {
+//  static_assert(std::is_arithmetic<Rhs>() || typename GetCoreT<Rhs>::Core_T);
+  if constexpr (std::is_arithmetic<Rhs>()) {
+    return (Elem)0 + (Rhs)0;
+  } else { //if constexpr (is_dyn_var<Lhs>::value) {
+    return (typename GetCoreT<Elem>::Core_T)0 + (Rhs)0;
+  }
+}
+
 // If you don't care about the name (like, you're not gonna use this outside of the staged code), 
 // then just create a dummy name for each
 template <typename Elem>
@@ -112,6 +124,7 @@ struct SField {
   explicit SField(StagedObject *container, std::string name="", builder::dyn_var<Elem> def_val=0) : 
     name(name.empty() ? "__field" + std::to_string(container->next_field++) : name),
     object_name(container->name), instance_name(container->instance_name) {
+    static_assert(std::is_arithmetic<Elem>());
     assert(!StagedObject::object_fields.empty());
     if (StagedObject::object_fields.top().count(this->name) != 0) {
       std::cerr << "Duplicate field " << this->name << " for user-defined StagedObject " << object_name << std::endl;
@@ -133,6 +146,88 @@ struct SField {
     return value;
   }
   
+  ///
+  /// Perform addition compound expression
+  template <typename Rhs>
+  builder::dyn_var<decltype(determine_ret_type<Elem,Rhs>())> operator+(const Rhs &rhs) {
+    return this->value + rhs;
+  }
+
+  ///
+  /// Perform subtraction compound expression
+//  template <typename Rhs>
+//  Binary<SubFunctor,Derived,Rhs> operator-(const Rhs &rhs);
+
+  ///
+  /// Perform multiplication compound expression
+//  template <typename Rhs>
+//  Binary<MulFunctor,Derived,Rhs> operator*(const Rhs &rhs);
+
+/*  ///
+  /// Perform division compound expression
+  template <typename Rhs>
+  Binary<DivFunctor,Derived,Rhs> operator/(const Rhs &rhs);
+
+  ///
+  /// Perform left shift compound expression
+  template <typename Rhs>
+  Binary<LShiftFunctor,Derived,Rhs> operator<<(const Rhs &rhs);
+
+  ///
+  /// Perform right shift compound expression
+  template <typename Rhs>
+  Binary<RShiftFunctor,Derived,Rhs> operator>>(const Rhs &rhs);
+
+  ///
+  /// Perform less than compound expression
+  template <typename Rhs>
+  Binary<LTFunctor<false>,Derived,Rhs> operator<(const Rhs &rhs);
+
+  ///
+  /// Perform less than or equals compound expression
+  template <typename Rhs>
+  Binary<LTFunctor<true>,Derived,Rhs> operator<=(const Rhs &rhs);
+
+  ///
+  /// Perform greater than compound expression
+  template <typename Rhs>
+  Binary<GTFunctor<false>,Derived,Rhs> operator>(const Rhs &rhs);
+
+  ///
+  /// Perform greater than or equals compound expression
+  template <typename Rhs>
+  Binary<GTFunctor<true>,Derived,Rhs> operator>=(const Rhs &rhs);
+
+  ///
+  /// Perform equals compound expression
+  template <typename Rhs>
+  Binary<EqFunctor<false>,Derived,Rhs> operator==(const Rhs &rhs);
+
+  ///
+  /// Perform not equals compound expression
+  template <typename Rhs>
+  Binary<EqFunctor<true>,Derived,Rhs> operator!=(const Rhs &rhs);
+
+  ///
+  /// Perform boolean and compound expression
+  template <typename Rhs>
+  Binary<AndFunctor,Derived,Rhs> operator&&(const Rhs &rhs);
+
+  ///
+  /// Perform boolean or compound expression
+  template <typename Rhs>
+  Binary<OrFunctor,Derived,Rhs> operator||(const Rhs &rhs);
+
+  ///
+  /// Perform bitwise and compound expression
+  template <typename Rhs>
+  Binary<BitwiseAndFunctor,Derived,Rhs> operator&(const Rhs &rhs);
+
+  ///
+  /// Perform bitwise or compound expression
+  template <typename Rhs>
+  Binary<BitwiseOrFunctor,Derived,Rhs> operator|(const Rhs &rhs);
+*/  
 private:
 
   builder::dyn_var<Elem> value;
@@ -143,6 +238,134 @@ private:
   // Name of the particular struct instance this belongs to
   std::string instance_name;
 };
+
+///
+/// Free version of SField::operator+ between non-SField and SField
+//template <typename Lhs, typename Rhs, 
+//	  typename std::enable_if<is_sfield<Rhs>::value, int>::type = 0>
+//builder::dyn_var<Ret> operator+(const Lhs &lhs, const Rhs &rhs) {
+//  return lhs + rhs;
+//}
+
+///
+/// Free version of SField::operator- between non-SField and SField
+//template <typename Lhs, typename Rhs, 
+//	  typename std::enable_if<is_sfield<Rhs>::value, int>::type = 0>
+//builder::dyn_var<Ret> operator-(const Lhs &lhs, const Rhs &rhs) {
+//  return lhs - rhs;
+//}
+
+///
+/// Free version of SField::operator* between non-SField and SField
+//template <typename Lhs, typename Rhs, 
+//	  typename std::enable_if<is_sfield<Rhs>::value, int>::type = 0>
+//builder::dyn_var<Ret> operator*(const Lhs &lhs, const Rhs &rhs) {
+//  return lhs * rhs;
+//}
+
+/*///
+/// Free version of SField::operator/ between non-SField and SField
+template <typename Lhs, typename Rhs,
+	  typename std::enable_if<is_sfield<Rhs>::value, int>::type = 0>
+Binary<DivFunctor,Lhs,Rhs> operator/(const Lhs &lhs, const Rhs &rhs) {
+  return Binary<DivFunctor,Lhs,Rhs>(lhs, rhs);
+}
+
+///
+/// Free version of SField::operator<< between non-SField and SField
+template <typename Lhs, typename Rhs,
+	  typename std::enable_if<is_sfield<Rhs>::value, int>::type = 0>
+Binary<LShiftFunctor,Lhs,Rhs> operator<<(const Lhs &lhs, const Rhs &rhs) {
+  return Binary<LShiftFunctor,Lhs,Rhs>(lhs, rhs);
+}
+
+///
+/// Free version of SField::operator>> between non-SField and SField
+template <typename Lhs, typename Rhs,
+	  typename std::enable_if<is_sfield<Rhs>::value, int>::type = 0>
+Binary<RShiftFunctor,Lhs,Rhs> operator>>(const Lhs &lhs, const Rhs &rhs) {
+  return Binary<RShiftFunctor,Lhs,Rhs>(lhs, rhs);
+}
+
+///
+/// Free version of SField::operator< between non-SField and SField
+template <typename Lhs, typename Rhs,
+	  typename std::enable_if<is_sfield<Rhs>::value, int>::type = 0>
+Binary<LTFunctor<false>,Lhs,Rhs> operator<(const Lhs &lhs, const Rhs &rhs) {
+  return Binary<LTFunctor<false>,Lhs,Rhs>(lhs, rhs);
+}
+
+///
+/// Free version of SField::operator<= between non-SField and SField
+template <typename Lhs, typename Rhs,
+	  typename std::enable_if<is_sfield<Rhs>::value, int>::type = 0>
+Binary<LTFunctor<true>,Lhs,Rhs> operator<=(const Lhs &lhs, const Rhs &rhs) {
+  return Binary<LTFunctor<true>,Lhs,Rhs>(lhs, rhs);
+}
+
+///
+/// Free version of SField::operator> between non-SField and SField
+template <typename Lhs, typename Rhs,
+	  typename std::enable_if<is_sfield<Rhs>::value, int>::type = 0>
+Binary<GTFunctor<false>,Lhs,Rhs> operator>(const Lhs &lhs, const Rhs &rhs) {
+  return Binary<GTFunctor<false>,Lhs,Rhs>(lhs, rhs);
+}
+
+///
+/// Free version of SField::operator>= between non-SField and SField
+template <typename Lhs, typename Rhs,
+	  typename std::enable_if<is_sfield<Rhs>::value, int>::type = 0>
+Binary<GTFunctor<true>,Lhs,Rhs> operator>=(const Lhs &lhs, const Rhs &rhs) {
+  return Binary<GTFunctor<true>,Lhs,Rhs>(lhs, rhs);
+}
+
+///
+/// Free version of SField::operator== between non-SField and SField
+template <typename Lhs, typename Rhs,
+	  typename std::enable_if<is_sfield<Rhs>::value, int>::type = 0>
+Binary<EqFunctor<false>,Lhs,Rhs> operator==(const Lhs &lhs, const Rhs &rhs) {
+  return Binary<EqFunctor<false>,Lhs,Rhs>(lhs, rhs);
+}
+
+///
+/// Free version of SField::operator!= between non-SField and SField
+template <typename Lhs, typename Rhs,
+	  typename std::enable_if<is_sfield<Rhs>::value, int>::type = 0>
+Binary<EqFunctor<true>,Lhs,Rhs> operator!=(const Lhs &lhs, const Rhs &rhs) {
+  return Binary<EqFunctor<true>,Lhs,Rhs>(lhs, rhs);
+}
+
+///
+/// Free version of SField::operator&& between non-SField and SField
+template <typename Lhs, typename Rhs,
+	  typename std::enable_if<is_sfield<Rhs>::value, int>::type = 0>
+Binary<AndFunctor,Lhs,Rhs> operator&&(const Lhs &lhs, const Rhs &rhs) {
+  return Binary<AndFunctor,Lhs,Rhs>(lhs, rhs);
+}
+
+///
+/// Free version of SField::operator|| between non-SField and SField
+template <typename Lhs, typename Rhs,
+	  typename std::enable_if<is_sfield<Rhs>::value, int>::type = 0>
+Binary<OrFunctor,Lhs,Rhs> operator||(const Lhs &lhs, const Rhs &rhs) {
+  return Binary<OrFunctor,Lhs,Rhs>(lhs, rhs);
+}
+
+///
+/// Free version of SField::operator& between non-SField and SField
+template <typename Lhs, typename Rhs,
+	  typename std::enable_if<is_sfield<Rhs>::value, int>::type = 0>
+Binary<BitwiseAndFunctor,Lhs,Rhs> operator&(const Lhs &lhs, const Rhs &rhs) {
+  return Binary<BitwiseAndFunctor,Lhs,Rhs>(lhs, rhs);
+}
+
+///
+/// Free version of SField::operator| between non-SField and SField
+template <typename Lhs, typename Rhs,
+	  typename std::enable_if<is_sfield<Rhs>::value, int>::type = 0>
+Binary<BitwiseOrFunctor,Lhs,Rhs> operator|(const Lhs &lhs, const Rhs &rhs) {
+  return Binary<BitwiseOrFunctor,Lhs,Rhs>(lhs, rhs);
+}*/
 
 /*template <typename Elem, int Sz>
 struct AField {

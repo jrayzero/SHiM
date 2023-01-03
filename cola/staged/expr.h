@@ -85,6 +85,12 @@ template <char C>
 struct GetCoreT<Iter<C>> { using Core_T = loop_type; };
 
 ///
+/// Core type is Elem
+template <typename Elem>
+struct GetCoreT<SField<Elem>> { using Core_T = Elem; };
+
+
+///
 /// Core type is To
 template <typename To, typename CompoundExpr>
 struct GetCoreT<TemplateCast<To,CompoundExpr>> { using Core_T = To; };
@@ -262,9 +268,20 @@ struct Binary : public Expr<Binary<Functor, CompoundExpr0, CompoundExpr1>> {
   }
 
   ///
-  /// Realize the operation on the compound expression
+  /// Realize the operation on the compound expression.
+  /// Utilized with inline expressions that utilize blocks, views, and refs.
   template <typename LhsIdxs, typename Iters>
   builder::dyn_var<Core_T> realize(const LhsIdxs &lhs_idxs, const Iters &iters);
+
+  ///
+  /// Realize the operation on the compound expression.
+  /// Utilized with StagedObject fields when you do something like
+  /// builder::dyn_var<int> i = t.field0 + 2;
+  /// The user could mess this up and do something illegal like
+  /// use a ref on the righthand side, or an Iter or whatever,
+  /// but it would fail during execution (at least if using an 
+  /// Iter) since the Iter wouldn't exist.
+  operator builder::dyn_var<Core_T>();
 
 private:
   
@@ -385,7 +402,7 @@ Binary<BitwiseOrFunctor,Derived,Rhs> Expr<Derived>::operator|(const Rhs &rhs) {
 }
 
 ///
-/// Free version of Expr<Derived>::operator+ between non-Expr and Expr
+/// Free version of Expr::operator+ between non-Expr and Expr
 template <typename Lhs, typename Rhs,
 	  typename std::enable_if<is_expr<Rhs>::value, int>::type = 0>
 Binary<AddFunctor,Lhs,Rhs> operator+(const Lhs &lhs, const Rhs &rhs) {
@@ -541,6 +558,11 @@ builder::dyn_var<typename GetCoreT<CompoundExpr0>::Core_T> Binary<Functor,Compou
     builder::dyn_var<Core_T> op1 = dispatch_realize(compound_expr1, lhs_idxs, iters);
     return Functor()(op0, op1);
   }
+}
+
+template <typename Functor, typename CompoundExpr0, typename CompoundExpr1>
+Binary<Functor, CompoundExpr0, CompoundExpr1>::operator builder::dyn_var<Core_T>() {
+  return realize<std::tuple<>, std::tuple<>>({}, {});
 }
 
 ///

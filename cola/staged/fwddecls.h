@@ -17,6 +17,10 @@ struct View;
 template <typename BlockLike, typename Idxs> 
 struct Ref;
 
+// object fields
+template <typename Elem>
+struct SField;
+
 // Expressions
 template <typename Derived>
 struct Expr;
