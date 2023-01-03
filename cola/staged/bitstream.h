@@ -72,7 +72,7 @@ struct Bitstream {
 template <typename Ret>
 builder::dyn_var<Ret> Bitstream::peek(builder::dyn_var<int> n) {
   builder::dyn_var<uint64_t> bit_idx = cursor % 8;
-  builder::dyn_var<uint8_t> peeked = 0;
+  builder::dyn_var<Ret> peeked = 0;
   if (n == 0) {
     peeked = 0;
   } else if (bit_idx == 0) {
@@ -95,13 +95,13 @@ builder::dyn_var<Ret> Bitstream::peek(builder::dyn_var<int> n) {
     byte = cola::rshift(byte, 8 - (factor+bit_idx));
     // now clear out any MSB bits that aren't needed
     builder::dyn_var<uint8_t> mask = lshift(1, factor) - 1;
-    peeked = band(byte, mask);
+    peeked = byte & mask; //band(byte, mask);
     bits_left = bits_left - factor;
     // now we are aligned, so we can read the remainder
     peeked = cola::lshift(peeked, bits_left);
     // temporarily adjust the cursor though
     cursor = cursor + factor;
-    peeked = bor(peeked, peek_aligned(bits_left));
+    peeked = peeked | peek_aligned(bits_left); //bor(peeked, peek_aligned(bits_left));
     cursor = cursor - factor;
   }
   // if put this within the conditionals, codegen barfs
@@ -120,7 +120,7 @@ builder::dyn_var<Ret> Bitstream::peek_aligned(builder::dyn_var<int> n) {
     builder::dyn_var<uint8_t> byte = bitstream[byte_idx];
     byte_idx = byte_idx + 1;
     builder::dyn_var<Ret> shifted = cola::lshift(peeked, 8 * dummy);
-    peeked = bor(shifted, byte);
+    peeked = shifted | byte;
     dummy = 1;
     bits_left = bits_left - 8;
   }
@@ -130,7 +130,7 @@ builder::dyn_var<Ret> Bitstream::peek_aligned(builder::dyn_var<int> n) {
     peeked = cola::lshift(peeked, bits_left);
     builder::dyn_var<uint8_t> byte = bitstream[byte_idx];
     byte = cola::rshift(byte, 8-bits_left);
-    peeked = bor(peeked, byte);
+    peeked = peeked | byte; //bor(peeked, byte);
   }
   return peeked;
 }

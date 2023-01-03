@@ -74,24 +74,31 @@ struct SeqParameterSet {
     }
     PRINT(log2_max_frame_num_minus4);
     PRINT(pic_order_cnt_type);
-    PRINT(log2_max_pic_order_cnt_lsb_minus4);
-    PRINT(delta_pic_order_always_zero_flag);
-    PRINT(offset_for_non_ref_pic);
-    PRINT(offset_for_top_to_bottom_field);
-    PRINT(num_ref_frames_in_pic_order_cnt_cycle);
-    PRINT_ARR(offset_for_ref_frame, num_ref_frames_in_pic_order_cnt_cycle);
+    if (pic_order_cnt_type == 0) {
+      PRINT(log2_max_pic_order_cnt_lsb_minus4);
+    } else if (pic_order_cnt_type == 1) {
+      PRINT(delta_pic_order_always_zero_flag);
+      PRINT(offset_for_non_ref_pic);
+      PRINT(offset_for_top_to_bottom_field);
+      PRINT(num_ref_frames_in_pic_order_cnt_cycle);
+      PRINT_ARR(offset_for_ref_frame, num_ref_frames_in_pic_order_cnt_cycle);
+    }
     PRINT(max_num_ref_frames);
     PRINT(gaps_in_frame_num_value_allowed_flag);
     PRINT(pic_width_in_mbs_minus1);
     PRINT(pic_height_in_map_units_minus1);
     PRINT(frame_mbs_only_flag);
-    PRINT(mb_adaptive_frame_field_flag);
+    if (!frame_mbs_only_flag) {
+      PRINT(mb_adaptive_frame_field_flag);
+    }
     PRINT(direct_8x8_inference_flag);
     PRINT(frame_cropping_flag);
-    PRINT(frame_crop_left_offset);
-    PRINT(frame_crop_right_offset);
-    PRINT(frame_crop_top_offset);
-    PRINT(frame_crop_bottom_offset);
+    if (frame_cropping_flag) {
+      PRINT(frame_crop_left_offset);
+      PRINT(frame_crop_right_offset);
+      PRINT(frame_crop_top_offset);
+      PRINT(frame_crop_bottom_offset);
+    }
     PRINT(vui_parameters_present_flag);
   }
 

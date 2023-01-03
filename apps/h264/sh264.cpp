@@ -1,5 +1,6 @@
 #include <sstream>
 #include <iostream>
+#include <map>
 #include "staged/staged.h"
 #include "staged/bitstream.h"
 #include "typedefs.h"
@@ -11,8 +12,10 @@ using namespace cola;
 // Optimization ideas to justify staging
 // - determine alignment and pick whether to use aligned or unaligned parse
 
-SeqParameterSet sps(Bitstream &bitstream);
-PicParameterSet pps(Bitstream &bitstream);
+SeqParameterSet sps(Bitstream &);
+PicParameterSet pps(Bitstream &);
+//void slice_header(Bitstream &, map<int,SeqParameterSet&> &, map<int,PicParameterSet&> &);
+//void slice_data(Bitstream &, map<int,SeqParameterSet&> &, map<int,PicParameterSet&> &);
 
 // TODO wrapper for stringstream with dyn_var so can make better error messages
 template <typename C, typename T, typename U>
@@ -36,7 +39,9 @@ void nal_unit(Bitstream &bitstream) {
   printn("<nal_unit_type> = ", nal_unit_type);
   // remove all the padding bytes and overwrite the payload  
   cursor payload_idx = bitstream.cursor / 8;
+  printn("Saving cursor");
   cursor starting_cursor = bitstream.cursor;
+  printn("Done saving cursor");
   dint bytes_in_payload = 0;
   dint cond = 1;
   while (cond) {
@@ -62,12 +67,18 @@ void nal_unit(Bitstream &bitstream) {
   printn("Read ", bytes_in_payload, " bytes in nal unit payload.");
   // save the cursor before we process the payload according to the nal unit type
   cursor upper_cursor = bitstream.cursor;
+  printn("Setting cursor");
   bitstream.cursor = starting_cursor;
+  printn("cursor start ", bitstream.cursor);
   // TODO PROCESS PAYLOAD
   if (nal_unit_type == 7) {
-    sps(bitstream);
+    SeqParameterSet seq = sps(bitstream);
+//    dint id = seq->seq_parameter_set_id;
+//    if (seqs.count(
+//    seqs[] = move(seq);
   } else if (nal_unit_type == 8) {
-    pps(bitstream);
+//    PicParameterSet pic = pps(bitstream);
+//    pics[pic->pic_parameter_set_id] = move(pic);
   } else {
     printn("Unsupported <nal_unit_type> = ", nal_unit_type);
     hexit(48);
@@ -78,35 +89,26 @@ void nal_unit(Bitstream &bitstream) {
 }
 
 void annexB(Bitstream &bitstream) {
-  // buildit seg faults if I try to make this use a compound condition
-  dint cond = 1;
-  while (cond) {
-    if (bitstream.peek_aligned<int>(24) != 0x000001) {
-      if (bitstream.peek_aligned<int>(32) != 0x00000001) {
-	check(bitstream.cursor, bitstream.pop(8), 0x00, "leading_zero_8bits");
-      } else {
-	cond = 0;
-      }
-    } else {
-      cond = 0;
-    }
+  dint foo = 0;
+  dint bar = 0;
+  dint peek24 = bitstream.peek_aligned<int>(24);
+  dint peek32 = bitstream.peek_aligned<int>(32);
+  while (peek24 != 0x000001 && peek32 != 0x00000001) {
+    peek24 = bitstream.peek_aligned<int>(24);
+    peek32 = bitstream.peek_aligned<int>(32);
+    check(bitstream.cursor, bitstream.pop(8), 0x00, "leading_zero_8bits");
   }
   if (bitstream.peek_aligned(24) != 0x000001) {
     check(bitstream.cursor, bitstream.pop(8), 0x00, "zero_byte");
   }
   check(bitstream.cursor, bitstream.pop(24), 0x000001, "start_code_prefix_one_3bytes");
   nal_unit(bitstream);
-  cond = 1;
-  while (cond) {
-    if (bitstream.peek_aligned<int>(24) != 0x000001) {
-      if (bitstream.peek_aligned<int>(32) != 0x00000001) {
-	check(bitstream.cursor, bitstream.pop(8), 0x00, "trailing_zero_8bits");
-      } else {
-	cond = 0;
-      }
-    } else {
-      cond = 0;
-    }
+  peek24 = bitstream.peek_aligned<int>(24);
+  peek32 = bitstream.peek_aligned<int>(32);
+  while (peek24 != 0x000001 && peek32 != 0x00000001) {
+    peek24 = bitstream.peek_aligned<int>(24);
+    peek32 = bitstream.peek_aligned<int>(32);
+    check(bitstream.cursor, bitstream.pop(8), 0x00, "trailing_zero_8bits");
   }
 }
 
@@ -114,6 +116,7 @@ dint ue(Bitstream &bitstream) {
   dint leading_zero_bits = -1;
   dint b = 0;
   dint cond = 1;
+  
   while (b == 0) {
     b = bitstream.pop(1);
     leading_zero_bits = leading_zero_bits+1;
@@ -131,6 +134,7 @@ dint se(Bitstream &bitstream) {
 
 SeqParameterSet sps(Bitstream &bitstream) {
   SeqParameterSet sps;
+  printn("cursor ", bitstream.cursor);
   sps.profile_idc = bitstream.pop(8);
   sps.constraint_set0_flag = bitstream.pop(1);
   sps.constraint_set1_flag = bitstream.pop(1);
@@ -174,28 +178,29 @@ SeqParameterSet sps(Bitstream &bitstream) {
     for (dint i = 0; i < sps.num_ref_frames_in_pic_order_cnt_cycle; i=i+1) {
       sps.offset_for_ref_frame[i] = se(bitstream);
     }
-    sps.max_num_ref_frames = ue(bitstream);
-    sps.gaps_in_frame_num_value_allowed_flag = bitstream.pop(1);
-    sps.pic_width_in_mbs_minus1 = ue(bitstream);
-    sps.pic_height_in_map_units_minus1 = ue(bitstream);
-    sps.frame_mbs_only_flag = bitstream.pop(1);
-    if (!sps.frame_mbs_only_flag) {
-      sps.mb_adaptive_frame_field_flag = bitstream.pop(1);
-    }
-    sps.direct_8x8_inference_flag = bitstream.pop(1);
-    sps.frame_cropping_flag = bitstream.pop(1);
-    if (sps.frame_cropping_flag) {
-      sps.frame_crop_left_offset = ue(bitstream);
-      sps.frame_crop_right_offset = ue(bitstream);
-      sps.frame_crop_top_offset = ue(bitstream);
-      sps.frame_crop_bottom_offset = ue(bitstream);
-    }
-    sps.vui_parameters_present_flag = bitstream.pop(1);
-    if (sps.vui_parameters_present_flag) {
-      printn("VUI parameters not supported");
-      hexit(48);
-    }
   }
+  sps.max_num_ref_frames = ue(bitstream);
+  sps.gaps_in_frame_num_value_allowed_flag = bitstream.pop(1);
+  sps.pic_width_in_mbs_minus1 = ue(bitstream);
+  sps.pic_height_in_map_units_minus1 = ue(bitstream);
+  sps.frame_mbs_only_flag = bitstream.pop(1);
+  if (!sps.frame_mbs_only_flag) {
+    sps.mb_adaptive_frame_field_flag = bitstream.pop(1);
+  }
+  sps.direct_8x8_inference_flag = bitstream.pop(1);
+  sps.frame_cropping_flag = bitstream.pop(1);
+  if (sps.frame_cropping_flag) {
+    sps.frame_crop_left_offset = ue(bitstream);
+    sps.frame_crop_right_offset = ue(bitstream);
+    sps.frame_crop_top_offset = ue(bitstream);
+    sps.frame_crop_bottom_offset = ue(bitstream);
+  }
+  sps.vui_parameters_present_flag = bitstream.pop(1);
+  if (sps.vui_parameters_present_flag) {
+    printn("VUI parameters not supported");
+    hexit(48);
+  }
+  
   
   sps.dump();
   return sps;
@@ -229,6 +234,11 @@ PicParameterSet pps(Bitstream &bitstream) {
   pps.dump();
   return pps; 
 }
+
+//void slice_layer_without_partition_rbsp(Bitstream &bitstream, map<int, SeqParameterSet> &seqs, map<int, PicParameterSet> &pics) {
+//  slice_header(bitstream, seqs, pics);
+//  slice_data(bitstream, seqs, pics);
+//}
 
 void parse_h264(builder::dyn_var<uint8_t*> buffer, builder::dyn_var<uint64_t> length) {
   auto bitstream = Bitstream(buffer, length);
