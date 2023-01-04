@@ -80,12 +80,12 @@ struct StagedObject {
     object_fields.pop();
   }
 
-  // struct name -> {field name -> field type}
-  static inline std::map<std::string, std::map<std::string, std::string>> collection;
+  // struct name -> {field name,field type}
+  static inline std::map<std::string, std::vector<std::pair<std::string,std::string>>> collection;
 
   // the set of fields for the current object being created (it's a stack
   // since you can have nested objects)
-  static inline std::stack<std::map<std::string, std::string>> object_fields;
+  static inline std::stack<std::vector<std::pair<std::string,std::string>>> object_fields;
 
   static inline const std::string build_staged_object_repr = "build_staged_object";
 
@@ -142,11 +142,14 @@ struct SField {
     object_name(container->name), instance_name(container->instance_name) {
     static_assert(std::is_arithmetic<Elem>());
     assert(!StagedObject::object_fields.empty());
-    if (StagedObject::object_fields.top().count(this->name) != 0) {
-      std::cerr << "Duplicate field " << this->name << " for user-defined StagedObject " << object_name << std::endl;
-      exit(48);
+    auto top = StagedObject::object_fields.top();
+    for (auto info : top) {
+      if (info.first == this->name) {
+	std::cerr << "Duplicate field " << this->name << " for user-defined StagedObject " << object_name << std::endl;
+	exit(48);
+      }
     }
-    StagedObject::object_fields.top()[this->name] = elem_to_str<Elem>();
+    StagedObject::object_fields.top().emplace_back(std::pair<std::string,std::string>{this->name, elem_to_str<Elem>()});
     this->operator=(def_val);
   }
 

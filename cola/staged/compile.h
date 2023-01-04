@@ -23,8 +23,8 @@ public:
     std::stringstream structs;
     for (auto kv : StagedObject::collection) {
       structs << "struct " << kv.first << " {" << std::endl;
-      for (auto kv2 : kv.second) {
-	structs << "  " << kv2.second << " " << kv2.first << ";" << std::endl;
+      for (auto p : kv.second) {
+	structs << "  " << p.second << " " << p.first << ";" << std::endl;
       }
       structs << "};" << std::endl;
     }
