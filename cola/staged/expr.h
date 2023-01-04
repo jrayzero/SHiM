@@ -37,6 +37,16 @@ template <>
 struct GetCoreT<uint64_t> { using Core_T = uint64_t; };
 
 ///
+/// Core type is char
+template <>
+struct GetCoreT<char> { using Core_T = char; };
+
+///
+/// Core type is int8_t (signed char)
+template <>
+struct GetCoreT<int8_t> { using Core_T = int8_t; };
+
+///
 /// Core type is int16_t
 template <>
 struct GetCoreT<int16_t> { using Core_T = int16_t; };
@@ -589,6 +599,16 @@ struct DispatchCast<uint32_t,From> { builder::dyn_var<uint32_t>  operator()(From
 /// Cast to uint64_t
 template <typename From>
 struct DispatchCast<uint64_t,From> { builder::dyn_var<uint64_t>  operator()(From val) { return cast_uint64_t(val); } };
+
+///
+/// Cast to char
+template <typename From>
+struct DispatchCast<char,From> { builder::dyn_var<char>  operator()(From val) { return cast_char(val); } };
+
+///
+/// Cast to int8_t
+template <typename From>
+struct DispatchCast<int8_t,From> { builder::dyn_var<int8_t>  operator()(From val) { return cast_int8_t(val); } };
 
 ///
 /// Cast to int16_t

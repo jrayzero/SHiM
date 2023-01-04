@@ -37,6 +37,8 @@ HEAP_DYN_VAR(HEAP_T<uint8_t>);
 HEAP_DYN_VAR(HEAP_T<uint16_t>);
 HEAP_DYN_VAR(HEAP_T<uint32_t>);
 HEAP_DYN_VAR(HEAP_T<uint64_t>);
+HEAP_DYN_VAR(HEAP_T<char>);
+HEAP_DYN_VAR(HEAP_T<int8_t>);
 HEAP_DYN_VAR(HEAP_T<int16_t>);
 HEAP_DYN_VAR(HEAP_T<int32_t>);
 HEAP_DYN_VAR(HEAP_T<int64_t>);
@@ -145,6 +147,8 @@ DISPATCH_READER(uint8_t);
 DISPATCH_READER(uint16_t);
 DISPATCH_READER(uint32_t);
 DISPATCH_READER(uint64_t);
+DISPATCH_READER(char);
+DISPATCH_READER(int8_t);
 DISPATCH_READER(int16_t);
 DISPATCH_READER(int32_t);
 DISPATCH_READER(int64_t);
@@ -157,6 +161,8 @@ DISPATCH_WRITER(uint8_t);
 DISPATCH_WRITER(uint16_t);
 DISPATCH_WRITER(uint32_t);
 DISPATCH_WRITER(uint64_t);
+DISPATCH_WRITER(char);
+DISPATCH_WRITER(int8_t);
 DISPATCH_WRITER(int16_t);
 DISPATCH_WRITER(int32_t);
 DISPATCH_WRITER(int64_t);
@@ -169,6 +175,8 @@ DISPATCH_MEMSET(uint8_t);
 DISPATCH_MEMSET(uint16_t);
 DISPATCH_MEMSET(uint32_t);
 DISPATCH_MEMSET(uint64_t);
+DISPATCH_MEMSET(char);
+DISPATCH_MEMSET(int8_t);
 DISPATCH_MEMSET(int16_t);
 DISPATCH_MEMSET(int32_t);
 DISPATCH_MEMSET(int64_t);
@@ -181,6 +189,8 @@ DISPATCH_BUILDER(uint8_t);
 DISPATCH_BUILDER(uint16_t);
 DISPATCH_BUILDER(uint32_t);
 DISPATCH_BUILDER(uint64_t);
+DISPATCH_BUILDER(char);
+DISPATCH_BUILDER(int8_t);
 DISPATCH_BUILDER(int16_t);
 DISPATCH_BUILDER(int32_t);
 DISPATCH_BUILDER(int64_t);
@@ -253,50 +263,8 @@ struct StackAllocation : public Allocation<Elem> {
   builder::dyn_var<Elem[Size]> data;
 
 };
-
-  /*///
-/// Defines a user-allocated heap
-template <typename Elem>
-struct UserHeapAllocation : public Allocation<Elem> {
-
-  virtual ~UserHeapAllocation() = default;
-
-  explicit UserHeapAllocation(builder::dyn_var<Elem*> data) : data(data) { }
-
-  bool is_user_heap_strategy() const override { return true; }
-
-  builder::dyn_var<Elem> read(builder::dyn_var<loop_type> lidx) override;
-
-  void write(builder::dyn_var<Elem> val, builder::dyn_var<loop_type> lidx) override;
-
-  void memset(builder::dyn_var<loop_type> sz) override;
-
-  builder::dyn_var<Elem*> data;
-
-};
-
-///
-/// Defines a user-allocated stack
-template <typename Elem>
-struct UserStackAllocation : public Allocation<Elem> {
-
-  virtual ~UserStackAllocation() = default;
-
-  explicit UserStackAllocation(builder::dyn_var<Elem[]> data) : data(data) { }
-
-  bool is_user_stack_strategy() const override { return true; }
-
-  builder::dyn_var<Elem> read(builder::dyn_var<loop_type> lidx) override;
-
-  void write(builder::dyn_var<Elem> val, builder::dyn_var<loop_type> lidx) override;
-
-  void memset(builder::dyn_var<loop_type> sz) override;
-
-  builder::dyn_var<Elem[]> data;
-  };*/
-
-  ///                                                                                                                                                                                                                                                                                                                  
-/// Defines a user-allocated heap                                                                                                                                                                                                                                                                                   
+                
+/// Defines a user-allocated region of data
 template <typename Elem>
 struct UserAllocation : public Allocation<Elem> {
 
@@ -315,7 +283,6 @@ struct UserAllocation : public Allocation<Elem> {
   builder::dyn_var<Elem*> data;
 
 };
-
 
 template <typename Elem>
 builder::dyn_var<HEAP_T<Elem>> Allocation<Elem>::heap() {
@@ -358,36 +325,6 @@ template <typename Elem, int Sz>
 void StackAllocation<Elem,Sz>::memset(builder::dyn_var<loop_type> sz) {
   dispatch_memset<Elem,false>(data, Elem(0), sz);
 }  
-
-  /*template <typename Elem>
-builder::dyn_var<Elem> UserHeapAllocation<Elem>::read(builder::dyn_var<loop_type> lidx) { 
-  return dispatch_read<Elem,false>(lidx, data);
-}
-
-template <typename Elem>
-void UserHeapAllocation<Elem>::write(builder::dyn_var<Elem> val, builder::dyn_var<loop_type> lidx) { 
-  dispatch_write<Elem,false>(val, lidx, data);
-}
-
-template <typename Elem>
-void UserHeapAllocation<Elem>::memset(builder::dyn_var<loop_type> sz) {
-  dispatch_memset<Elem,false>(data, Elem(0), sz);
-}  
-
-template <typename Elem>
-builder::dyn_var<Elem> UserStackAllocation<Elem>::read(builder::dyn_var<loop_type> lidx) { 
-  return dispatch_read<Elem,false>(lidx, data);
-}
-
-template <typename Elem>
-void UserStackAllocation<Elem>::write(builder::dyn_var<Elem> val, builder::dyn_var<loop_type> lidx) { 
-  dispatch_write<Elem,false>(val, lidx, data);
-}
-
-template <typename Elem>
-void UserStackAllocation<Elem>::memset(builder::dyn_var<loop_type> sz) {
-  dispatch_memset<Elem,false>(data, Elem(0), sz);
-  }  */
 
 template <typename Elem>  
 builder::dyn_var<Elem> UserAllocation<Elem>::read(builder::dyn_var<loop_type> lidx) {

@@ -5,6 +5,7 @@
 #include "builder/static_var.h"
 #include "blocks/c_code_generator.h"
 #include "blocks/rce.h"
+#include "buildit_extensions.h"
 
 #include "functors.h"
 #include "fwrappers.h"

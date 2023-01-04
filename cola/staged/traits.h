@@ -163,6 +163,16 @@ struct is_hmda_fundamental<uint64_t> {
 };
 
 template <>
+struct is_hmda_fundamental<char> {
+  static constexpr bool value = true;
+};
+
+template <>
+struct is_hmda_fundamental<int8_t> {
+  static constexpr bool value = true;
+};
+
+template <>
 struct is_hmda_fundamental<int16_t> {
   static constexpr bool value = true;
 };

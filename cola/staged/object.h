@@ -25,6 +25,10 @@ std::string elem_to_str() {
     return "uint32_t";
   } else if constexpr (std::is_same<uint64_t,Elem>::value) {
     return "uint64_t";
+  } else if constexpr (std::is_same<char,Elem>::value) {
+    return "char";
+  } else if constexpr (std::is_same<int8_t,Elem>::value) {
+    return "int8_t";
   } else if constexpr (std::is_same<int16_t,Elem>::value) {
     return "int16_t";
   } else if constexpr (std::is_same<int32_t,Elem>::value) {
