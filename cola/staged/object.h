@@ -49,7 +49,8 @@ std::string elem_to_str() {
 
 // dummy decl for finding annotation
 template <bool Dummy=false>
-void dummy_decl() {
+void dummy_decl(std::string annotation) {
+  builder::annotate(annotation);
   builder::dyn_var<int> dummy = 0;
 }
 
@@ -62,8 +63,7 @@ struct StagedObject {
   explicit StagedObject(std::string name, std::string instance_name) : 
     name(name), instance_name(instance_name) { 
     object_fields.push({});
-    builder::annotate(build_staged_object_repr + ":" + name + ":" + instance_name);
-    dummy_decl();
+    dummy_decl(build_staged_object_repr + ":" + name + ":" + instance_name);
   }
 
   // delete all of these to make my life easier when tracking these things
@@ -156,16 +156,14 @@ struct SField {
   ///
   /// Perform a write to this field.
   void operator=(builder::dyn_var<Elem> rhs) {
-    builder::annotate(BareSField::repr_write + ":" + name + ":" + instance_name);
-    dummy_decl();
+    dummy_decl(BareSField::repr_write + ":" + name + ":" + instance_name);
     this->value = rhs;
   }
 
   /// 
   /// Conversion to the underlying dyn_var
   operator builder::dyn_var<Elem>() {
-    builder::annotate(BareSField::repr_read + ":" + name + ":" + instance_name);
-    dummy_decl();
+    dummy_decl(BareSField::repr_read + ":" + name + ":" + instance_name);
     return value;
   }
   
