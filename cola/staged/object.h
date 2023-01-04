@@ -12,9 +12,6 @@ namespace cola {
 // utilizes different free operator functions). However, these in here shoudl operate just like plain old dyn_vars, so 
 // maybe it will just work?
 
-// TODO fields in the struct aren't not necessarily in the order the user specified. Make sure to put them
-// in the same order
-
 template <typename Elem>
 std::string elem_to_str() {
   if constexpr (std::is_same<bool,Elem>::value) {
