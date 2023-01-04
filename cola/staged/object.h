@@ -17,7 +17,9 @@ namespace cola {
 
 template <typename Elem>
 std::string elem_to_str() {
-  if constexpr (std::is_same<uint8_t,Elem>::value) {
+  if constexpr (std::is_same<bool,Elem>::value) {
+    return "bool";
+  } else if constexpr (std::is_same<uint8_t,Elem>::value) {
     return "uint8_t";
   } else if constexpr (std::is_same<uint16_t,Elem>::value) {
     return "uint16_t";
