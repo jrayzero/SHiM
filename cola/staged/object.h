@@ -8,6 +8,10 @@
 
 namespace cola {
 
+// TODO I don't think this will interact nicely with the inline indexing because that creates a different type of Expr (and
+// utilizes different free operator functions). However, these in here shoudl operate just like plain old dyn_vars, so 
+// maybe it will just work?
+
 // TODO fields in the struct aren't not necessarily in the order the user specified. Make sure to put them
 // in the same order
 
@@ -107,11 +111,18 @@ struct BareSField {
 // that can be used for resolving the type based on cpp automatictype conversions
 template <typename Elem, typename Rhs>
 auto determine_ret_type() {
-//  static_assert(std::is_arithmetic<Rhs>() || typename GetCoreT<Rhs>::Core_T);
   if constexpr (std::is_arithmetic<Rhs>()) {
-    return (Elem)0 + (Rhs)0;
-  } else { //if constexpr (is_dyn_var<Lhs>::value) {
-    return (typename GetCoreT<Elem>::Core_T)0 + (Rhs)0;
+    if constexpr (std::is_arithmetic<Elem>()) {
+      return (Elem)0 + (Rhs)0;
+    } else {
+      return (typename GetCoreT<Elem>::Core_T)0 + (Rhs)0;
+    }
+  } else { 
+    if constexpr (std::is_arithmetic<Elem>()) {
+      return (Elem)0 + (typename GetCoreT<Elem>::Core_T)0;
+    } else {
+      return (typename GetCoreT<Elem>::Core_T)0 + (typename GetCoreT<Elem>::Core_T)0;
+    }
   }
 }
 
@@ -120,7 +131,6 @@ auto determine_ret_type() {
 template <typename Elem>
 struct SField {
 
-  // TODO only allow default values for fundamental types
   explicit SField(StagedObject *container, std::string name="", builder::dyn_var<Elem> def_val=0) : 
     name(name.empty() ? "__field" + std::to_string(container->next_field++) : name),
     object_name(container->name), instance_name(container->instance_name) {
@@ -134,12 +144,16 @@ struct SField {
     this->operator=(def_val);
   }
 
+  ///
+  /// Perform a write to this field.
   void operator=(builder::dyn_var<Elem> rhs) {
     builder::annotate(BareSField::repr_write + ":" + name + ":" + instance_name);
     dummy_decl();
     this->value = rhs;
   }
 
+  /// 
+  /// Conversion to the underlying dyn_var
   operator builder::dyn_var<Elem>() {
     builder::annotate(BareSField::repr_read + ":" + name + ":" + instance_name);
     dummy_decl();
@@ -149,85 +163,83 @@ struct SField {
   ///
   /// Perform addition compound expression
   template <typename Rhs>
-  builder::dyn_var<decltype(determine_ret_type<Elem,Rhs>())> operator+(const Rhs &rhs) {
-    return this->value + rhs;
-  }
+  builder::dyn_var<decltype(determine_ret_type<Elem,Rhs>())> operator+(Rhs rhs);
 
   ///
   /// Perform subtraction compound expression
-//  template <typename Rhs>
-//  Binary<SubFunctor,Derived,Rhs> operator-(const Rhs &rhs);
+  template <typename Rhs>
+  builder::dyn_var<decltype(determine_ret_type<Elem,Rhs>())> operator-(Rhs rhs);
 
   ///
   /// Perform multiplication compound expression
-//  template <typename Rhs>
-//  Binary<MulFunctor,Derived,Rhs> operator*(const Rhs &rhs);
+  template <typename Rhs>
+  builder::dyn_var<decltype(determine_ret_type<Elem,Rhs>())> operator*(Rhs rhs);
 
-/*  ///
+  ///
   /// Perform division compound expression
   template <typename Rhs>
-  Binary<DivFunctor,Derived,Rhs> operator/(const Rhs &rhs);
+  builder::dyn_var<decltype(determine_ret_type<Elem,Rhs>())> operator/(Rhs rhs);
 
   ///
   /// Perform left shift compound expression
   template <typename Rhs>
-  Binary<LShiftFunctor,Derived,Rhs> operator<<(const Rhs &rhs);
+  builder::dyn_var<decltype(determine_ret_type<Elem,Rhs>())> operator<<(Rhs rhs);
 
   ///
   /// Perform right shift compound expression
   template <typename Rhs>
-  Binary<RShiftFunctor,Derived,Rhs> operator>>(const Rhs &rhs);
+  builder::dyn_var<decltype(determine_ret_type<Elem,Rhs>())> operator>>(Rhs rhs);
 
   ///
   /// Perform less than compound expression
   template <typename Rhs>
-  Binary<LTFunctor<false>,Derived,Rhs> operator<(const Rhs &rhs);
+  builder::dyn_var<bool> operator<(Rhs rhs);
 
   ///
   /// Perform less than or equals compound expression
   template <typename Rhs>
-  Binary<LTFunctor<true>,Derived,Rhs> operator<=(const Rhs &rhs);
+  builder::dyn_var<bool> operator<=(Rhs rhs);
 
   ///
   /// Perform greater than compound expression
   template <typename Rhs>
-  Binary<GTFunctor<false>,Derived,Rhs> operator>(const Rhs &rhs);
+  builder::dyn_var<bool> operator>(Rhs rhs);
 
   ///
   /// Perform greater than or equals compound expression
   template <typename Rhs>
-  Binary<GTFunctor<true>,Derived,Rhs> operator>=(const Rhs &rhs);
+  builder::dyn_var<bool> operator>=(Rhs rhs);
 
   ///
   /// Perform equals compound expression
   template <typename Rhs>
-  Binary<EqFunctor<false>,Derived,Rhs> operator==(const Rhs &rhs);
+  builder::dyn_var<bool> operator==(Rhs rhs);
 
   ///
   /// Perform not equals compound expression
   template <typename Rhs>
-  Binary<EqFunctor<true>,Derived,Rhs> operator!=(const Rhs &rhs);
+  builder::dyn_var<bool> operator!=(Rhs rhs);
 
   ///
   /// Perform boolean and compound expression
   template <typename Rhs>
-  Binary<AndFunctor,Derived,Rhs> operator&&(const Rhs &rhs);
+  builder::dyn_var<bool> operator&&(Rhs rhs);
 
   ///
   /// Perform boolean or compound expression
   template <typename Rhs>
-  Binary<OrFunctor,Derived,Rhs> operator||(const Rhs &rhs);
+  builder::dyn_var<bool> operator||(Rhs rhs);
 
   ///
   /// Perform bitwise and compound expression
   template <typename Rhs>
-  Binary<BitwiseAndFunctor,Derived,Rhs> operator&(const Rhs &rhs);
+  builder::dyn_var<decltype(determine_ret_type<Elem,Rhs>())> operator&(Rhs rhs);
 
   ///
   /// Perform bitwise or compound expression
   template <typename Rhs>
-  Binary<BitwiseOrFunctor,Derived,Rhs> operator|(const Rhs &rhs);
-*/  
+  builder::dyn_var<decltype(determine_ret_type<Elem,Rhs>())> operator|(Rhs rhs);
+
 private:
 
   builder::dyn_var<Elem> value;
@@ -239,133 +251,213 @@ private:
   std::string instance_name;
 };
 
+template <typename Elem>
+template <typename Rhs>
+builder::dyn_var<decltype(determine_ret_type<Elem,Rhs>())> SField<Elem>::operator+(Rhs rhs) {
+  return this->value + rhs;
+}
+
+template <typename Elem>
+template <typename Rhs>
+builder::dyn_var<decltype(determine_ret_type<Elem,Rhs>())> SField<Elem>::operator-(Rhs rhs) {
+  return this->value - rhs;
+}
+
+template <typename Elem>
+template <typename Rhs>
+builder::dyn_var<decltype(determine_ret_type<Elem,Rhs>())> SField<Elem>::operator*(Rhs rhs) {
+  return this->value * rhs;
+}
+
+template <typename Elem>
+template <typename Rhs>
+builder::dyn_var<decltype(determine_ret_type<Elem,Rhs>())> SField<Elem>::operator/(Rhs rhs) {
+  return this->value / rhs;
+}
+
+template <typename Elem>
+template <typename Rhs>
+builder::dyn_var<decltype(determine_ret_type<Elem,Rhs>())> SField<Elem>::operator<<(Rhs rhs) {
+  return this->value << rhs;
+}
+
+template <typename Elem>
+template <typename Rhs>
+builder::dyn_var<decltype(determine_ret_type<Elem,Rhs>())> SField<Elem>::operator>>(Rhs rhs) {
+  return this->value >> rhs;
+}
+
+template <typename Elem>
+template <typename Rhs>
+builder::dyn_var<bool> SField<Elem>::operator<(Rhs rhs) {
+  return this->value < rhs;
+}
+
+template <typename Elem>
+template <typename Rhs>
+builder::dyn_var<bool> SField<Elem>::operator<=(Rhs rhs) {
+  return this->value <= rhs;
+}
+
+template <typename Elem>
+template <typename Rhs>
+builder::dyn_var<bool> SField<Elem>::operator>(Rhs rhs) {
+  return this->value > rhs;
+}
+
+template <typename Elem>
+template <typename Rhs>
+builder::dyn_var<bool> SField<Elem>::operator>=(Rhs rhs) {
+  return this->value >= rhs;
+}
+
+template <typename Elem>
+template <typename Rhs>
+builder::dyn_var<bool> SField<Elem>::operator==(Rhs rhs) {
+  return this->value == rhs;
+}
+
+template <typename Elem>
+template <typename Rhs>
+builder::dyn_var<bool> SField<Elem>::operator!=(Rhs rhs) {
+  return this->value != rhs;
+}
+
+template <typename Elem>
+template <typename Rhs>
+builder::dyn_var<bool> SField<Elem>::operator&&(Rhs rhs) {
+  return this->value && rhs;
+}
+
+template <typename Elem>
+template <typename Rhs>
+builder::dyn_var<bool> SField<Elem>::operator||(Rhs rhs) {
+  return this->value || rhs;
+}
+
+template <typename Elem>
+template <typename Rhs>
+builder::dyn_var<decltype(determine_ret_type<Elem,Rhs>())> SField<Elem>::operator&(Rhs rhs) {
+  return this->value & rhs;
+}
+
+template <typename Elem>
+template <typename Rhs>
+builder::dyn_var<decltype(determine_ret_type<Elem,Rhs>())> SField<Elem>::operator|(Rhs rhs) {
+  return this->value | rhs;
+}
+
 ///
 /// Free version of SField::operator+ between non-SField and SField
-//template <typename Lhs, typename Rhs, 
-//	  typename std::enable_if<is_sfield<Rhs>::value, int>::type = 0>
-//builder::dyn_var<Ret> operator+(const Lhs &lhs, const Rhs &rhs) {
-//  return lhs + rhs;
-//}
+template <typename Lhs, typename Elem>
+builder::dyn_var<decltype(determine_ret_type<Lhs,Elem>())> operator+(Lhs lhs, SField<Elem> rhs) {
+  return lhs + (builder::dyn_var<Elem>)rhs;
+}
 
 ///
 /// Free version of SField::operator- between non-SField and SField
-//template <typename Lhs, typename Rhs, 
-//	  typename std::enable_if<is_sfield<Rhs>::value, int>::type = 0>
-//builder::dyn_var<Ret> operator-(const Lhs &lhs, const Rhs &rhs) {
-//  return lhs - rhs;
-//}
+template <typename Lhs, typename Elem>
+builder::dyn_var<decltype(determine_ret_type<Lhs,Elem>())> operator-(Lhs lhs, SField<Elem> rhs) {
+  return lhs - (builder::dyn_var<Elem>)rhs;
+}
 
 ///
 /// Free version of SField::operator* between non-SField and SField
-//template <typename Lhs, typename Rhs, 
-//	  typename std::enable_if<is_sfield<Rhs>::value, int>::type = 0>
-//builder::dyn_var<Ret> operator*(const Lhs &lhs, const Rhs &rhs) {
-//  return lhs * rhs;
-//}
+template <typename Lhs, typename Elem>
+builder::dyn_var<decltype(determine_ret_type<Lhs,Elem>())> operator*(Lhs lhs, SField<Elem> rhs) {
+  return lhs * (builder::dyn_var<Elem>)rhs;
+}
 
-/*///
+///
 /// Free version of SField::operator/ between non-SField and SField
-template <typename Lhs, typename Rhs,
-	  typename std::enable_if<is_sfield<Rhs>::value, int>::type = 0>
-Binary<DivFunctor,Lhs,Rhs> operator/(const Lhs &lhs, const Rhs &rhs) {
-  return Binary<DivFunctor,Lhs,Rhs>(lhs, rhs);
+template <typename Lhs, typename Elem>
+builder::dyn_var<decltype(determine_ret_type<Lhs,Elem>())> operator/(Lhs lhs, SField<Elem> rhs) {
+  return lhs / (builder::dyn_var<Elem>)rhs;
 }
 
 ///
 /// Free version of SField::operator<< between non-SField and SField
-template <typename Lhs, typename Rhs,
-	  typename std::enable_if<is_sfield<Rhs>::value, int>::type = 0>
-Binary<LShiftFunctor,Lhs,Rhs> operator<<(const Lhs &lhs, const Rhs &rhs) {
-  return Binary<LShiftFunctor,Lhs,Rhs>(lhs, rhs);
+template <typename Lhs, typename Elem>
+builder::dyn_var<decltype(determine_ret_type<Lhs,Elem>())> operator<<(Lhs lhs, SField<Elem> rhs) {
+  return lhs << (builder::dyn_var<Elem>)rhs;
 }
 
 ///
 /// Free version of SField::operator>> between non-SField and SField
-template <typename Lhs, typename Rhs,
-	  typename std::enable_if<is_sfield<Rhs>::value, int>::type = 0>
-Binary<RShiftFunctor,Lhs,Rhs> operator>>(const Lhs &lhs, const Rhs &rhs) {
-  return Binary<RShiftFunctor,Lhs,Rhs>(lhs, rhs);
+template <typename Lhs, typename Elem>
+builder::dyn_var<decltype(determine_ret_type<Lhs,Elem>())> operator>>(Lhs lhs, SField<Elem> rhs) {
+  return lhs >> (builder::dyn_var<Elem>)rhs;
 }
 
 ///
 /// Free version of SField::operator< between non-SField and SField
-template <typename Lhs, typename Rhs,
-	  typename std::enable_if<is_sfield<Rhs>::value, int>::type = 0>
-Binary<LTFunctor<false>,Lhs,Rhs> operator<(const Lhs &lhs, const Rhs &rhs) {
-  return Binary<LTFunctor<false>,Lhs,Rhs>(lhs, rhs);
+template <typename Lhs, typename Elem>
+builder::dyn_var<bool> operator<(Lhs lhs, SField<Elem> rhs) {
+  return lhs < (builder::dyn_var<Elem>)rhs;
 }
 
 ///
 /// Free version of SField::operator<= between non-SField and SField
-template <typename Lhs, typename Rhs,
-	  typename std::enable_if<is_sfield<Rhs>::value, int>::type = 0>
-Binary<LTFunctor<true>,Lhs,Rhs> operator<=(const Lhs &lhs, const Rhs &rhs) {
-  return Binary<LTFunctor<true>,Lhs,Rhs>(lhs, rhs);
+template <typename Lhs, typename Elem>
+builder::dyn_var<bool> operator<=(Lhs lhs, SField<Elem> rhs) {
+  return lhs <= (builder::dyn_var<Elem>)rhs;
 }
 
 ///
 /// Free version of SField::operator> between non-SField and SField
-template <typename Lhs, typename Rhs,
-	  typename std::enable_if<is_sfield<Rhs>::value, int>::type = 0>
-Binary<GTFunctor<false>,Lhs,Rhs> operator>(const Lhs &lhs, const Rhs &rhs) {
-  return Binary<GTFunctor<false>,Lhs,Rhs>(lhs, rhs);
+template <typename Lhs, typename Elem>
+builder::dyn_var<bool> operator>(Lhs lhs, SField<Elem> rhs) {
+  return lhs > (builder::dyn_var<Elem>)rhs;
 }
 
 ///
 /// Free version of SField::operator>= between non-SField and SField
-template <typename Lhs, typename Rhs,
-	  typename std::enable_if<is_sfield<Rhs>::value, int>::type = 0>
-Binary<GTFunctor<true>,Lhs,Rhs> operator>=(const Lhs &lhs, const Rhs &rhs) {
-  return Binary<GTFunctor<true>,Lhs,Rhs>(lhs, rhs);
+template <typename Lhs, typename Elem>
+builder::dyn_var<bool> operator>=(Lhs lhs, SField<Elem> rhs) {
+  return lhs >= (builder::dyn_var<Elem>)rhs;
 }
 
 ///
 /// Free version of SField::operator== between non-SField and SField
-template <typename Lhs, typename Rhs,
-	  typename std::enable_if<is_sfield<Rhs>::value, int>::type = 0>
-Binary<EqFunctor<false>,Lhs,Rhs> operator==(const Lhs &lhs, const Rhs &rhs) {
-  return Binary<EqFunctor<false>,Lhs,Rhs>(lhs, rhs);
+template <typename Lhs, typename Elem>
+builder::dyn_var<bool> operator==(Lhs lhs, SField<Elem> rhs) {
+  return lhs == (builder::dyn_var<Elem>)rhs;
 }
 
 ///
 /// Free version of SField::operator!= between non-SField and SField
-template <typename Lhs, typename Rhs,
-	  typename std::enable_if<is_sfield<Rhs>::value, int>::type = 0>
-Binary<EqFunctor<true>,Lhs,Rhs> operator!=(const Lhs &lhs, const Rhs &rhs) {
-  return Binary<EqFunctor<true>,Lhs,Rhs>(lhs, rhs);
+template <typename Lhs, typename Elem>
+builder::dyn_var<bool> operator!=(Lhs lhs, SField<Elem> rhs) {
+  return lhs != (builder::dyn_var<Elem>)rhs;
 }
 
 ///
 /// Free version of SField::operator&& between non-SField and SField
-template <typename Lhs, typename Rhs,
-	  typename std::enable_if<is_sfield<Rhs>::value, int>::type = 0>
-Binary<AndFunctor,Lhs,Rhs> operator&&(const Lhs &lhs, const Rhs &rhs) {
-  return Binary<AndFunctor,Lhs,Rhs>(lhs, rhs);
+template <typename Lhs, typename Elem>
+builder::dyn_var<bool> operator&&(Lhs lhs, SField<Elem> rhs) {
+  return lhs && (builder::dyn_var<Elem>)rhs;
 }
 
 ///
 /// Free version of SField::operator|| between non-SField and SField
-template <typename Lhs, typename Rhs,
-	  typename std::enable_if<is_sfield<Rhs>::value, int>::type = 0>
-Binary<OrFunctor,Lhs,Rhs> operator||(const Lhs &lhs, const Rhs &rhs) {
-  return Binary<OrFunctor,Lhs,Rhs>(lhs, rhs);
+template <typename Lhs, typename Elem>
+builder::dyn_var<bool> operator||(Lhs lhs, SField<Elem> rhs) {
+  return lhs || (builder::dyn_var<Elem>)rhs;
 }
 
 ///
 /// Free version of SField::operator& between non-SField and SField
-template <typename Lhs, typename Rhs,
-	  typename std::enable_if<is_sfield<Rhs>::value, int>::type = 0>
-Binary<BitwiseAndFunctor,Lhs,Rhs> operator&(const Lhs &lhs, const Rhs &rhs) {
-  return Binary<BitwiseAndFunctor,Lhs,Rhs>(lhs, rhs);
+template <typename Lhs, typename Elem>
+builder::dyn_var<decltype(determine_ret_type<Lhs,Elem>())> operator&(Lhs lhs, SField<Elem> rhs) {
+  return lhs & (builder::dyn_var<Elem>)rhs;
 }
 
 ///
 /// Free version of SField::operator| between non-SField and SField
-template <typename Lhs, typename Rhs,
-	  typename std::enable_if<is_sfield<Rhs>::value, int>::type = 0>
-Binary<BitwiseOrFunctor,Lhs,Rhs> operator|(const Lhs &lhs, const Rhs &rhs) {
-  return Binary<BitwiseOrFunctor,Lhs,Rhs>(lhs, rhs);
-}*/
+template <typename Lhs, typename Elem>
+builder::dyn_var<decltype(determine_ret_type<Lhs,Elem>())> operator|(Lhs lhs, SField<Elem> rhs) {
+  return lhs | (builder::dyn_var<Elem>)rhs;
+}
 
 /*template <typename Elem, int Sz>
 struct AField {
