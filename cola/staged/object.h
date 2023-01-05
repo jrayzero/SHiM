@@ -2,47 +2,204 @@
 
 #pragma once
 
+#include <map>
+
+namespace builder {
+
+///
+/// Unspecialized template to determine the core type of a compound expression
+template <typename T>
+struct ElemToStr { };
+
+///
+/// Core type is bool
+template <>
+struct ElemToStr<bool> { 
+  inline static std::string str = "bool"; 
+  static constexpr bool isArr = false;
+};
+
+///
+/// Core type is uint8_t
+template <>
+struct ElemToStr<uint8_t> { 
+  inline static std::string str = "uint8_t"; 
+  static constexpr bool isArr = false;
+};
+
+///
+/// Core type is uint16_t
+template <>
+struct ElemToStr<uint16_t> { 
+  inline static std::string str = "uint16_t"; 
+  static constexpr bool isArr = false;
+};
+
+///
+/// Core type is uint32_t
+template <>
+struct ElemToStr<uint32_t> { 
+  inline static std::string str = "uint32_t"; 
+  static constexpr bool isArr = false;
+};
+
+///
+/// Core type is uint64_t
+template <>
+struct ElemToStr<uint64_t> { 
+  inline static std::string str = "uint64_t"; 
+  static constexpr bool isArr = false;
+};
+
+///
+/// Core type is char
+template <>
+struct ElemToStr<char> { 
+  inline static std::string str = "char"; 
+  static constexpr bool isArr = false;
+};
+
+///
+/// Core type is int8_t (signed char)
+template <>
+struct ElemToStr<int8_t> { 
+  inline static std::string str = "int8_t"; 
+  static constexpr bool isArr = false;
+};
+
+///
+/// Core type is int16_t
+template <>
+struct ElemToStr<int16_t> { 
+  inline static std::string str = "int16_t"; 
+  static constexpr bool isArr = false;
+};
+
+///
+/// Core type is int32_t
+template <>
+struct ElemToStr<int32_t> { 
+  inline static std::string str = "int32_t"; 
+  static constexpr bool isArr = false;
+};
+
+///
+/// Core type is int64_t
+template <>
+struct ElemToStr<int64_t> { 
+  inline static std::string str = "int64_t"; 
+  static constexpr bool isArr = false;
+};
+
+///
+/// Core type is float
+template <>
+struct ElemToStr<float> { 
+  inline static std::string str = "float"; 
+  static constexpr bool isArr = false;
+};
+
+///
+/// Core type is double
+template <>
+struct ElemToStr<double> { 
+  inline static std::string str = "double"; 
+  static constexpr bool isArr = false;
+};
+
+///
+/// Core type is core type of T
+template <typename T>
+struct ElemToStr<T*> { 
+  inline static std::string str = ElemToStr<T>::str + "*";  
+  static constexpr bool isArr = false;
+};
+
+///
+/// Core type is core type of T
+template <typename T>
+struct ElemToStr<T[]> { 
+  inline static std::string str = ElemToStr<T>::str; 
+  inline static std::string sz = "";
+  static constexpr bool isArr = true;
+};
+
+///
+/// Core type is core type of T
+template <typename T, int Sz>
+struct ElemToStr<T[Sz]> { 
+  inline static std::string str = ElemToStr<T>::str;
+  inline static std::string sz = std::to_string(Sz);
+  static constexpr bool isArr = true;
+};
+
+template <typename Name>
+struct GetName { };
+
+template <const char *N>
+struct GetName<name<N>> {
+  std::string operator()() {
+    return N;
+  }
+};
+
+struct StructInfo {
+  // struct name -> {field name -> field type repr}
+  inline static std::map<std::string, std::map<std::string, std::string>> structs;  
+};
+
+template <typename T>
+class cola_dyn_var_wrapper : public dyn_var_impl<T> {
+public:
+  typedef dyn_var_impl<T> super;
+  using super::super;
+  using super::operator=;
+  builder operator= (const dyn_var<T> &t) {
+    return (*this) = (builder)t;
+  }	
+//  cola_dyn_var_wrapper(const cola_dyn_var_wrapper& t): dyn_var_impl((builder)t){}
+  cola_dyn_var_wrapper(): dyn_var_impl<T>() {
+    std::string n = GetName<T>()();
+    if (StructInfo::structs.count(n) == 0) {
+      StructInfo::structs[n] = {};
+    }
+  }
+  
+protected:
+  
+  template <typename FieldType, typename This>
+  dyn_var<FieldType> add_field(This *this_ptr, std::string field_name) {
+    std::string n = GetName<T>()();
+    assert(StructInfo::structs.count(n) > 0);
+    dyn_var<FieldType> field = as_member_of(this_ptr, field_name);
+    std::string type = ElemToStr<FieldType>::str;
+    std::string repr = type + " " + field_name;
+    if constexpr (ElemToStr<FieldType>::isArr) {
+      repr += "[" + ElemToStr<FieldType>::sz + "]";
+    }
+    if (StructInfo::structs[n].count(field_name) == 0) {
+      StructInfo::structs[n][field_name] = repr;
+    }
+    return field;
+  }
+
+};
+
+}
+
+#ifdef NOT_DEPRECATED
+
 #include <iostream>
 #include <map>
 #include "builder/dyn_var.h"
 
 namespace cola {
 
+// TODO do I actually need the "value" field 
+
 // TODO I don't know if this will interact nicely with the inline indexing because that creates a different type of Expr (and
 // utilizes different free operator functions). However, these in here shoudl operate just like plain old dyn_vars, so 
 // maybe it will just work?
-
-/*template <typename Elem>
-std::string elem_to_str() {
-  if constexpr (std::is_same<bool,Elem>::value) {
-    return "bool";
-  } else if constexpr (std::is_same<uint8_t,Elem>::value) {
-    return "uint8_t";
-  } else if constexpr (std::is_same<uint16_t,Elem>::value) {
-    return "uint16_t";
-  } else if constexpr (std::is_same<uint32_t,Elem>::value) {
-    return "uint32_t";
-  } else if constexpr (std::is_same<uint64_t,Elem>::value) {
-    return "uint64_t";
-  } else if constexpr (std::is_same<char,Elem>::value) {
-    return "char";
-  } else if constexpr (std::is_same<int8_t,Elem>::value) {
-    return "int8_t";
-  } else if constexpr (std::is_same<int16_t,Elem>::value) {
-    return "int16_t";
-  } else if constexpr (std::is_same<int32_t,Elem>::value) {
-    return "int32_t";
-  } else if constexpr (std::is_same<int64_t,Elem>::value) {
-    return "int64_t";
-  } else if constexpr (std::is_same<float,Elem>::value) {
-    return "float";
-  } else if constexpr (std::is_same<double,Elem>::value) {
-    return "double";
-  } else {
-    // this better be a user type
-    return Elem::type_to_str();
-  }
-}*/
 
 ///
 /// Unspecialized template to determine the core type of a compound expression
@@ -172,12 +329,6 @@ struct ElemToStr<T[Sz]> {
 };
 
 
-// dummy decl for finding annotation
-template <bool Dummy=false>
-void dummy_decl(std::string annotation) {
-  builder::annotate(annotation);
-  builder::dyn_var<int> dummy = 57;
-}
 
 struct StagedObject {
 
@@ -236,6 +387,8 @@ private:
 struct BareSField {
   static inline const std::string repr_read = "sfield_read";
   static inline const std::string repr_write = "sfield_write";
+  static inline const std::string repr_ptr_read = "sfield_ptr_read";
+  static inline const std::string repr_ptr_write = "sfield_ptr_write";
 };
 
 // for an operation between an SField and a primitive (or dyn_var), return a dummy expression
@@ -278,16 +431,16 @@ struct SField {
       }
     }
 //    if constexpr (std::is_arithmetic<typename GetCoreT<Elem>::Core_T>()) {
-      if constexpr (ElemToStr<Elem>::isArr) {
-	StagedObject::object_fields.top().emplace_back(std::pair<std::string,std::string>{this->name + "[" + ElemToStr<Elem>::sz + "]", 
-											  ElemToStr<Elem>::str});
-      } else {
+//      if constexpr (ElemToStr<Elem>::isArr) {
+//	StagedObject::object_fields.top().emplace_back(std::pair<std::string,std::string>{this->name + "[" + ElemToStr<Elem>::sz + "]", 
+//											  ElemToStr<Elem>::str});
+//      } else {
 	StagedObject::object_fields.top().emplace_back(std::pair<std::string,std::string>{this->name, ElemToStr<Elem>::str});
-      }
-      if constexpr (std::is_arithmetic<Elem>()) {
+//      }
+//      if constexpr (std::is_arithmetic<Elem>()) {
 	// scalar, non user
 	this->operator=(def_val);
-      } // else it's an array or pointer thing. don't initialize
+//      } // else it's an array or pointer thing. don't initialize
 /*    } else {
       static_assert(std::is_same<void,typename GetCoreT<Elem>::Core_T>()>());
       // okay, this must be a user type because the core type was void
@@ -315,7 +468,6 @@ struct SField {
   /// 
   /// Conversion to the underlying dyn_var
   operator builder::dyn_var<Elem>() {
-    assert(false);
     dummy_decl(BareSField::repr_read + ":" + name + ":" + instance_name);
     return value;
   }
@@ -414,6 +566,125 @@ private:
   std::string object_name;
   // Name of the particular struct instance this belongs to
   std::string instance_name;
+};
+
+template <typename CoreElem, typename FullElem>
+struct IntermediateAccess {
+
+  IntermediateAccess(std::string name, std::string instance_name, 
+		     builder::dyn_var<loop_type> idx, builder::dyn_var<FullElem> &value) : 
+    name(name), instance_name(instance_name), idx(idx), value(value) { }
+
+  /// 
+  /// Conversion to the underlying dyn_var core element. Forces a read access
+  operator builder::dyn_var<CoreElem>() {
+    // this annotations finds the idx
+    builder::annotate("iread");
+    builder::dyn_var<loop_type> tmp = idx;
+    builder::dyn_var<CoreElem> accessed = dummy_decl<CoreElem>(BareSField::repr_ptr_read + ":" + name + ":" + instance_name);  
+    builder::dyn_var<CoreElem> break_depends = accessed;
+    return break_depends;
+  }
+
+  /// 
+  /// Forces a pointer write 
+  void operator=(builder::dyn_var<CoreElem> rhs) {
+    builder::annotate("iwrite_idx");
+    builder::dyn_var<loop_type> tmp = idx;
+    dummy_decl("iwrite_lhs:" + name + ":" + instance_name);
+    builder::annotate"iwrite_rhs"
+//    dummy_decl(BareSField::repr_ptr_write + ":" + name + ":" + instance_name);
+//    this->value = rhs;
+  }
+
+  /// 
+  /// Forces a pointer write 
+  void operator=(IntermediateAccess<CoreElem,FullElem> rhs) {
+/*    builder::dyn_var<CoreElem> casted = rhs;
+    builder::annotate("iwrite");
+    builder::dyn_var<loop_type> tmp = idx;
+    dummy_decl(BareSField::repr_ptr_write + ":" + name + ":" + instance_name);
+    this->value = casted;*/
+  }
+
+  std::string name;
+  std::string instance_name;
+  builder::dyn_var<loop_type> idx;
+  builder::dyn_var<FullElem> &value;
+
+};
+
+///
+/// Specialization for pointers of primitive types
+template <typename Elem>
+struct SField<Elem*, typename std::enable_if<std::is_arithmetic<Elem>::value>::type> {
+  explicit SField(StagedObject *container, std::string name="") :
+    name(name.empty() ? "__field" + std::to_string(container->next_field++) : name),
+    object_name(container->name), instance_name(container->instance_name) {
+    static_assert(std::is_arithmetic<typename GetCoreT<Elem>::Core_T>());
+    assert(!StagedObject::object_fields.empty());
+    auto top = StagedObject::object_fields.top();
+    for (auto info : top) {
+      if (info.first == this->name) {
+	std::cerr << "Duplicate field " << this->name << " for user-defined StagedObject " << object_name << std::endl;
+	exit(48);
+      }
+    }
+    StagedObject::object_fields.top().emplace_back(std::pair<std::string,std::string>{this->name, ElemToStr<Elem>::str + "*"});
+  }
+  
+  IntermediateAccess<Elem,Elem*> operator[](builder::dyn_var<loop_type> idx) {
+    return IntermediateAccess<Elem,Elem*>(name, instance_name, idx, value);
+  }
+
+private:
+
+  // TODO how to initialize this?
+  builder::dyn_var<Elem*> value;
+  // Name of this field
+  std::string name;
+  // Name of the struct this belongs to
+  std::string object_name;
+  // Name of the particular struct instance this belongs to
+  std::string instance_name;
+  inline static int nextVarName = 0;
+};
+
+///
+/// Specialization for arrays of primitive types
+template <typename Elem, int Sz>
+struct SField<Elem[Sz], typename std::enable_if<std::is_arithmetic<Elem>::value>::type> {
+  explicit SField(StagedObject *container, std::string name="") :
+    name(name.empty() ? "__field" + std::to_string(container->next_field++) : name),
+    object_name(container->name), instance_name(container->instance_name) {
+    static_assert(std::is_arithmetic<typename GetCoreT<Elem>::Core_T>());
+    assert(!StagedObject::object_fields.empty());
+    auto top = StagedObject::object_fields.top();
+    for (auto info : top) {
+      if (info.first == this->name) {
+	std::cerr << "Duplicate field " << this->name << " for user-defined StagedObject " << object_name << std::endl;
+	exit(48);
+      }
+    }
+    StagedObject::object_fields.top().emplace_back(std::pair<std::string,std::string>{this->name + "[" + std::to_string(Sz) + "]", 
+										      ElemToStr<Elem>::str});
+  }
+  
+  IntermediateAccess<Elem,Elem[Sz]> operator[](builder::dyn_var<loop_type> idx) {
+    return IntermediateAccess<Elem,Elem[Sz]>(name, instance_name, idx, value);
+  }
+
+private:
+
+  // TODO how to initialize this?
+  builder::dyn_var<Elem[Sz]> value;
+  // Name of this field
+  std::string name;
+  // Name of the struct this belongs to
+  std::string object_name;
+  // Name of the particular struct instance this belongs to
+  std::string instance_name;
+  inline static int nextVarName = 0;
 };
 
 template <typename Elem, typename IsPrimitive>
@@ -645,3 +916,4 @@ private:
 
 }
 
+#endif
