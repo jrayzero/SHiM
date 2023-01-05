@@ -132,103 +132,12 @@ public:
     }
     if (!annots.empty()) {
       std::vector<std::string> comps = split_on(annots[0], ":");
-      // TODO don't hardcode the annot name--make a static variable in StagedObject for it
-/*      if (is_same(comps[0], StagedObject::build_staged_object_repr)) {
-	std::stringstream prg;
-	prg << comps[1] << " " << comps[2] << ";";
-	oss << prg.str();
-	printer::indent(oss, curr_indent);
-	// don't generate the actual loop--it's just a dummy
-      } else if (is_same(comps[0], BareSField::repr_read)) {
-	// Delay until var_expr
-	std::stringstream prg;
-	prg << comps[2] << "." << comps[1];
-	is_delayed_var = true;
-	delayed_var_repl = prg.str();
-	// don't generate the actual loop--it's just a dummy
-      } else if (is_same(comps[0], BareSField::repr_write)) {
-	// Delay until var_expr
-	std::stringstream prg;
-	prg << comps[2] << "." << comps[1];
-	is_delayed_var = true;
-	delayed_var_repl = prg.str();
-	// don't generate the actual loop--it's just a dummy
-      } else if (is_same(comps[0], "iread")) {
-	// this is an idx for a repr_ptr_read
-	is_iread_var = true;
-	assert(s->init_expr);
-	iread_repl = s->decl_var->var_name;
-	c_code_generator::visit(s);
-      } else if (is_same(comps[0], BareSField::repr_ptr_read)) {
-	assert(is_iread_var);
-	// delay until var_expr
-	std::stringstream prg;
-	prg << comps[2] << "." << comps[1] << "[" << iread_repl << "]";
-	is_iread_var = false;
-	iread_repl = "";
-	is_delayed_var = true;
-	delayed_var_repl = prg.str();
-      } else if (is_same(comps[0], "iwrite_lhs")) {
-	// stores the field and instance name
-	is_iwrite_var = true;
-	assert(s->init_expr);
-	iwrite_repl = s->decl_var->var_name;
-	c_code_generator::visit(s);
-      } else if (is_same(comps[0], BareSField::repr_ptr_write)) {
-	is_iwrite_lhs = true;
-	iwrite_lhs = comps[2] + "." + comps[1] + "[" + iwrite_repl + "]";
-	is_iwrite_var = false;
-	iwrite_repl = "";
-	is_delayed_var = true;
-	delayed_var_repl = prg.str();*/
-/*	assert(is_iwrite_var);
-	std::stringstream prg;
-	prg << comps[2] << "." << comps[1] << "[" << iwrite_repl << "]";
-	is_iwrite_var = false;
-	iwrite_repl = "";
-	is_delayed_var = true;
-	delayed_var_repl = prg.str();*/
-//	oss << prg.str();
-/*      } else {
-	std::cerr << "Unknown AST annotation: " << annot << std::endl;
-	exit(48);
-      }*/
     } else {
       block::c_code_generator::visit(s);
     }
   }
-
-  void visit(block::var_expr::Ptr s) {
-    if (is_delayed_var) {
-      assert(!delayed_var_repl.empty());
-      oss << delayed_var_repl;
-      is_delayed_var = false;
-      delayed_var_repl = "";
-    } else {
-      block::c_code_generator::visit(s);
-    }
-  }
-
-/*  void visit(block::assign_expr::Ptr s) {
-    if (is_delayed_var) {
-      assert(!delayed_var_repl.empty());
-      oss << delayed_var_repl << " = ";
-      s->expr1->accept(this);
-      is_delayed_var = false;
-      delayed_var_repl = "";
-    } else {
-      block::c_code_generator::visit(s);
-    }
-  }*/
 
 private:
-
-  bool is_delayed_var = false;
-  std::string delayed_var_repl;
-  bool is_iread_var = false;
-  std::string iread_repl;
-  bool is_iwrite_var = false;
-  std::string iwrite_repl;
 
   bool is_same(std::string is, std::string should_be) {
     return !is.compare(0, should_be.size(), should_be);
