@@ -2,9 +2,12 @@
 
 #pragma once
 
+#include <sstream>
 #include <vector>
 #include "builder/builder.h"
-#include "common/defs.h"
+#include "defs.h"
+
+namespace cola {
 
 enum OptType {
   LOOP_PARALLEL
@@ -49,3 +52,14 @@ struct Parallel : Optimization {
   explicit Parallel(int nworkers) : Optimization(LOOP_PARALLEL), nworkers(nworkers) { }
 
 };
+
+struct Comment {
+  inline static std::string repr = "comment";
+  static void apply(std::string msg) {
+    std::stringstream ss;
+    ss << repr << ":" << msg;
+    builder::annotate(ss.str());
+  }
+};
+
+}

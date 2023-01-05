@@ -5,7 +5,7 @@
 #include "builder/dyn_var.h"
 #include "fwddecls.h"
 
-namespace hmda {
+namespace cola {
 
 template <typename T>
 struct is_expr {
@@ -34,6 +34,51 @@ struct is_expr<Iter<Ident>> {
 
 template <typename To, typename Operand>
 struct is_expr<TemplateCast<To,Operand>> {
+  static constexpr bool value = true;
+};
+
+template <typename T>
+struct is_expr_or_field {
+  static constexpr bool value = false;
+};
+
+template <typename BlockLike, typename Idxs>
+struct is_expr_or_field<Ref<BlockLike,Idxs>> {
+  static constexpr bool value = true;
+};
+
+template <typename Functor, typename Operand>
+struct is_expr_or_field<Unary<Functor,Operand>> {
+  static constexpr bool value = true;
+};
+
+template <typename Functor, typename Operand0, typename Operand1>
+struct is_expr_or_field<Binary<Functor,Operand0,Operand1>> {
+  static constexpr bool value = true;
+};
+
+template <char Ident>
+struct is_expr_or_field<Iter<Ident>> {
+  static constexpr bool value = true;
+};
+
+template <typename To, typename Operand>
+struct is_expr_or_field<TemplateCast<To,Operand>> {
+  static constexpr bool value = true;
+};
+
+template <typename Elem, typename IsPrimitive>
+struct is_expr_or_field<SField<Elem,IsPrimitive>> {
+  static constexpr bool value = true;
+};
+
+template <typename S>
+struct is_sfield {
+  static constexpr bool value = false;
+};
+
+template <typename Elem, typename IsPrimitive>
+struct is_sfield<SField<Elem,IsPrimitive>> {
   static constexpr bool value = true;
 };
 
@@ -114,6 +159,16 @@ struct is_hmda_fundamental<uint32_t> {
 
 template <>
 struct is_hmda_fundamental<uint64_t> {
+  static constexpr bool value = true;
+};
+
+template <>
+struct is_hmda_fundamental<char> {
+  static constexpr bool value = true;
+};
+
+template <>
+struct is_hmda_fundamental<int8_t> {
   static constexpr bool value = true;
 };
 

@@ -1,9 +1,10 @@
 #pragma once
 
+#include <sstream>
 #include <iostream>
 #include "heaparray.h"
 
-namespace hmda {
+namespace cola {
 
 template <typename Elem>
 HeapArray<Elem> build_heaparr(loop_type sz) {
@@ -58,6 +59,58 @@ void print_newline() {
 template <bool dummy=false>
 void print_string(std::string s) {
   std::cout << s;
+}
+
+template <typename V, typename S>
+V lshift(V val, S amt) {
+  return val << amt;
+}
+
+template <typename V, typename S>
+V rshift(V val, S amt) {
+  return val >> amt;
+}
+
+template <typename V, typename S>
+V bor(V left, S right) {
+  return left | right;
+}
+
+template <typename V, typename S>
+V band(V left, S right) {
+  return left & right;
+}
+
+template <typename V, typename S>
+V pow(V left, S right) {
+  return std::pow(left, right);
+}
+
+template <typename V>
+V ceil(V val) {
+  return std::ceil(val);
+}
+
+template <typename Arg, typename...Args>
+void cat(std::stringstream &ss, Arg arg, Args...args) {
+  ss << arg;
+  if constexpr (sizeof...(Args) > 0) {
+    cat(ss, args...);
+  }
+}
+
+template <typename...Args>
+void printn(Args...args) {
+  std::stringstream ss;
+  cat(ss, args...);  
+  std::cout << ss.str() << std::endl;
+}
+
+template <typename...Args>
+void print(Args...args) {
+  std::stringstream ss;
+  cat(ss, args...);  
+  std::cout << ss.str();
 }
 
 }

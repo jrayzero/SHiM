@@ -4,17 +4,22 @@
 
 #include <type_traits>
 #include "builder/dyn_var.h"
-#include "common/functors.h"
+#include "functors.h"
 #include "fwrappers.h"
 #include "fwddecls.h"
 #include "traits.h"
 
-namespace hmda {
+namespace cola {
 
 ///
 /// Unspecialized template to determine the core type of a compound expression
 template <typename T>
-struct GetCoreT { };
+struct GetCoreT { using Core_T = void; };
+
+///
+/// Core type is bool
+template <>
+struct GetCoreT<bool> { using Core_T = bool; };
 
 ///
 /// Core type is uint8_t
@@ -35,6 +40,16 @@ struct GetCoreT<uint32_t> { using Core_T = uint32_t; };
 /// Core type is uint64_t
 template <>
 struct GetCoreT<uint64_t> { using Core_T = uint64_t; };
+
+///
+/// Core type is char
+template <>
+struct GetCoreT<char> { using Core_T = char; };
+
+///
+/// Core type is int8_t (signed char)
+template <>
+struct GetCoreT<int8_t> { using Core_T = int8_t; };
 
 ///
 /// Core type is int16_t
@@ -66,9 +81,13 @@ struct GetCoreT<double> { using Core_T = double; };
 template <typename Elem>
 struct GetCoreT<builder::dyn_var<Elem>> { using Core_T = Elem; };
 
+///
+/// Core type is Elem
 template <typename Elem, int Rank, typename Idxs>
 struct GetCoreT<Ref<Block<Elem,Rank>,Idxs>> { using Core_T = Elem; };
 
+///
+/// Core type is Elem
 template <typename Elem, int Rank, typename Idxs>
 struct GetCoreT<Ref<View<Elem,Rank>,Idxs>> { using Core_T = Elem; };
 
@@ -83,6 +102,26 @@ struct GetCoreT<Binary<Functor,CompoundExpr0,CompoundExpr1>> {
 /// Core type is loop_type
 template <char C>
 struct GetCoreT<Iter<C>> { using Core_T = loop_type; };
+
+///
+/// Core type is Elem
+template <typename Elem, typename IsPrimitive>
+struct GetCoreT<SField<Elem,IsPrimitive>> { using Core_T = Elem; };
+
+///
+/// Core type is core type of T
+template <typename T>
+struct GetCoreT<T*> { using Core_T = typename GetCoreT<T>::Core_T; };
+
+///
+/// Core type is core type of T
+template <typename T>
+struct GetCoreT<T[]> { using Core_T = typename GetCoreT<T>::Core_T; };
+
+///
+/// Core type is core type of T
+template <typename T, int sz>
+struct GetCoreT<T[sz]> { using Core_T = typename GetCoreT<T>::Core_T; };
 
 ///
 /// Core type is To
@@ -262,9 +301,20 @@ struct Binary : public Expr<Binary<Functor, CompoundExpr0, CompoundExpr1>> {
   }
 
   ///
-  /// Realize the operation on the compound expression
+  /// Realize the operation on the compound expression.
+  /// Utilized with inline expressions that utilize blocks, views, and refs.
   template <typename LhsIdxs, typename Iters>
   builder::dyn_var<Core_T> realize(const LhsIdxs &lhs_idxs, const Iters &iters);
+
+  ///
+  /// Realize the operation on the compound expression.
+  /// Utilized with StagedObject fields when you do something like
+  /// builder::dyn_var<int> i = t.field0 + 2;
+  /// The user could mess this up and do something illegal like
+  /// use a ref on the righthand side, or an Iter or whatever,
+  /// but it would fail during execution (at least if using an 
+  /// Iter) since the Iter wouldn't exist.
+  operator builder::dyn_var<Core_T>();
 
 private:
   
@@ -385,7 +435,7 @@ Binary<BitwiseOrFunctor,Derived,Rhs> Expr<Derived>::operator|(const Rhs &rhs) {
 }
 
 ///
-/// Free version of Expr<Derived>::operator+ between non-Expr and Expr
+/// Free version of Expr::operator+ between non-Expr and Expr
 template <typename Lhs, typename Rhs,
 	  typename std::enable_if<is_expr<Rhs>::value, int>::type = 0>
 Binary<AddFunctor,Lhs,Rhs> operator+(const Lhs &lhs, const Rhs &rhs) {
@@ -543,6 +593,11 @@ builder::dyn_var<typename GetCoreT<CompoundExpr0>::Core_T> Binary<Functor,Compou
   }
 }
 
+template <typename Functor, typename CompoundExpr0, typename CompoundExpr1>
+Binary<Functor, CompoundExpr0, CompoundExpr1>::operator builder::dyn_var<Core_T>() {
+  return realize<std::tuple<>, std::tuple<>>({}, {});
+}
+
 ///
 /// Unspecialized functor for calling the appropriate external cast operation 
 template <typename To, typename From>
@@ -567,6 +622,16 @@ struct DispatchCast<uint32_t,From> { builder::dyn_var<uint32_t>  operator()(From
 /// Cast to uint64_t
 template <typename From>
 struct DispatchCast<uint64_t,From> { builder::dyn_var<uint64_t>  operator()(From val) { return cast_uint64_t(val); } };
+
+///
+/// Cast to char
+template <typename From>
+struct DispatchCast<char,From> { builder::dyn_var<char>  operator()(From val) { return cast_char(val); } };
+
+///
+/// Cast to int8_t
+template <typename From>
+struct DispatchCast<int8_t,From> { builder::dyn_var<int8_t>  operator()(From val) { return cast_int8_t(val); } };
 
 ///
 /// Cast to int16_t

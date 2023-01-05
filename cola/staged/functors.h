@@ -1,6 +1,6 @@
 #pragma once
 
-namespace hmda {
+namespace cola {
 
 // These functors are completely generic so they can work with fundamentals, exprs, and dyn_vars
 

@@ -17,7 +17,7 @@ endif()
 set(CMAKE_CXX_FLAGS_RELEASE "-O3")
 set(CMAKE_CXX_FLAGS_DEBUG "-g -O0 -DBOUNDS_CHECK")
 
-include_directories(hmda hmda/common ${CMAKE_SOURCE_DIR}/buildit/include ${CMAKE_SOURCE_DIR}/buildit/build/gen_headers)
+include_directories(cola ${CMAKE_SOURCE_DIR}/buildit/include ${CMAKE_SOURCE_DIR}/buildit/build/gen_headers)
 link_directories(${CMAKE_SOURCE_DIR}/buildit/build)
 
 # unstaged jpeg
@@ -50,3 +50,23 @@ endfunction()
 
 staged_jpeg(1)
 staged_jpeg(2)
+
+# h264 decoder
+function (staged_h264d)
+ # build the staged code
+ add_executable(sh264 ${CMAKE_SOURCE_DIR}/apps/h264/sh264.cpp)
+ target_link_libraries(sh264 buildit)
+ 
+ # now run the staged code
+ add_custom_command(OUTPUT ${CMAKE_BINARY_DIR}/sh264.cpp ${CMAKE_BINARY_DIR}/sh264.h
+                    COMMAND ${CMAKE_BINARY_DIR}/sh264 ARGS sh264
+                    # make it depend on the binary since cmake is dump and won't let me just depend on the target...
+                    DEPENDS ${CMAKE_BINARY_DIR}/sh264)
+
+ # and build it with the unstaged part
+ add_executable(h264 ${CMAKE_BINARY_DIR}/sh264.cpp
+                     ${CMAKE_SOURCE_DIR}/apps/h264/h264.cpp)
+ target_include_directories(h264 PUBLIC ${CMAKE_BINARY_DIR})		    
+endfunction()
+
+staged_h264d()

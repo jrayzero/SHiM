@@ -9,7 +9,7 @@
 #include "fwddecls.h"
 #include "traits.h"
 
-namespace hmda {
+namespace cola {
 
 ///
 /// Fill a Loc_T object with template values
@@ -149,6 +149,8 @@ DISPATCH_PRINT_ELEM(uint8_t);
 DISPATCH_PRINT_ELEM(uint16_t);
 DISPATCH_PRINT_ELEM(uint32_t);
 DISPATCH_PRINT_ELEM(uint64_t);
+DISPATCH_PRINT_ELEM(char);
+DISPATCH_PRINT_ELEM(int8_t);
 DISPATCH_PRINT_ELEM(int16_t);
 DISPATCH_PRINT_ELEM(int32_t);
 DISPATCH_PRINT_ELEM(int64_t);

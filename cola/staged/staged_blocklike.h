@@ -12,7 +12,7 @@
 #include "staged_utils.h"
 #include "staged_allocators.h"
 
-namespace hmda {
+namespace cola {
 
 // Notes:
 // 1. don't use operator() with Iter objects. use operator[] instead.
