@@ -18,7 +18,7 @@ template <typename BlockLike, typename Idxs>
 struct Ref;
 
 // object fields
-template <typename Elem>
+template <typename Elem, typename IsPrimitive>
 struct SField;
 
 // Expressions

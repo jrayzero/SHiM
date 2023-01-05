@@ -14,7 +14,12 @@ namespace cola {
 ///
 /// Unspecialized template to determine the core type of a compound expression
 template <typename T>
-struct GetCoreT { };
+struct GetCoreT { using Core_T = void; };
+
+///
+/// Core type is bool
+template <>
+struct GetCoreT<bool> { using Core_T = bool; };
 
 ///
 /// Core type is uint8_t
@@ -76,9 +81,13 @@ struct GetCoreT<double> { using Core_T = double; };
 template <typename Elem>
 struct GetCoreT<builder::dyn_var<Elem>> { using Core_T = Elem; };
 
+///
+/// Core type is Elem
 template <typename Elem, int Rank, typename Idxs>
 struct GetCoreT<Ref<Block<Elem,Rank>,Idxs>> { using Core_T = Elem; };
 
+///
+/// Core type is Elem
 template <typename Elem, int Rank, typename Idxs>
 struct GetCoreT<Ref<View<Elem,Rank>,Idxs>> { using Core_T = Elem; };
 
@@ -96,9 +105,23 @@ struct GetCoreT<Iter<C>> { using Core_T = loop_type; };
 
 ///
 /// Core type is Elem
-template <typename Elem>
-struct GetCoreT<SField<Elem>> { using Core_T = Elem; };
+template <typename Elem, typename IsPrimitive>
+struct GetCoreT<SField<Elem,IsPrimitive>> { using Core_T = Elem; };
 
+///
+/// Core type is core type of T
+template <typename T>
+struct GetCoreT<T*> { using Core_T = typename GetCoreT<T>::Core_T; };
+
+///
+/// Core type is core type of T
+template <typename T>
+struct GetCoreT<T[]> { using Core_T = typename GetCoreT<T>::Core_T; };
+
+///
+/// Core type is core type of T
+template <typename T, int sz>
+struct GetCoreT<T[sz]> { using Core_T = typename GetCoreT<T>::Core_T; };
 
 ///
 /// Core type is To

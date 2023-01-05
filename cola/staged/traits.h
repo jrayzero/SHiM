@@ -67,8 +67,8 @@ struct is_expr_or_field<TemplateCast<To,Operand>> {
   static constexpr bool value = true;
 };
 
-template <typename Elem>
-struct is_expr_or_field<SField<Elem>> {
+template <typename Elem, typename IsPrimitive>
+struct is_expr_or_field<SField<Elem,IsPrimitive>> {
   static constexpr bool value = true;
 };
 
@@ -77,8 +77,8 @@ struct is_sfield {
   static constexpr bool value = false;
 };
 
-template <typename Elem>
-struct is_sfield<SField<Elem>> {
+template <typename Elem, typename IsPrimitive>
+struct is_sfield<SField<Elem,IsPrimitive>> {
   static constexpr bool value = true;
 };
 

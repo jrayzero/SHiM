@@ -8,11 +8,11 @@
 
 namespace cola {
 
-// TODO I don't think this will interact nicely with the inline indexing because that creates a different type of Expr (and
+// TODO I don't know if this will interact nicely with the inline indexing because that creates a different type of Expr (and
 // utilizes different free operator functions). However, these in here shoudl operate just like plain old dyn_vars, so 
 // maybe it will just work?
 
-template <typename Elem>
+/*template <typename Elem>
 std::string elem_to_str() {
   if constexpr (std::is_same<bool,Elem>::value) {
     return "bool";
@@ -42,13 +42,141 @@ std::string elem_to_str() {
     // this better be a user type
     return Elem::type_to_str();
   }
-}
+}*/
+
+///
+/// Unspecialized template to determine the core type of a compound expression
+template <typename T>
+struct ElemToStr { };
+
+///
+/// Core type is bool
+template <>
+struct ElemToStr<bool> { 
+  inline static std::string str = "bool"; 
+  static constexpr bool isArr = false;
+};
+
+///
+/// Core type is uint8_t
+template <>
+struct ElemToStr<uint8_t> { 
+  inline static std::string str = "uint8_t"; 
+  static constexpr bool isArr = false;
+};
+
+///
+/// Core type is uint16_t
+template <>
+struct ElemToStr<uint16_t> { 
+  inline static std::string str = "uint16_t"; 
+  static constexpr bool isArr = false;
+};
+
+///
+/// Core type is uint32_t
+template <>
+struct ElemToStr<uint32_t> { 
+  inline static std::string str = "uint32_t"; 
+  static constexpr bool isArr = false;
+};
+
+///
+/// Core type is uint64_t
+template <>
+struct ElemToStr<uint64_t> { 
+  inline static std::string str = "uint64_t"; 
+  static constexpr bool isArr = false;
+};
+
+///
+/// Core type is char
+template <>
+struct ElemToStr<char> { 
+  inline static std::string str = "char"; 
+  static constexpr bool isArr = false;
+};
+
+///
+/// Core type is int8_t (signed char)
+template <>
+struct ElemToStr<int8_t> { 
+  inline static std::string str = "int8_t"; 
+  static constexpr bool isArr = false;
+};
+
+///
+/// Core type is int16_t
+template <>
+struct ElemToStr<int16_t> { 
+  inline static std::string str = "int16_t"; 
+  static constexpr bool isArr = false;
+};
+
+///
+/// Core type is int32_t
+template <>
+struct ElemToStr<int32_t> { 
+  inline static std::string str = "int32_t"; 
+  static constexpr bool isArr = false;
+};
+
+///
+/// Core type is int64_t
+template <>
+struct ElemToStr<int64_t> { 
+  inline static std::string str = "int64_t"; 
+  static constexpr bool isArr = false;
+};
+
+///
+/// Core type is float
+template <>
+struct ElemToStr<float> { 
+  inline static std::string str = "float"; 
+  static constexpr bool isArr = false;
+};
+
+///
+/// Core type is double
+template <>
+struct ElemToStr<double> { 
+  inline static std::string str = "double"; 
+  static constexpr bool isArr = false;
+};
+
+///
+/// Core type is core type of T
+template <typename T>
+struct ElemToStr<T*> { 
+  inline static std::string str = ElemToStr<T>::str + "*";  
+  static constexpr bool isArr = false;
+};
+
+///
+/// Core type is core type of T
+template <typename T>
+struct ElemToStr<T[]> { 
+  inline static std::string str = ElemToStr<T>::str; 
+  inline static std::string sz = "";
+  static constexpr bool isArr = true;
+};
+
+///
+/// Core type is core type of T
+template <typename T, int Sz>
+struct ElemToStr<T[Sz]> { 
+  inline static std::string str = ElemToStr<T>::str;
+  inline static std::string sz = std::to_string(Sz);
+  static constexpr bool isArr = true;
+};
+
 
 // dummy decl for finding annotation
 template <bool Dummy=false>
 void dummy_decl(std::string annotation) {
   builder::annotate(annotation);
-  builder::dyn_var<int> dummy = 0;
+  builder::dyn_var<int> dummy = 57;
 }
 
 struct StagedObject {
@@ -104,7 +232,7 @@ private:
 };
 
 // Just a holder for some static things so don't need a template parameter
-// when accessing the static things in SField
+// when accessing the static things in a field
 struct BareSField {
   static inline const std::string repr_read = "sfield_read";
   static inline const std::string repr_write = "sfield_write";
@@ -131,13 +259,16 @@ auto determine_ret_type() {
 
 // If you don't care about the name (like, you're not gonna use this outside of the staged code), 
 // then just create a dummy name for each
-template <typename Elem>
+/// This is the primary template for supporting fields that are c++ arithmetic types
+template <typename Elem, typename IsPrimitive=void>
 struct SField {
 
-  explicit SField(StagedObject *container, std::string name="", builder::dyn_var<Elem> def_val=0) : 
+  explicit SField(StagedObject *container, std::string name="", 
+		  // in the event that elem is Elem* or Elem[], this will create a dummy dyn_var<Elem>=0 entry
+		  builder::dyn_var<typename GetCoreT<Elem>::Core_T> def_val=0) : 
     name(name.empty() ? "__field" + std::to_string(container->next_field++) : name),
     object_name(container->name), instance_name(container->instance_name) {
-    static_assert(std::is_arithmetic<Elem>());
+    static_assert(std::is_arithmetic<typename GetCoreT<Elem>::Core_T>());
     assert(!StagedObject::object_fields.empty());
     auto top = StagedObject::object_fields.top();
     for (auto info : top) {
@@ -146,20 +277,50 @@ struct SField {
 	exit(48);
       }
     }
-    StagedObject::object_fields.top().emplace_back(std::pair<std::string,std::string>{this->name, elem_to_str<Elem>()});
-    this->operator=(def_val);
+//    if constexpr (std::is_arithmetic<typename GetCoreT<Elem>::Core_T>()) {
+      if constexpr (ElemToStr<Elem>::isArr) {
+	StagedObject::object_fields.top().emplace_back(std::pair<std::string,std::string>{this->name + "[" + ElemToStr<Elem>::sz + "]", 
+											  ElemToStr<Elem>::str});
+      } else {
+	StagedObject::object_fields.top().emplace_back(std::pair<std::string,std::string>{this->name, ElemToStr<Elem>::str});
+      }
+      if constexpr (std::is_arithmetic<Elem>()) {
+	// scalar, non user
+	this->operator=(def_val);
+      } // else it's an array or pointer thing. don't initialize
+/*    } else {
+      static_assert(std::is_same<void,typename GetCoreT<Elem>::Core_T>()>());
+      // okay, this must be a user type because the core type was void
+      
+    }*/
+
   }
 
   ///
   /// Perform a write to this field.
+  // TODO this fails when write to field from other field!
   void operator=(builder::dyn_var<Elem> rhs) {
     dummy_decl(BareSField::repr_write + ":" + name + ":" + instance_name);
     this->value = rhs;
   }
 
+  ///
+  /// Perform an access to this field
+  // TODO need to check underlying field is an array or a pointer
+  // TODO move impl out of class
+//  void operator[](builder::dyn_var<loop_type> idx) {
+//    dummy_decl(BareSFIeld);
+//  }
+
   /// 
   /// Conversion to the underlying dyn_var
   operator builder::dyn_var<Elem>() {
+    assert(false);
+    dummy_decl(BareSField::repr_read + ":" + name + ":" + instance_name);
+    return value;
+  }
+
+  builder::dyn_var<Elem> force() {
     dummy_decl(BareSField::repr_read + ":" + name + ":" + instance_name);
     return value;
   }
@@ -255,232 +416,214 @@ private:
   std::string instance_name;
 };
 
-template <typename Elem>
+template <typename Elem, typename IsPrimitive>
 template <typename Rhs>
-builder::dyn_var<decltype(determine_ret_type<Elem,Rhs>())> SField<Elem>::operator+(Rhs rhs) {
-  return this->value + rhs;
+builder::dyn_var<decltype(determine_ret_type<Elem,Rhs>())> SField<Elem,IsPrimitive>::operator+(Rhs rhs) {
+  return force() + rhs;
 }
 
-template <typename Elem>
+template <typename Elem, typename IsPrimitive>
 template <typename Rhs>
-builder::dyn_var<decltype(determine_ret_type<Elem,Rhs>())> SField<Elem>::operator-(Rhs rhs) {
-  return this->value - rhs;
+builder::dyn_var<decltype(determine_ret_type<Elem,Rhs>())> SField<Elem,IsPrimitive>::operator-(Rhs rhs) {
+  return force() - rhs;
 }
 
-template <typename Elem>
+template <typename Elem, typename IsPrimitive>
 template <typename Rhs>
-builder::dyn_var<decltype(determine_ret_type<Elem,Rhs>())> SField<Elem>::operator*(Rhs rhs) {
-  return this->value * rhs;
+builder::dyn_var<decltype(determine_ret_type<Elem,Rhs>())> SField<Elem,IsPrimitive>::operator*(Rhs rhs) {
+  return force() * rhs;
 }
 
-template <typename Elem>
+template <typename Elem, typename IsPrimitive>
 template <typename Rhs>
-builder::dyn_var<decltype(determine_ret_type<Elem,Rhs>())> SField<Elem>::operator/(Rhs rhs) {
-  return this->value / rhs;
+builder::dyn_var<decltype(determine_ret_type<Elem,Rhs>())> SField<Elem,IsPrimitive>::operator/(Rhs rhs) {
+  return force() / rhs;
 }
 
-template <typename Elem>
+template <typename Elem, typename IsPrimitive>
 template <typename Rhs>
-builder::dyn_var<decltype(determine_ret_type<Elem,Rhs>())> SField<Elem>::operator<<(Rhs rhs) {
-  return this->value << rhs;
+builder::dyn_var<decltype(determine_ret_type<Elem,Rhs>())> SField<Elem,IsPrimitive>::operator<<(Rhs rhs) {
+  return force() << rhs;
 }
 
-template <typename Elem>
+template <typename Elem, typename IsPrimitive>
 template <typename Rhs>
-builder::dyn_var<decltype(determine_ret_type<Elem,Rhs>())> SField<Elem>::operator>>(Rhs rhs) {
-  return this->value >> rhs;
+builder::dyn_var<decltype(determine_ret_type<Elem,Rhs>())> SField<Elem,IsPrimitive>::operator>>(Rhs rhs) {
+  return force() >> rhs;
 }
 
-template <typename Elem>
+template <typename Elem, typename IsPrimitive>
 template <typename Rhs>
-builder::dyn_var<bool> SField<Elem>::operator<(Rhs rhs) {
-  return this->value < rhs;
+builder::dyn_var<bool> SField<Elem,IsPrimitive>::operator<(Rhs rhs) {
+  return force() < rhs;
 }
 
-template <typename Elem>
+template <typename Elem, typename IsPrimitive>
 template <typename Rhs>
-builder::dyn_var<bool> SField<Elem>::operator<=(Rhs rhs) {
-  return this->value <= rhs;
+builder::dyn_var<bool> SField<Elem,IsPrimitive>::operator<=(Rhs rhs) {
+  return force() <= rhs;
 }
 
-template <typename Elem>
+template <typename Elem, typename IsPrimitive>
 template <typename Rhs>
-builder::dyn_var<bool> SField<Elem>::operator>(Rhs rhs) {
-  return this->value > rhs;
+builder::dyn_var<bool> SField<Elem,IsPrimitive>::operator>(Rhs rhs) {
+  return force() > rhs;
 }
 
-template <typename Elem>
+template <typename Elem, typename IsPrimitive>
 template <typename Rhs>
-builder::dyn_var<bool> SField<Elem>::operator>=(Rhs rhs) {
-  return this->value >= rhs;
+builder::dyn_var<bool> SField<Elem,IsPrimitive>::operator>=(Rhs rhs) {
+  return force() >= rhs;
 }
 
-template <typename Elem>
+template <typename Elem, typename IsPrimitive>
 template <typename Rhs>
-builder::dyn_var<bool> SField<Elem>::operator==(Rhs rhs) {
-  return this->value == rhs;
+builder::dyn_var<bool> SField<Elem,IsPrimitive>::operator==(Rhs rhs) {
+  return force() == rhs;
 }
 
-template <typename Elem>
+template <typename Elem, typename IsPrimitive>
 template <typename Rhs>
-builder::dyn_var<bool> SField<Elem>::operator!=(Rhs rhs) {
-  return this->value != rhs;
+builder::dyn_var<bool> SField<Elem,IsPrimitive>::operator!=(Rhs rhs) {
+  return force() != rhs;
 }
 
-template <typename Elem>
+template <typename Elem, typename IsPrimitive>
 template <typename Rhs>
-builder::dyn_var<bool> SField<Elem>::operator&&(Rhs rhs) {
-  return this->value && rhs;
+builder::dyn_var<bool> SField<Elem,IsPrimitive>::operator&&(Rhs rhs) {
+  return force() && rhs;
 }
 
-template <typename Elem>
+template <typename Elem, typename IsPrimitive>
 template <typename Rhs>
-builder::dyn_var<bool> SField<Elem>::operator||(Rhs rhs) {
-  return this->value || rhs;
+builder::dyn_var<bool> SField<Elem,IsPrimitive>::operator||(Rhs rhs) {
+  return force() || rhs;
 }
 
-template <typename Elem>
+template <typename Elem, typename IsPrimitive>
 template <typename Rhs>
-builder::dyn_var<decltype(determine_ret_type<Elem,Rhs>())> SField<Elem>::operator&(Rhs rhs) {
-  return this->value & rhs;
+builder::dyn_var<decltype(determine_ret_type<Elem,Rhs>())> SField<Elem,IsPrimitive>::operator&(Rhs rhs) {
+  return force() & rhs;
 }
 
-template <typename Elem>
+template <typename Elem, typename IsPrimitive>
 template <typename Rhs>
-builder::dyn_var<decltype(determine_ret_type<Elem,Rhs>())> SField<Elem>::operator|(Rhs rhs) {
-  return this->value | rhs;
+builder::dyn_var<decltype(determine_ret_type<Elem,Rhs>())> SField<Elem,IsPrimitive>::operator|(Rhs rhs) {
+  return force() | rhs;
 }
 
 ///
 /// Free version of SField::operator+ between non-SField and SField
-template <typename Lhs, typename Elem>
-builder::dyn_var<decltype(determine_ret_type<Lhs,Elem>())> operator+(Lhs lhs, SField<Elem> rhs) {
-  return lhs + (builder::dyn_var<Elem>)rhs;
+template <typename Lhs, typename Elem, typename IsPrimitive>
+builder::dyn_var<decltype(determine_ret_type<Lhs,Elem>())> operator+(Lhs lhs, SField<Elem,IsPrimitive> rhs) {
+  return lhs + rhs.force();
 }
 
 ///
 /// Free version of SField::operator- between non-SField and SField
-template <typename Lhs, typename Elem>
-builder::dyn_var<decltype(determine_ret_type<Lhs,Elem>())> operator-(Lhs lhs, SField<Elem> rhs) {
-  return lhs - (builder::dyn_var<Elem>)rhs;
+template <typename Lhs, typename Elem, typename IsPrimitive>
+builder::dyn_var<decltype(determine_ret_type<Lhs,Elem>())> operator-(Lhs lhs, SField<Elem,IsPrimitive> rhs) {
+  return lhs - rhs.force();
 }
 
 ///
 /// Free version of SField::operator* between non-SField and SField
-template <typename Lhs, typename Elem>
-builder::dyn_var<decltype(determine_ret_type<Lhs,Elem>())> operator*(Lhs lhs, SField<Elem> rhs) {
-  return lhs * (builder::dyn_var<Elem>)rhs;
+template <typename Lhs, typename Elem, typename IsPrimitive>
+builder::dyn_var<decltype(determine_ret_type<Lhs,Elem>())> operator*(Lhs lhs, SField<Elem,IsPrimitive> rhs) {
+  return lhs * rhs.force();
 }
 
 ///
 /// Free version of SField::operator/ between non-SField and SField
-template <typename Lhs, typename Elem>
-builder::dyn_var<decltype(determine_ret_type<Lhs,Elem>())> operator/(Lhs lhs, SField<Elem> rhs) {
-  return lhs / (builder::dyn_var<Elem>)rhs;
+template <typename Lhs, typename Elem, typename IsPrimitive>
+builder::dyn_var<decltype(determine_ret_type<Lhs,Elem>())> operator/(Lhs lhs, SField<Elem,IsPrimitive> rhs) {
+  return lhs / rhs.force();
 }
 
 ///
 /// Free version of SField::operator<< between non-SField and SField
-template <typename Lhs, typename Elem>
-builder::dyn_var<decltype(determine_ret_type<Lhs,Elem>())> operator<<(Lhs lhs, SField<Elem> rhs) {
-  return lhs << (builder::dyn_var<Elem>)rhs;
+template <typename Lhs, typename Elem, typename IsPrimitive>
+builder::dyn_var<decltype(determine_ret_type<Lhs,Elem>())> operator<<(Lhs lhs, SField<Elem,IsPrimitive> rhs) {
+  return lhs << rhs.force();
 }
 
 ///
 /// Free version of SField::operator>> between non-SField and SField
-template <typename Lhs, typename Elem>
-builder::dyn_var<decltype(determine_ret_type<Lhs,Elem>())> operator>>(Lhs lhs, SField<Elem> rhs) {
-  return lhs >> (builder::dyn_var<Elem>)rhs;
+template <typename Lhs, typename Elem, typename IsPrimitive>
+builder::dyn_var<decltype(determine_ret_type<Lhs,Elem>())> operator>>(Lhs lhs, SField<Elem,IsPrimitive> rhs) {
+  return lhs >> rhs.force();
 }
 
 ///
 /// Free version of SField::operator< between non-SField and SField
-template <typename Lhs, typename Elem>
-builder::dyn_var<bool> operator<(Lhs lhs, SField<Elem> rhs) {
-  return lhs < (builder::dyn_var<Elem>)rhs;
+template <typename Lhs, typename Elem, typename IsPrimitive>
+builder::dyn_var<bool> operator<(Lhs lhs, SField<Elem,IsPrimitive> rhs) {
+  return lhs < rhs.force();
 }
 
 ///
 /// Free version of SField::operator<= between non-SField and SField
-template <typename Lhs, typename Elem>
-builder::dyn_var<bool> operator<=(Lhs lhs, SField<Elem> rhs) {
-  return lhs <= (builder::dyn_var<Elem>)rhs;
+template <typename Lhs, typename Elem, typename IsPrimitive>
+builder::dyn_var<bool> operator<=(Lhs lhs, SField<Elem,IsPrimitive> rhs) {
+  return lhs <= rhs.force();
 }
 
 ///
 /// Free version of SField::operator> between non-SField and SField
-template <typename Lhs, typename Elem>
-builder::dyn_var<bool> operator>(Lhs lhs, SField<Elem> rhs) {
-  return lhs > (builder::dyn_var<Elem>)rhs;
+template <typename Lhs, typename Elem, typename IsPrimitive>
+builder::dyn_var<bool> operator>(Lhs lhs, SField<Elem,IsPrimitive> rhs) {
+  return lhs > rhs.force();
 }
 
 ///
 /// Free version of SField::operator>= between non-SField and SField
-template <typename Lhs, typename Elem>
-builder::dyn_var<bool> operator>=(Lhs lhs, SField<Elem> rhs) {
-  return lhs >= (builder::dyn_var<Elem>)rhs;
+template <typename Lhs, typename Elem, typename IsPrimitive>
+builder::dyn_var<bool> operator>=(Lhs lhs, SField<Elem,IsPrimitive> rhs) {
+  return lhs >= rhs.force();
 }
 
 ///
 /// Free version of SField::operator== between non-SField and SField
-template <typename Lhs, typename Elem>
-builder::dyn_var<bool> operator==(Lhs lhs, SField<Elem> rhs) {
-  return lhs == (builder::dyn_var<Elem>)rhs;
+template <typename Lhs, typename Elem, typename IsPrimitive>
+builder::dyn_var<bool> operator==(Lhs lhs, SField<Elem,IsPrimitive> rhs) {
+  return lhs == rhs.force();
 }
 
 ///
 /// Free version of SField::operator!= between non-SField and SField
-template <typename Lhs, typename Elem>
-builder::dyn_var<bool> operator!=(Lhs lhs, SField<Elem> rhs) {
-  return lhs != (builder::dyn_var<Elem>)rhs;
+template <typename Lhs, typename Elem, typename IsPrimitive>
+builder::dyn_var<bool> operator!=(Lhs lhs, SField<Elem,IsPrimitive> rhs) {
+  return lhs != rhs.force();
 }
 
 ///
 /// Free version of SField::operator&& between non-SField and SField
-template <typename Lhs, typename Elem>
-builder::dyn_var<bool> operator&&(Lhs lhs, SField<Elem> rhs) {
-  return lhs && (builder::dyn_var<Elem>)rhs;
+template <typename Lhs, typename Elem, typename IsPrimitive>
+builder::dyn_var<bool> operator&&(Lhs lhs, SField<Elem,IsPrimitive> rhs) {
+  return lhs && rhs.force();
 }
 
 ///
 /// Free version of SField::operator|| between non-SField and SField
-template <typename Lhs, typename Elem>
-builder::dyn_var<bool> operator||(Lhs lhs, SField<Elem> rhs) {
-  return lhs || (builder::dyn_var<Elem>)rhs;
+template <typename Lhs, typename Elem, typename IsPrimitive>
+builder::dyn_var<bool> operator||(Lhs lhs, SField<Elem,IsPrimitive> rhs) {
+  return lhs || rhs.force();
 }
 
 ///
 /// Free version of SField::operator& between non-SField and SField
-template <typename Lhs, typename Elem>
-builder::dyn_var<decltype(determine_ret_type<Lhs,Elem>())> operator&(Lhs lhs, SField<Elem> rhs) {
-  return lhs & (builder::dyn_var<Elem>)rhs;
+template <typename Lhs, typename Elem, typename IsPrimitive>
+builder::dyn_var<decltype(determine_ret_type<Lhs,Elem>())> operator&(Lhs lhs, SField<Elem,IsPrimitive> rhs) {
+  return lhs & rhs.force();
 }
 
 ///
 /// Free version of SField::operator| between non-SField and SField
-template <typename Lhs, typename Elem>
-builder::dyn_var<decltype(determine_ret_type<Lhs,Elem>())> operator|(Lhs lhs, SField<Elem> rhs) {
-  return lhs | (builder::dyn_var<Elem>)rhs;
+template <typename Lhs, typename Elem, typename IsPrimitive>
+builder::dyn_var<decltype(determine_ret_type<Lhs,Elem>())> operator|(Lhs lhs, SField<Elem,IsPrimitive> rhs) {
+  return lhs | rhs.force();
 }
-
-/*template <typename Elem, int Sz>
-struct AField {
-
-  explicit AField(std::string name) : name(name) {
-    assert(!StagedObject::object_fields.empty());
-    if (StagedObject::object_fields.top().count(name) != 0) {
-//      std::cerr << "Duplicate field " << name << " for user-defined StagedObject " << StagedObject::objects.top() << std::endl;
-      exit(48);
-    }
-    // TODO string type
-    StagedObject::object_fields.top()[name] = "afield<TODO>";
-  } 
-
-private:
-
-  std::string name;
-};
-
+/*
 template <typename Elem>
 struct PField {
 
