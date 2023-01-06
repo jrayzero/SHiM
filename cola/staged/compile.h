@@ -136,13 +136,14 @@ private:
   
 };
 
+// isCPP just dictates whether or not the functions are wrapped with extern in the c code
 template <typename Func, typename...Args>
 void stage(Func func, bool isCPP, std::string name, std::string fn_prefix, std::string pre_hdr, std::string pre_src, Args...args) {
   std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
   std::ofstream src;
   std::ofstream hdr;
   std::string header = fn_prefix + ".h";  
-  std::string source = isCPP ? fn_prefix + ".cpp" : fn_prefix + ".c";
+  std::string source = fn_prefix + ".cpp";
   hdr.open(header);
   src.open(source);
   if (name.empty()) name = "__my_staged_func";
@@ -151,18 +152,19 @@ void stage(Func func, bool isCPP, std::string name, std::string fn_prefix, std::
   hdr << "#pragma once" << std::endl;
   hdr << pre_hdr;
   src << pre_src;
-  src << "#include <math.h>" << std::endl;
-  src << "#include <stdio.h>" << std::endl;
   src << "#include \"runtime/runtime.h\"" << std::endl;
-  std::vector<std::string> sigs = hmda_cpp_code_generator::generate_code(ast, src, 0);
+  std::stringstream src2;
+  std::vector<std::string> sigs = hmda_cpp_code_generator::generate_code(ast, src2, 0);
   for (auto sig : sigs) {
     if (isCPP) {
       hdr << sig << ";" << std::endl;
     } else {
       // TODO If have non-primitive types (i.e. classes) need to prefix with "struct"
-      hdr << "extern \"C\" " << sig << ";" << std::endl;
+      src << "extern \"C\" " << sig << ";" << std::endl;
+      hdr << sig << ";" << std::endl;
     }
   }
+  src << src2.str();
   hdr.flush();
   hdr.close();
   src.flush();
