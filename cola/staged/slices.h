@@ -3,6 +3,7 @@
 #pragma once
 
 #include "builder/dyn_var.h"
+#include "builder/array.h"
 #include "common/loop_type.h"
 #include "fwddecls.h"
 #include "fwrappers.h"
@@ -23,7 +24,7 @@ struct Slice {
 
   builder::dyn_var<loop_type> operator[](loop_type idx) { return params[idx]; }
 
-  builder::dyn_var<loop_type[3]> params;
+  builder::dyn_arr<loop_type,3> params;
 
 };
 
@@ -85,7 +86,7 @@ auto slice(Start start, Stop stop, Stride stride) {
 ///
 /// Combine start params from a view slice into one array
 template <int Idx, int Rank, typename Arg, typename...Args>
-void gather_origin(Loc_T<Rank> origin, Arg arg, Args...args) {
+void gather_origin(Loc_T<Rank> &origin, Arg arg, Args...args) {
   if constexpr (is_slice<Arg>::value) {
     origin[Idx] = arg[0];
     if constexpr (Idx < Rank - 1) {
@@ -103,7 +104,7 @@ void gather_origin(Loc_T<Rank> origin, Arg arg, Args...args) {
 ///
 /// Combine stop params from a view slice into one array
 template <int Idx, int Rank, typename Arg, typename...Args>
-void gather_stops(Loc_T<Rank> vec, Loc_T<Rank> extents, Arg arg, Args...args) {
+void gather_stops(Loc_T<Rank> &vec, const Loc_T<Rank> &extents, Arg arg, Args...args) {
   if constexpr (is_slice<Arg>::value) {
       // specified as slice(a,b,c)
       if constexpr (is_stop_slice<Arg>::value) {
@@ -126,30 +127,12 @@ void gather_stops(Loc_T<Rank> vec, Loc_T<Rank> extents, Arg arg, Args...args) {
       gather_stops<Idx+1,Rank>(vec, extents, args...);
     }
   }
-  /*  if constexpr (is_slice<Arg>::value) {
-    if constexpr (is_stop_slice<Arg>::value) {
-      vec[Idx] = extents[Idx];
-      if constexpr (Idx < Rank - 1) {
-	gather_stops<Idx+1,Rank>(vec, extents, args...);
-      }
-    } else {
-      vec[Idx] = arg[1];
-      if constexpr (Idx < Rank - 1) {
-	gather_stops<Idx+1,Rank>(vec, extents, args...);
-      }
-    }
-  } else {
-    vec[Idx] = arg;
-    if constexpr (Idx < Rank - 1) {
-      gather_stops<Idx+1,Rank>(vec, extents, args...);
-    }    
-    }*/
 }
 
 ///
 /// Combine stride params from a view slice into one array
 template <int Idx, int Rank, typename Arg, typename...Args>
-void gather_strides(Loc_T<Rank> stride, Arg arg, Args...args) {
+void gather_strides(Loc_T<Rank> &stride, Arg arg, Args...args) {
   if constexpr (is_slice<Arg>::value) {
     stride[Idx] = arg[2];
     if constexpr (Idx < Rank - 1) {
@@ -167,7 +150,10 @@ void gather_strides(Loc_T<Rank> stride, Arg arg, Args...args) {
 ///
 /// Convert the stop parameter from a slice into an extent
 template <int Depth, int Rank>
-void convert_stops_to_extents(Loc_T<Rank> arr, Loc_T<Rank> starts, Loc_T<Rank> stops, Loc_T<Rank> strides) {
+void convert_stops_to_extents(Loc_T<Rank> &arr, 
+			      const Loc_T<Rank> &starts, 
+			      const Loc_T<Rank> &stops, 
+			      const Loc_T<Rank> &strides) {
   builder::dyn_var<loop_type> extent = hfloor((stops[Depth] - starts[Depth] - (loop_type)1) / 
 					      strides[Depth]) + (loop_type)1;
   arr[Depth] = extent;
@@ -179,10 +165,11 @@ void convert_stops_to_extents(Loc_T<Rank> arr, Loc_T<Rank> starts, Loc_T<Rank> s
 ///
 /// Convert the stop parameter from a slice into an extent
 template <int Rank>
-Loc_T<Rank> convert_stops_to_extents(Loc_T<Rank> starts, Loc_T<Rank> stops, Loc_T<Rank> strides) {
-  Loc_T<Rank> arr;
+void convert_stops_to_extents(Loc_T<Rank> &arr,
+			      const Loc_T<Rank> &starts, 
+			      const Loc_T<Rank> &stops, 
+			      const Loc_T<Rank> &strides) {
   convert_stops_to_extents<0, Rank>(arr, starts, stops, strides);
-  return arr;
 }
 
 }

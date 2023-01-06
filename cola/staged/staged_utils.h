@@ -3,6 +3,7 @@
 #pragma once
 
 #include "builder/dyn_var.h"
+#include "builder/array.h"
 #include "builder/static_var.h"
 #include "common/loop_type.h"
 #include "fwrappers.h"
@@ -11,7 +12,7 @@
 
 namespace cola {
 
-///
+/*///
 /// Fill a Loc_T object with template values
 template <int Idx, typename D, loop_type Val, loop_type...Vals>
 void to_Loc_T(D &dyn) {
@@ -25,27 +26,27 @@ void to_Loc_T(D &dyn) {
 /// Create a Loc_T object from template values
 template <loop_type...Vals>
 Loc_T<sizeof...(Vals)> to_Loc_T() {
-  builder::dyn_var<loop_type[sizeof...(Vals)]> loc_t;
+  builder::dyn_arr<loop_type[sizeof...(Vals)]> loc_t;
   to_Loc_T<0,decltype(loc_t),Vals...>(loc_t);
   return loc_t;
-}
+}*/
 
 ///
 /// Make a homogeneous N-tuple containing Val
-template <typename T, T Val, int N>
+/*template <typename T, T Val, int N>
 auto make_tup() {
   if constexpr (N == 0) {
     return std::tuple{};
   } else {
     return std::tuple_cat(std::tuple{Val}, make_tup<T, Val, N-1>());
   }
-}
+}*/
 
 ///
 /// Convert a coordinate to a linear index 
-template <int Depth, int Rank, typename...TupleTypes>
-static builder::dyn_var<loop_type> linearize(Loc_T<Rank> extents, const std::tuple<TupleTypes...> &coord) {
-  builder::dyn_var<loop_type> c = std::get<Rank-1-Depth>(coord);
+template <int Depth, unsigned long Rank>
+builder::dyn_var<loop_type> linearize(const Loc_T<Rank> &extents, builder::dyn_arr<loop_type,Rank> &coord) {
+  builder::dyn_var<loop_type> c = coord[Rank-1-Depth];
   if constexpr (Depth == Rank - 1) {
     return c;
   } else {
@@ -56,7 +57,7 @@ static builder::dyn_var<loop_type> linearize(Loc_T<Rank> extents, const std::tup
 ///
 /// Perform a reduction across a region of obj
 template <typename Functor, int Begin, int End, int Depth, typename Obj>
-auto reduce_region_inner(Obj obj) {
+auto reduce_region_inner(Obj &obj) {
   if constexpr (Depth >= Begin && Depth < End) {
     builder::dyn_var<loop_type> item = obj[Depth];
     if constexpr (Depth < End - 1) {
@@ -72,16 +73,16 @@ auto reduce_region_inner(Obj obj) {
 
 ///
 /// Perform a reduction across a region of obj
-template <typename Functor, int Begin, int End, int Rank, typename Obj>
-auto reduce_region(Obj obj) {
+template <typename Functor, int Begin, int End, unsigned long Rank, typename Obj>
+auto reduce_region(Obj &obj) {
   static_assert(Begin < Rank && End <= Rank && Begin < End);
   return reduce_region_inner<Functor,Begin,End,0>(obj);
 }
 
 ///
 /// Perform a reduction across a dyn_var<T[]>
-template <typename Functor, int Rank, typename T>
-builder::dyn_var<T> reduce(builder::dyn_var<T[Rank]> arr) {
+template <typename Functor, unsigned long Rank, typename T>
+builder::dyn_var<T> reduce(builder::dyn_arr<T,Rank> &arr) {
   builder::dyn_var<T> acc = arr[0];
   for (builder::static_var<T> i = 1; i < Rank; i=i+1) {
     acc = Functor()(acc, arr[i]);
@@ -102,7 +103,7 @@ constexpr loop_type mul_reduce() {
 
 ///
 /// Convert a linear index to a coordinate
-template <int Depth, int Rank, typename LIdx, typename Extents>
+template <int Depth, unsigned long Rank, typename LIdx, typename Extents>
 auto delinearize(LIdx lidx, const Extents &extents) {
   if constexpr (Depth+1 == Rank) {
     return std::tuple{lidx};
@@ -115,10 +116,10 @@ auto delinearize(LIdx lidx, const Extents &extents) {
 
 ///
 /// Apply Functor to the elements in arr0 and arr1 and store the result in arr
-template <typename Functor, int Rank, int Depth>
-void apply(Loc_T<Rank> arr,
-	   Loc_T<Rank> arr0, 
-	   Loc_T<Rank> arr1) {
+template <typename Functor, unsigned long Rank, int Depth=0>
+void apply(Loc_T<Rank> &arr,
+	   const Loc_T<Rank> &arr0, 
+	   const Loc_T<Rank> &arr1) {
   auto applied = Functor()(arr0[Depth], arr1[Depth]);
   arr[Depth] = applied;
   if constexpr (Depth < Rank-1) {
@@ -128,13 +129,13 @@ void apply(Loc_T<Rank> arr,
 
 ///
 /// Apply Functor to the elements in arr0 and arr1 and produce the resulting arr
-template <typename Functor, int Rank>
-Loc_T<Rank> apply(Loc_T<Rank> arr0, 
-		  Loc_T<Rank> arr1) {
-  Loc_T<Rank> arr;
-  apply<Functor, Rank, 0>(arr, arr0, arr1);
-  return arr;
-}
+//template <typename Functor, unsigned long Rank>
+//Loc_T<Rank> apply(const Loc_T<Rank> &arr0, 
+//		  const Loc_T<Rank> &arr1) {
+//  Loc_T<Rank> arr;
+//  apply<Functor, Rank, 0>(arr, arr0, arr1);
+//  return arr;
+//}
 
 #define DISPATCH_PRINT_ELEM(dtype)				\
   template <>							\
@@ -165,14 +166,14 @@ void dispatch_print_elem(Val val) {
 }
 
 // Create a new Loc_T and copy over the contents of obj
-template <int Rank>
+/*template <unsigned long Rank>
 Loc_T<Rank> deepcopy(Loc_T<Rank> obj) {
   Loc_T<Rank> copy;
   for (builder::static_var<int> i = 0; i < Rank; i=i+1) {
     copy[i] = obj[i];
   }
   return copy;
-}
+}*/
 
 ///
 /// Create the type that resultsing from concatenting Idx to tuple<Idxs...>

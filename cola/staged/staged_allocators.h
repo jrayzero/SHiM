@@ -124,18 +124,18 @@ struct Allocation {
 #define DISPATCH_MULTI_READER(dtype)					\
   template <typename Data>						\
   struct DispatchMultiRead<dtype, Data> {				\
-    template <int N>							\
-    auto operator()(builder::dyn_var<loop_type> (&lidx)[N], Data data) { \
-      return multi_read_##dtype(data,lidx);				\
+    template <unsigned long N>							\
+    auto operator()(builder::dyn_arr<loop_type, N> &idxs, Data data) { \
+      return multi_read_##dtype(data,idxs);				\
     }									\
   }
 
 #define DISPATCH_MULTI_WRITER(dtype)					\
   template <typename Data>						\
   struct DispatchMultiWrite<dtype, Data> {				\
-    template <int N>							\
-    void operator()(builder::dyn_var<dtype> val, builder::dyn_var<loop_type> (&lidx)[N], Data data) { \
-      multi_write_##dtype(data, lidx, val);				\
+    template <unsigned long N>							\
+    void operator()(builder::dyn_var<dtype> val, builder::dyn_arr<loop_type,N> &idxs, Data data) { \
+      multi_write_##dtype(data, idxs, val);				\
     }									\
   }
 
@@ -260,16 +260,16 @@ void dispatch_write(builder::dyn_var<Elem> val, builder::dyn_var<loop_type> lidx
 
 ///
 /// Calls the appropriate external read function based on the Elem and allocation type
-template <typename Elem, typename Data, int N>
-auto dispatch_multi_read(builder::dyn_var<loop_type> (&lidx)[N], Data data) {
-  return DispatchMultiRead<Elem,Data>()(lidx, data);
+template <typename Elem, typename Data, unsigned long N>
+auto dispatch_multi_read(builder::dyn_arr<loop_type,N> &idxs, Data data) {
+  return DispatchMultiRead<Elem,Data>()(idxs, data);
 }
 
 ///
 /// Calls the appropriate external write function based on the Elem and allocation type
-template <typename Elem, typename Data, int N>
-void dispatch_multi_write(builder::dyn_var<Elem> val, builder::dyn_var<loop_type> (&lidx)[N], Data data) {
-  DispatchMultiWrite<Elem,Data>()(val, lidx, data);
+template <typename Elem, typename Data, unsigned long N>
+void dispatch_multi_write(builder::dyn_var<Elem> val, builder::dyn_arr<loop_type,N> &idxs, Data data) {
+  DispatchMultiWrite<Elem,Data>()(val, idxs, data);
 }
 
 ///
@@ -297,9 +297,9 @@ struct HeapAllocation : public Allocation<Elem,1> {
 
   bool is_heap_strategy() const override { return true; }
 
-  builder::dyn_var<Elem> read(builder::dyn_var<loop_type> (&idxs)[1]) override;
+  builder::dyn_var<Elem> read(builder::dyn_arr<loop_type,1> &idxs) override;
 
-  void write(builder::dyn_var<Elem> val, builder::dyn_var<loop_type> (&idxs)[1]) override;
+  void write(builder::dyn_var<Elem> val, builder::dyn_arr<loop_type,1> &idxs) override;
 
   void memset(builder::dyn_var<loop_type> sz) override;
 
@@ -315,9 +315,9 @@ struct StackAllocation : public Allocation<Elem,1> {
 
   bool is_stack_strategy() const override { return true; }
 
-  builder::dyn_var<Elem> read(builder::dyn_var<loop_type> (&idxs)[1]) override;
+  builder::dyn_var<Elem> read(builder::dyn_arr<loop_type,1> &idxs) override;
 
-  void write(builder::dyn_var<Elem> val, builder::dyn_var<loop_type> (&idxs)[1]) override;
+  void write(builder::dyn_var<Elem> val, builder::dyn_arr<loop_type,1> &idxs) override;
 
   void memset(builder::dyn_var<loop_type> sz) override;
 
@@ -358,13 +358,13 @@ builder::dyn_var<Elem[Sz]> Allocation<Elem, PhysicalRank>::stack() {
 }
 
 template <typename Elem>
-builder::dyn_var<Elem> HeapAllocation<Elem>::read(builder::dyn_var<loop_type> (&idxs)[1]) { 
-  return dispatch_read<Elem,true>(idxs[0], data);
+builder::dyn_var<Elem> HeapAllocation<Elem>::read(builder::dyn_arr<loop_type,1> &idxs) { 
+  return data[idxs[0]];
 }
 
 template <typename Elem>
-void HeapAllocation<Elem>::write(builder::dyn_var<Elem> val, builder::dyn_var<loop_type> (&idxs)[1]) { 
-  dispatch_write<Elem,true>(val, idxs[0], data);
+void HeapAllocation<Elem>::write(builder::dyn_var<Elem> val, builder::dyn_arr<loop_type,1> &idxs) { 
+  data[idxs[0]] = val;
 }
 
 template <typename Elem>
@@ -373,13 +373,13 @@ void HeapAllocation<Elem>::memset(builder::dyn_var<loop_type> sz) {
 }
 
 template <typename Elem, int Sz>
-builder::dyn_var<Elem> StackAllocation<Elem,Sz>::read(builder::dyn_var<loop_type> (&idxs)[1]) { 
-  return dispatch_read<Elem,false>(idxs[0], data);
+builder::dyn_var<Elem> StackAllocation<Elem,Sz>::read(builder::dyn_arr<loop_type,1> &idxs) { 
+  return data[idxs[0]];
 }
 
 template <typename Elem, int Sz>
-void StackAllocation<Elem,Sz>::write(builder::dyn_var<Elem> val, builder::dyn_var<loop_type> (&idxs)[1]) { 
-  dispatch_write<Elem,false>(val, idxs[0], data);
+void StackAllocation<Elem,Sz>::write(builder::dyn_var<Elem> val, builder::dyn_arr<loop_type,1> &idxs) { 
+  data[idxs[0]] = val;
 }
 
 template <typename Elem, int Sz>

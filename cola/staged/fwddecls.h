@@ -2,6 +2,8 @@
 
 #pragma once
 
+#include "builder/array.h"
+
 // forward declarations for a bunch of things I need
 // also includes some general type definitions
 
@@ -10,9 +12,9 @@ namespace cola {
 ///// Forward declarations
 
 // Block-like things
-template <typename Elem, int Rank, bool MultiDimPtr>
+template <typename Elem, unsigned long Rank, bool MultiDimPtr>
 struct Block;
-template <typename Elem, int Rank, bool MultiDimPtr>
+template <typename Elem, unsigned long Rank, bool MultiDimPtr>
 struct View;
 template <typename BlockLike, typename Idxs> 
 struct Ref;
@@ -88,7 +90,7 @@ template <typename Elem>
 using HEAP_T = typename builder::name<build_heap_name<Elem>()>;
 
 /// The type for location information in blocks and views
-template <int Rank>
-using Loc_T = builder::dyn_var<loop_type[Rank]>;
+template <unsigned long Rank>
+using Loc_T = builder::dyn_arr<loop_type,Rank>;
 
 }
