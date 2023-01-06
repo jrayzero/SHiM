@@ -2,6 +2,7 @@
 
 #include <sstream>
 #include <iostream>
+#include <cmath>
 #include "heaparray.h"
 
 namespace cola {

@@ -70,3 +70,24 @@ function (staged_h264d)
 endfunction()
 
 staged_h264d()
+
+function (scratch name)
+ add_executable(s${name} ${CMAKE_SOURCE_DIR}/scratch/s${name}.cpp)
+ target_link_libraries(s${name} buildit)
+ 
+ # now run the staged code
+ add_custom_command(OUTPUT ${CMAKE_BINARY_DIR}/s${name}.cpp ${CMAKE_BINARY_DIR}/s${name}.h
+                    COMMAND ${CMAKE_BINARY_DIR}/s${name} ARGS s${name}
+                    # make it depend on the binary since cmake is dump and won't let me just depend on the target...
+                    DEPENDS ${CMAKE_BINARY_DIR}/s${name})
+
+ # build the generate cpp code 		    	    
+ add_library(${name}_cpp STATIC ${CMAKE_BINARY_DIR}/s${name}.cpp)
+
+ # and build it with the unstaged part
+ add_executable(${name} ${CMAKE_SOURCE_DIR}/scratch/${name}.c)
+ target_include_directories(${name} PUBLIC ${CMAKE_BINARY_DIR})		    
+ target_link_libraries(${name} ${name}_cpp)
+endfunction()
+
+scratch(scratch1)

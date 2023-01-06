@@ -436,27 +436,8 @@ int main(int argc, char **argv) {
     cerr << "Usage: ./sjpeg <output_fn>" << endl;
     exit(-1);
   }
-  std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
-  ofstream src;
-  ofstream hdr;
-  string source = string(argv[1]) + ".cpp";
-  string header = string(argv[1]) + ".h";
-  src.open(source);
-  hdr.open(header);
-  hdr << "#pragma once" << endl;
-  hdr << "#include <cmath>" << endl;
-  hdr << "#include \"huffman.h\"" << endl;
-  hdr << "#include \"bits.h\"" << endl;
-  hdr << "void jpeg(unsigned char*, int, int, int[], int[], int*, const HuffmanCodes&, const HuffmanCodes&, Bits&);" << endl;
-  hdr.flush();
-  hdr.close();
-  src << "#include \"" << header << "\"" << endl;
-  src << "#include \"runtime/runtime.h\"" << endl;
-  stringstream ss;
-  stage(jpeg_staged, "jpeg", ss);
-  src << ss.str() << endl;
-  src.flush();
-  src.close();
-  std::chrono::steady_clock::time_point stop = std::chrono::steady_clock::now();
-  std::cout << "Staging took " << std::chrono::duration_cast<std::chrono::nanoseconds> (stop - start).count()/1e9 << "s" << std::endl;  
+  std::stringstream ss;
+  ss << "#include \"huffman.h\"" << endl;
+  ss << "#include \"bits.h\"" << endl;
+  stage(jpeg_staged, true, "jpeg", argv[1], ss.str(), ss.str());
 }
