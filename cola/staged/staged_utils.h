@@ -12,36 +12,6 @@
 
 namespace cola {
 
-/*///
-/// Fill a Loc_T object with template values
-template <int Idx, typename D, loop_type Val, loop_type...Vals>
-void to_Loc_T(D &dyn) {
-  dyn[Idx] = Val;
-  if constexpr (sizeof...(Vals) > 0) {
-    to_Loc_T<Idx+1,D,Vals...>(dyn);
-  }
-}
-
-///
-/// Create a Loc_T object from template values
-template <loop_type...Vals>
-Loc_T<sizeof...(Vals)> to_Loc_T() {
-  builder::dyn_arr<loop_type[sizeof...(Vals)]> loc_t;
-  to_Loc_T<0,decltype(loc_t),Vals...>(loc_t);
-  return loc_t;
-}*/
-
-///
-/// Make a homogeneous N-tuple containing Val
-/*template <typename T, T Val, int N>
-auto make_tup() {
-  if constexpr (N == 0) {
-    return std::tuple{};
-  } else {
-    return std::tuple_cat(std::tuple{Val}, make_tup<T, Val, N-1>());
-  }
-}*/
-
 ///
 /// Convert a coordinate to a linear index 
 template <int Depth, unsigned long Rank>
@@ -103,14 +73,15 @@ constexpr loop_type mul_reduce() {
 
 ///
 /// Convert a linear index to a coordinate
-template <int Depth, unsigned long Rank, typename LIdx, typename Extents>
-auto delinearize(LIdx lidx, const Extents &extents) {
+template <int Depth, unsigned long Rank, typename LIdx>
+void delinearize(Loc_T<Rank> &out, LIdx lidx, const Loc_T<Rank> &extents) {
   if constexpr (Depth+1 == Rank) {
-    return std::tuple{lidx};
+    out[Depth] = lidx;
   } else {
     builder::dyn_var<loop_type> m = reduce_region<MulFunctor, Depth+1, Rank, Rank>(extents);
     builder::dyn_var<loop_type> c = lidx / m;
-    return std::tuple_cat(std::tuple{c}, delinearize<Depth+1, Rank>(lidx % m, extents));
+    out[Depth] = c;
+    delinearize<Depth+1, Rank>(out, lidx % m, extents);    
   }
 }
 
@@ -126,16 +97,6 @@ void apply(Loc_T<Rank> &arr,
     apply<Functor,Rank,Depth+1>(arr,arr0, arr1);
   }
 }
-
-///
-/// Apply Functor to the elements in arr0 and arr1 and produce the resulting arr
-//template <typename Functor, unsigned long Rank>
-//Loc_T<Rank> apply(const Loc_T<Rank> &arr0, 
-//		  const Loc_T<Rank> &arr1) {
-//  Loc_T<Rank> arr;
-//  apply<Functor, Rank, 0>(arr, arr0, arr1);
-//  return arr;
-//}
 
 #define DISPATCH_PRINT_ELEM(dtype)				\
   template <>							\
@@ -164,16 +125,6 @@ template <typename Elem, typename Val>
 void dispatch_print_elem(Val val) {
   DispatchPrintElem<Elem>()(val);
 }
-
-// Create a new Loc_T and copy over the contents of obj
-/*template <unsigned long Rank>
-Loc_T<Rank> deepcopy(Loc_T<Rank> obj) {
-  Loc_T<Rank> copy;
-  for (builder::static_var<int> i = 0; i < Rank; i=i+1) {
-    copy[i] = obj[i];
-  }
-  return copy;
-}*/
 
 ///
 /// Create the type that resultsing from concatenting Idx to tuple<Idxs...>

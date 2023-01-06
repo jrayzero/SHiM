@@ -39,7 +39,7 @@ auto ptr_wrap() {
     if constexpr (Depth == Rank-1) {
       return PtrWrap<Elem>();
     } else {
-      return PtrWrap<typename decltype(ptr_wrap<Elem,Rank,Depth+1>())::P>();
+      return PtrWrap<typename decltype(ptr_wrap<Elem,Rank,MultiDimPtr,Depth+1>())::P>();
     }
   } else {
     return PtrWrap<Elem>(); // Becomes Elem*
@@ -402,11 +402,14 @@ Ref<Block<Elem,Rank,MultiDimPtr>,std::tuple<typename RefIdxType<Idx>::type>> Blo
 template <typename Elem, unsigned long Rank, bool MultiDimPtr>
 template <typename LIdx>
 builder::dyn_var<Elem> Block<Elem,Rank,MultiDimPtr>::plidx(LIdx lidx) {
-  assert(false);
-  // JESS
-  builder::dyn_arr<loop_type,physical<Rank,MultiDimPtr>()> idxs;
-  idxs[0] = lidx;
-  return allocator->read(idxs);
+  if constexpr (MultiDimPtr == true) {
+    SLoc_T idxs;
+    delinearize<0,Rank>(idxs, lidx, this->bextents);
+    return allocator->read(idxs);
+  } else {
+    builder::dyn_arr<loop_type,physical<Rank,MultiDimPtr>()> idxs{lidx};
+    return allocator->read(idxs);
+  }
 }
 
 template <typename Elem, unsigned long Rank, bool MultiDimPtr>
@@ -635,10 +638,9 @@ Ref<View<Elem,Rank,MultiDimPtr>,std::tuple<typename RefIdxType<Idx>::type>> View
 template <typename Elem, unsigned long Rank, bool MultiDimPtr>
 template <typename LIdx>
 builder::dyn_var<Elem> View<Elem,Rank,MultiDimPtr>::plidx(LIdx lidx) {
-  // JESS
-  assert(false);
   // must delinearize relative to the view
-  auto coord = delinearize<0,Rank>(lidx, this->vextents);
+  SLoc_T coord;
+  delinearize<0,Rank>(coord, lidx, this->vextents);
   return this->operator()(coord);
 }
 
