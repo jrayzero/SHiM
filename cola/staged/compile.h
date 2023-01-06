@@ -15,9 +15,9 @@ namespace cola {
 class hmda_cpp_code_generator : public block::c_code_generator {
   using c_code_generator::visit;
 public:
-  hmda_cpp_code_generator(std::ostream &_oss) : block::c_code_generator(_oss) { }
+//  hmda_cpp_code_generator(std::ostream &oss) : c_code_generator(oss) { }
   static void generate_code(block::block::Ptr ast, std::ostream &oss, int indent = 0) {
-    hmda_cpp_code_generator generator(oss);
+    hmda_cpp_code_generator generator;//(oss);
     generator.curr_indent = indent;
     // first generate all the struct definitions
     std::stringstream structs;
@@ -31,60 +31,13 @@ public:
     oss << structs.str();
     // then back to the usual
     ast->accept(&generator);
+    oss << generator.last;
     oss << std::endl;
   }
 
-  void visit(block::func_decl::Ptr a) {
-    a->return_type->accept(this);
-    if (a->hasMetadata<std::vector<std::string>>("attributes")) {
-      const auto &attributes = a->getMetadata<std::vector<std::string>>("attributes");
-      for (auto attr: attributes) {
-	oss << " " << attr;
-      }
-    }
-    oss << " " << a->func_name;
-    oss << " (";
-    bool printDelim = false;
-    for (auto arg : a->args) {
-      if (printDelim)
-	oss << ", ";
-      printDelim = true;
-      if (block::isa<block::function_type>(arg->var_type)) {
-	handle_func_arg(arg);
-      } else if (block::isa<block::array_type>(arg->var_type)) { // change here 
-	// Elem arg[]
-	auto atype = block::to<block::array_type>(arg->var_type);
-	atype->element_type->accept(this);
-	oss << " " << arg->var_name;
-	oss << "[";
-	if (atype->size != -1) {
-	  oss << atype->size;
-	}
-	oss << "]";
-      } else { 
-	arg->var_type->accept(this);
-	oss << " " << arg->var_name;
-      }
-    }
-    if (!printDelim)
-      oss << "void";
-    oss << ")";
-    if (block::isa<block::stmt_block>(a->body)) {
-      oss << " ";
-      a->body->accept(this);
-      oss << std::endl;
-    } else {
-      oss << std::endl;
-      curr_indent++;
-      printer::indent(oss, curr_indent);
-      a->body->accept(this);
-      oss << std::endl;
-      curr_indent--;
-    }    
-  }
-
   // apply string-matching based optimizations
-  void visit(block::for_stmt::Ptr s) {
+/*  void visit(block::for_stmt::Ptr s) {
+    std::stringstream ss;
     std::string annot = s->annotation;
     // first split on different annotations
     std::vector<std::string> annots = split_on(annot, ";");
@@ -109,33 +62,22 @@ public:
 	  } else {
 	    prg << std::endl;
 	  }
-	  oss << prg.str();
-	  printer::indent(oss, curr_indent);
+
+	  ss << prg.str();
+	  printer::indent(ss, curr_indent);
 	}
 	block::c_code_generator::visit(s);
+	ss << last;
       } else {
 	std::cerr << "Unknown AST annotation: " << annot << std::endl;
 	exit(48);
       }
     } else {
       block::c_code_generator::visit(s);
+      ss << last;
     }
-  }
-
-  // Mostly deals with finding my annotations for staged objects
-  void visit(block::decl_stmt::Ptr s) {
-    std::string annot = s->annotation;
-    std::vector<std::string> annots = split_on(annot, ";");
-    if (annots.size() > 1) {
-      std::cerr << "Only supporting single opt applications currently." << std::endl;
-      exit(-1);
-    }
-    if (!annots.empty()) {
-      std::vector<std::string> comps = split_on(annots[0], ":");
-    } else {
-      block::c_code_generator::visit(s);
-    }
-  }
+    last = ss.str();
+  }*/
 
 private:
 
@@ -149,7 +91,7 @@ template <typename Func, typename...Args>
 void stage(Func func, std::string name, std::ostream &output, Args...args) {
   if (name.empty()) name = "__my_staged_func";
   auto ast = builder::builder_context().extract_function_ast(func, name, args...);
-//  block::eliminate_redundant_vars(ast);
+  block::eliminate_redundant_vars(ast);
   hmda_cpp_code_generator::generate_code(ast, output, 0);
 }
 
