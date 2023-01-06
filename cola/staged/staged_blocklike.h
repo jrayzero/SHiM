@@ -5,6 +5,7 @@
 #include <vector>
 #include <sstream>
 #include "builder/dyn_var.h"
+#include "builder/array.h"
 #include "fwddecls.h"
 #include "traits.h"
 #include "functors.h"
@@ -32,9 +33,9 @@ struct PtrWrap {
   using P = Elem*;
 };
 
-template <typename Elem, int Rank, int Depth=0>
-auto ptr_wrap() {
-  if constexpr (Depth == Rank-1) {
+template <typename Elem, int Rank, bool MultiDimPtr, int Depth=0>
+auto ptr_wrap() {  
+  if constexpr (Depth == Rank-1 || MultiDimPtr == true) {
     return PtrWrap<Elem>();
   } else {
     return PtrWrap<typename decltype(ptr_wrap<Elem,Rank,Depth+1>())::P>();
@@ -48,6 +49,16 @@ constexpr int physical() {
   } else {
     return 1;
   }
+}
+
+template <typename Elem>
+struct Peel { constexpr int operator()() { return 1; } };
+template <typename Elem>
+struct Peel<Elem*> { constexpr int operator()() { return 1 + Peel<Elem>()(); } };
+
+template <typename Elem>
+constexpr int peel() {
+  return Peel<Elem>()();
 }
 
 ///
@@ -85,12 +96,12 @@ struct Block {
   ///
   /// Create a user-managed allocation
   static Block<Elem,Rank,MultiDimPtr> user(SLoc_T bextents, 
-					   builder::dyn_var<typename decltype(ptr_wrap<Elem,Rank>())::P> user);
+					   builder::dyn_var<typename decltype(ptr_wrap<Elem,Rank,MultiDimPtr>())::P> user);
   
   ///
   /// Read a single element at the specified coordinate
-  template <typename...Coords>
-  builder::dyn_var<Elem> operator()(std::tuple<Coords...>);
+  template <unsigned long N>
+  builder::dyn_var<Elem> inner_read(builder::dyn_arr<loop_type,N> &iters);
 
   ///
   /// Read a single element at the specified coordinate
@@ -285,26 +296,44 @@ private:
 };
 
 template <typename Elem, int Rank, bool MultiDimPtr>
-template <typename...Iters>
-builder::dyn_var<Elem> Block<Elem,Rank,MultiDimPtr>::operator()(std::tuple<Iters...> iters) {
-  static_assert(sizeof...(Iters) <= Rank);
-  if constexpr (sizeof...(Iters) < Rank) {
+template <unsigned long N>
+builder::dyn_var<Elem> Block<Elem,Rank,MultiDimPtr>::inner_read(builder::dyn_arr<loop_type,N> &iters) {
+  static_assert(N <= Rank);
+  if constexpr (N < Rank) {
     // we need padding at the front
-    constexpr int pad_amt = Rank-sizeof...(Iters);
-    auto coord = std::tuple_cat(make_tup<loop_type,0,pad_amt>(), iters);
-    return this->operator()(coord);
-  } else { // coordinate-based
-    builder::dyn_var<loop_type> lidx = linearize<0,Rank>(this->bextents, iters);
-    builder::dyn_var<loop_type> idxs[physical<Rank,MultiDimPtr>()];
-    idxs[0] = lidx;
-    return allocator->read(idxs);
+    constexpr int pad_amt = Rank-N;
+    builder::dyn_arr<loop_type,Rank> arr;
+    for (builder::static_var<int> i = 0; i < pad_amt; i=i+1) {
+      arr[i] = 0;
+    }
+    for (builder::static_var<int> i = 0; i < N; i=i+1) {
+      arr[i+pad_amt] = iters[i];
+    }
+    return this->inner_read(arr);
+  } else {
+    if constexpr (MultiDimPtr==true) {
+      return allocator->read(iters);
+    } else {
+      builder::dyn_var<loop_type> lidx = linearize<0,Rank>(this->bextents, iters);
+      builder::dyn_arr<loop_type,1> arr{lidx};
+      return allocator->read(arr);
+    }
+  }
+}
+
+template <int Depth, unsigned long N, typename Iter, typename...Iters>
+void splat(builder::dyn_arr<loop_type,N> &arr, Iter iter, Iters...iters) {
+  arr[Depth] = iter;
+  if constexpr (Depth < N - 1) {
+    splat<Depth+1>(arr, iters...);
   }
 }
 
 template <typename Elem, int Rank, bool MultiDimPtr>
 template <typename...Iters>
 builder::dyn_var<Elem> Block<Elem,Rank,MultiDimPtr>::operator()(Iters...iters) {
-  return this->operator()(std::tuple{iters...});
+  builder::dyn_arr<loop_type,sizeof...(Iters)> arr{iters...};
+  return this->inner_read(arr);
 }
 
 template <typename Elem, int Rank, bool MultiDimPtr>
@@ -318,7 +347,7 @@ void Block<Elem,Rank,MultiDimPtr>::write(ScalarElem val, std::tuple<Iters...> it
     this->write(val, coord);
   } else { // coordinate-based
     builder::dyn_var<loop_type> lidx = linearize<0,Rank>(this->bextents, iters);
-    builder::dyn_var<loop_type> idxs[physical<Rank,MultiDimPtr>()];
+    builder::dyn_arr<loop_type,physical<Rank,MultiDimPtr>()> idxs;
     idxs[0] = lidx;
     allocator->write(val, idxs);
   }
@@ -341,7 +370,7 @@ template <typename LIdx>
 builder::dyn_var<Elem> Block<Elem,Rank,MultiDimPtr>::plidx(LIdx lidx) {
   // don't need to delinearize here since the pseudo index is just a normal
   // index for a block
-  builder::dyn_var<loop_type> idxs[physical<Rank,MultiDimPtr>()];
+  builder::dyn_arr<loop_type,physical<Rank,MultiDimPtr>()> idxs;
   idxs[0] = lidx;
   return allocator->read(idxs);
 }
@@ -466,9 +495,12 @@ Block<Elem,Rank,MultiDimPtr> Block<Elem,Rank,MultiDimPtr>::stack() {
 
 template <typename Elem, int Rank, bool MultiDimPtr>
 Block<Elem,Rank,MultiDimPtr> Block<Elem,Rank,MultiDimPtr>::user(SLoc_T bextents, 
-								builder::dyn_var<typename decltype(ptr_wrap<Elem,Rank>())::P> user) {  
+								builder::dyn_var<typename decltype(ptr_wrap<Elem,Rank,MultiDimPtr>())::P> user) {  
+  // make sure that the dyn_var passed in matches the actual storage type (seems like it's not caught otherwise?)
+  static_assert((MultiDimPtr && peel<typename decltype(ptr_wrap<Elem,Rank,MultiDimPtr>())::P>() == Rank) || 
+		(!MultiDimPtr && peel<typename decltype(ptr_wrap<Elem,Rank,MultiDimPtr>())::P>() == 1));
   if constexpr (MultiDimPtr) {
-    auto allocator = std::make_shared<UserAllocation<Elem,typename decltype(ptr_wrap<Elem,Rank>())::P,Rank>>(user);
+    auto allocator = std::make_shared<UserAllocation<Elem,typename decltype(ptr_wrap<Elem,Rank,MultiDimPtr>())::P,Rank>>(user);
     return Block<Elem,Rank,MultiDimPtr>(bextents, allocator);
   } else {
     auto allocator = std::make_shared<UserAllocation<Elem,Elem*,1>>(user);
@@ -493,7 +525,7 @@ builder::dyn_var<Elem> View<Elem,Rank,MultiDimPtr>::operator()(std::tuple<Iters.
     // then linearize with respect to the block
     builder::dyn_var<loop_type> lidx = linearize<0,Rank>(this->bextents, biters);
     // see block::operator for this I do it this way
-    builder::dyn_var<loop_type> idxs[physical<Rank,MultiDimPtr>()];
+    builder::dyn_arr<loop_type,physical<Rank,MultiDimPtr>()> idxs;
     idxs[0] = lidx;
     return allocator->read(idxs);
   }
@@ -521,7 +553,7 @@ void View<Elem,Rank,MultiDimPtr>::write(ScalarElem val, std::tuple<Iters...> ite
     auto biters = compute_block_relative_iters<0>(iters);
     // then linearize with respect to the block
     builder::dyn_var<loop_type> lidx = linearize<0,Rank>(this->bextents, biters);
-    builder::dyn_var<loop_type> idxs[physical<Rank,MultiDimPtr>()];
+    builder::dyn_arr<loop_type,physical<Rank,MultiDimPtr>()> idxs;
     idxs[0] = lidx;
     allocator->write(val, idxs);
   }
