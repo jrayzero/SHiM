@@ -42,7 +42,10 @@ STATIC=
 endif
 
 LIBS=   -lm $(STATIC)
-CFLAGS+=  -std=gnu99 -pedantic -ffloat-store -fno-strict-aliasing -fsigned-char $(STATIC)
+ifeq ($(USE_COLA),1)
+LIBS+= -L../../build/ -lcolaJM
+endif
+CFLAGS+=  -std=gnu99 -pedantic -fno-strict-aliasing -fsigned-char $(STATIC)
 FLAGS=  $(CFLAGS) -Wall -I$(INCDIR) -I$(ADDINCDIR) -D __USE_LARGEFILE64 -D _FILE_OFFSET_BITS=64
 
 ifeq ($(M32),1)

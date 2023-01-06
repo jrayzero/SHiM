@@ -5,7 +5,7 @@
 ###             by Limin Wang(lance.lmwang@gmail.com) 
 ###
 
-SUBDIRS := lencod ldecod rtpdump rtp_loss
+SUBDIRS := lencod rtpdump rtp_loss
 
 ### include debug information: 1=yes, 0=no
 DBG?= 0
@@ -16,8 +16,12 @@ STC?= 0
 ### OPENMP support : 1=yes, 0=no
 OPENMP?= 0
 
+USE_COLA?=0
+CFLAGS+=-DUSE_COLA=$(USE_COLA)
+CC?= $(shell which clang)
+
 #check for LLVM and silence warnings accordingly
-LLVM = $(shell $(CC) --version | grep LLVM)
+LLVM = $(shell $(CC) --version | grep clang)
 ifneq ($(LLVM),)
 	CFLAGS+=-Qunused-arguments
 else
