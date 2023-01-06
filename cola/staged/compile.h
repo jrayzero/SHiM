@@ -2,6 +2,8 @@
 
 #pragma once
 
+#include <chrono>
+#include <iostream>
 #include "common/utils.h"
 #include "blocks/c_code_generator.h"
 #include "builder/builder_dynamic.h"
@@ -14,10 +16,10 @@ namespace cola {
 // buildit prints "T[] arg", but correct syntax is "T arg[]"
 class hmda_cpp_code_generator : public block::c_code_generator {
   using c_code_generator::visit;
+  std::vector<std::string> sigs;
 public:
-//  hmda_cpp_code_generator(std::ostream &oss) : c_code_generator(oss) { }
-  static void generate_code(block::block::Ptr ast, std::ostream &oss, int indent = 0) {
-    hmda_cpp_code_generator generator;//(oss);
+  static std::vector<std::string> generate_code(block::block::Ptr ast, std::ostream &oss, int indent = 0) {
+    hmda_cpp_code_generator generator;
     generator.curr_indent = indent;
     // first generate all the struct definitions
     std::stringstream structs;
@@ -33,10 +35,57 @@ public:
     ast->accept(&generator);
     oss << generator.last;
     oss << std::endl;
+    return generator.sigs;
+  }
+  
+  void visit(block::func_decl::Ptr a) {
+    std::stringstream ss;
+    a->return_type->accept(this);
+    ss << last;
+    if (a->hasMetadata<std::vector<std::string>>("attributes")) {
+      const auto &attributes = a->getMetadata<std::vector<std::string>>("attributes");
+      for (auto attr: attributes) {
+	ss << " " << attr;
+      }
+    }
+    ss << " " << a->func_name;
+    ss << " (";
+    bool printDelim = false;
+    for (auto arg : a->args) {
+      if (printDelim)
+	ss << ", ";
+      printDelim = true;
+      if (block::isa<block::function_type>(arg->var_type)) {
+	handle_func_arg(arg);
+      } else {
+	arg->var_type->accept(this);
+	ss << last;
+	ss << " " << arg->var_name;
+      }
+    }
+    if (!printDelim)
+      ss << "void";
+    ss << ")";
+    sigs.push_back(ss.str());
+    if (block::isa<block::stmt_block>(a->body)) {
+      ss << " ";
+      a->body->accept(this);
+      ss << last;
+      ss << std::endl;
+    } else {
+      ss << std::endl;
+      curr_indent++;
+      printer::indent(ss, curr_indent);
+      a->body->accept(this);
+      ss << last;
+      ss << std::endl;
+      curr_indent--;
+    }
+    last = ss.str();
   }
 
   // apply string-matching based optimizations
-/*  void visit(block::for_stmt::Ptr s) {
+  void visit(block::for_stmt::Ptr s) {
     std::stringstream ss;
     std::string annot = s->annotation;
     // first split on different annotations
@@ -77,7 +126,7 @@ public:
       ss << last;
     }
     last = ss.str();
-  }*/
+  }
 
 private:
 
@@ -88,11 +137,38 @@ private:
 };
 
 template <typename Func, typename...Args>
-void stage(Func func, std::string name, std::ostream &output, Args...args) {
+void stage(Func func, bool isCPP, std::string name, std::string fn_prefix, std::string pre_hdr, std::string pre_src, Args...args) {
+  std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
+  std::ofstream src;
+  std::ofstream hdr;
+  std::string header = fn_prefix + ".h";  
+  std::string source = isCPP ? fn_prefix + ".cpp" : fn_prefix + ".c";
+  hdr.open(header);
+  src.open(source);
   if (name.empty()) name = "__my_staged_func";
   auto ast = builder::builder_context().extract_function_ast(func, name, args...);
   block::eliminate_redundant_vars(ast);
-  hmda_cpp_code_generator::generate_code(ast, output, 0);
+  hdr << "#pragma once" << std::endl;
+  hdr << pre_hdr;
+  src << pre_src;
+  src << "#include <math.h>" << std::endl;
+  src << "#include <stdio.h>" << std::endl;
+  src << "#include \"runtime/runtime.h\"" << std::endl;
+  std::vector<std::string> sigs = hmda_cpp_code_generator::generate_code(ast, src, 0);
+  for (auto sig : sigs) {
+    if (isCPP) {
+      hdr << sig << ";" << std::endl;
+    } else {
+      // TODO If have non-primitive types (i.e. classes) need to prefix with "struct"
+      hdr << "extern \"C\" " << sig << ";" << std::endl;
+    }
+  }
+  hdr.flush();
+  hdr.close();
+  src.flush();
+  src.close();
+  std::chrono::steady_clock::time_point stop = std::chrono::steady_clock::now();
+  std::cout << "Staging took " << std::chrono::duration_cast<std::chrono::nanoseconds> (stop - start).count()/1e9 << "s" << std::endl;  
 }
 
 }
