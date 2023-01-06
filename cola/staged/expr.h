@@ -83,13 +83,13 @@ struct GetCoreT<builder::dyn_var<Elem>> { using Core_T = Elem; };
 
 ///
 /// Core type is Elem
-template <typename Elem, int Rank, typename Idxs>
-struct GetCoreT<Ref<Block<Elem,Rank>,Idxs>> { using Core_T = Elem; };
+template <typename Elem, int Rank, bool MultiDimPtr, typename Idxs>
+struct GetCoreT<Ref<Block<Elem,Rank,MultiDimPtr>,Idxs>> { using Core_T = Elem; };
 
 ///
 /// Core type is Elem
-template <typename Elem, int Rank, typename Idxs>
-struct GetCoreT<Ref<View<Elem,Rank>,Idxs>> { using Core_T = Elem; };
+template <typename Elem, int Rank, bool MultiDimPtr, typename Idxs>
+struct GetCoreT<Ref<View<Elem,Rank,MultiDimPtr>,Idxs>> { using Core_T = Elem; };
 
 ///
 /// Core type is the core type of Binary

@@ -10,9 +10,9 @@ namespace cola {
 ///// Forward declarations
 
 // Block-like things
-template <typename Elem, int Rank>
+template <typename Elem, int Rank, bool MultiDimPtr>
 struct Block;
-template <typename Elem, int Rank>
+template <typename Elem, int Rank, bool MultiDimPtr>
 struct View;
 template <typename BlockLike, typename Idxs> 
 struct Ref;

@@ -27,10 +27,38 @@ namespace cola {
 // would affect the location of a given block/view. This is bad. It'd basically be like having a pointer
 // represent the location information.
 
+template <typename Elem>
+struct PtrWrap {
+  using P = Elem*;
+};
+
+template <typename Elem, int Rank, int Depth=0>
+auto ptr_wrap() {
+  if constexpr (Depth == Rank-1) {
+    return PtrWrap<Elem>();
+  } else {
+    return PtrWrap<typename decltype(ptr_wrap<Elem,Rank,Depth+1>())::P>();
+  }
+}
+
+template <int Rank, bool MultiDimPtr>
+constexpr int physical() {
+  if constexpr (MultiDimPtr) {
+    return Rank;
+  } else {
+    return 1;
+  }
+}
+
 ///
 /// A region of data with a location
-template <typename Elem, int Rank>
+/// If MultiDimPtr = true, the underlying array is a pointer to pointer to etc... (like Rank 2 = **).
+/// This is only supported for user-side allocations
+template <typename Elem, int Rank, bool MultiDimPtr=false>
 struct Block {
+  
+  template <typename Elem2, int Rank2, bool MultiDimPtr2>
+  friend struct View;
 
   using SLoc_T = Loc_T<Rank>;
   using Elem_T = Elem;
@@ -46,33 +74,19 @@ struct Block {
   Block(SLoc_T bextents, bool memset_data=false);
 
   ///
-  /// Create a Block with the specifed Allocation
-  Block(SLoc_T bextents, std::shared_ptr<Allocation<Elem>> allocator, bool memset_data=false);
-
-  ///
   /// Create an internally-managed heap Block
-  static Block<Elem,Rank> heap(SLoc_T bextents);
+  static Block<Elem,Rank,MultiDimPtr> heap(SLoc_T bextents);
 
   ///
   /// Create an internally-managed stack Block
   template <loop_type...Extents>
-  static Block<Elem,Rank> stack();
+  static Block<Elem,Rank,MultiDimPtr> stack();
 
   ///
   /// Create a user-managed allocation
-  template <typename Elem2>
-  static Block<Elem,Rank> user(SLoc_T bextents, builder::dyn_var<Elem2*> user);
+  static Block<Elem,Rank,MultiDimPtr> user(SLoc_T bextents, 
+					   builder::dyn_var<typename decltype(ptr_wrap<Elem,Rank>())::P> user);
   
-  ///
-  /// Create a user-managed heap Block
-  //  template <typename Elem2>
-  //  static Block<Elem,Rank> heap(SLoc_T bextents, builder::dyn_var<Elem2*> user);
-  
-  ///
-  /// Create a user-managed stack Block
-  //  template <typename Elem2>
-  //  static Block<Elem,Rank> stack(SLoc_T bextents, builder::dyn_var<Elem2[]> user);
-
   ///
   /// Read a single element at the specified coordinate
   template <typename...Coords>
@@ -96,33 +110,39 @@ struct Block {
 
   ///
   /// Create a View over this whole block
-  View<Elem,Rank> view();
+  View<Elem,Rank,MultiDimPtr> view();
 
   ///
   /// Slice out a View over a portion of this Block
   template <typename...Slices>
-  View<Elem,Rank> view(Slices...slices);
+  View<Elem,Rank,MultiDimPtr> view(Slices...slices);
 
   /// 
   /// Perform a lazy inline access on this Block
   template <typename Idx>
-  Ref<Block<Elem,Rank>,std::tuple<typename RefIdxType<Idx>::type>> operator[](Idx idx);
+  Ref<Block<Elem,Rank,MultiDimPtr>,std::tuple<typename RefIdxType<Idx>::type>> operator[](Idx idx);
 
   /// 
   /// Generate code for printing a rank 1, 2, or 3 Block.
   template <typename T=Elem>
   void dump_data();
 
-  std::shared_ptr<Allocation<Elem>> allocator;
+  std::shared_ptr<Allocation<Elem,physical<Rank,MultiDimPtr>()>> allocator;
   SLoc_T bextents;
   SLoc_T bstrides;
   SLoc_T borigin;
+
+private:
+
+  ///
+  /// Create a Block with the specifed Allocation
+  Block(SLoc_T bextents, std::shared_ptr<Allocation<Elem,physical<Rank,MultiDimPtr>()>> allocator, bool memset_data=false);
 
 };
 
 ///
 /// A region of data with a location that shares its underlying data with another block or view
-template <typename Elem, int Rank>
+template <typename Elem, int Rank, bool MultiDimPtr=false>
 struct View {
 
   using SLoc_T = builder::dyn_var<loop_type[Rank]>;
@@ -134,7 +154,7 @@ struct View {
   /// Create a View from the specified location information
   View(SLoc_T bextents, SLoc_T bstrides, SLoc_T borigin,
        SLoc_T vextents, SLoc_T vstrides, SLoc_T vorigin,
-       std::shared_ptr<Allocation<Elem>> allocator) :
+       std::shared_ptr<Allocation<Elem,physical<Rank,MultiDimPtr>()>> allocator) :
     bextents(deepcopy(bextents)), bstrides(deepcopy(bstrides)), 
     borigin(deepcopy(borigin)), vextents(deepcopy(vextents)), 
     vstrides(deepcopy(vstrides)), vorigin(deepcopy(vorigin)),
@@ -164,12 +184,12 @@ struct View {
   ///
   /// Slice out a View over a portion of this View
   template <typename...Slices>
-  View<Elem,Rank> view(Slices...slices);
+  View<Elem,Rank,MultiDimPtr> view(Slices...slices);
 
   /// 
   /// Perform a lazy inline access on this View
   template <typename Idx>
-  Ref<View<Elem,Rank>,std::tuple<typename RefIdxType<Idx>::type>> operator[](Idx idx);
+  Ref<View<Elem,Rank,MultiDimPtr>,std::tuple<typename RefIdxType<Idx>::type>> operator[](Idx idx);
 
   /// 
   /// Generate code for printing a rank 1, 2, or 3 View
@@ -179,7 +199,7 @@ struct View {
   // print out the location info
   void dump_loc();
 
-  std::shared_ptr<Allocation<Elem>> allocator;
+  std::shared_ptr<Allocation<Elem,physical<Rank,MultiDimPtr>()>> allocator;
   SLoc_T bextents;
   SLoc_T bstrides;
   SLoc_T borigin;
@@ -264,9 +284,9 @@ private:
   
 };
 
-template <typename Elem, int Rank>
+template <typename Elem, int Rank, bool MultiDimPtr>
 template <typename...Iters>
-builder::dyn_var<Elem> Block<Elem,Rank>::operator()(std::tuple<Iters...> iters) {
+builder::dyn_var<Elem> Block<Elem,Rank,MultiDimPtr>::operator()(std::tuple<Iters...> iters) {
   static_assert(sizeof...(Iters) <= Rank);
   if constexpr (sizeof...(Iters) < Rank) {
     // we need padding at the front
@@ -275,19 +295,21 @@ builder::dyn_var<Elem> Block<Elem,Rank>::operator()(std::tuple<Iters...> iters) 
     return this->operator()(coord);
   } else { // coordinate-based
     builder::dyn_var<loop_type> lidx = linearize<0,Rank>(this->bextents, iters);
-    return allocator->read(lidx);
+    builder::dyn_var<loop_type> idxs[physical<Rank,MultiDimPtr>()];
+    idxs[0] = lidx;
+    return allocator->read(idxs);
   }
 }
 
-template <typename Elem, int Rank>
+template <typename Elem, int Rank, bool MultiDimPtr>
 template <typename...Iters>
-builder::dyn_var<Elem> Block<Elem,Rank>::operator()(Iters...iters) {
+builder::dyn_var<Elem> Block<Elem,Rank,MultiDimPtr>::operator()(Iters...iters) {
   return this->operator()(std::tuple{iters...});
 }
 
-template <typename Elem, int Rank>
+template <typename Elem, int Rank, bool MultiDimPtr>
 template <typename ScalarElem, typename...Iters>
-void Block<Elem,Rank>::write(ScalarElem val, std::tuple<Iters...> iters) {
+void Block<Elem,Rank,MultiDimPtr>::write(ScalarElem val, std::tuple<Iters...> iters) {
   static_assert(sizeof...(Iters) <= Rank);
   if constexpr (sizeof...(Iters) < Rank) {
     // we need padding at the front
@@ -296,40 +318,44 @@ void Block<Elem,Rank>::write(ScalarElem val, std::tuple<Iters...> iters) {
     this->write(val, coord);
   } else { // coordinate-based
     builder::dyn_var<loop_type> lidx = linearize<0,Rank>(this->bextents, iters);
-    allocator->write(val, lidx);
+    builder::dyn_var<loop_type> idxs[physical<Rank,MultiDimPtr>()];
+    idxs[0] = lidx;
+    allocator->write(val, idxs);
   }
 }
 
-template <typename Elem, int Rank>
+template <typename Elem, int Rank, bool MultiDimPtr>
 template <typename Idx>
-Ref<Block<Elem,Rank>,std::tuple<typename RefIdxType<Idx>::type>> Block<Elem,Rank>::operator[](Idx idx) {
+Ref<Block<Elem,Rank,MultiDimPtr>,std::tuple<typename RefIdxType<Idx>::type>> Block<Elem,Rank,MultiDimPtr>::operator[](Idx idx) {
   if constexpr (is_dyn_like<Idx>::value) {
     // potentially slice builder::builder to dyn_var 
     builder::dyn_var<loop_type> didx = idx;
-    return Ref<Block<Elem,Rank>,std::tuple<decltype(didx)>>(*this, std::tuple{didx});
+    return Ref<Block<Elem,Rank,MultiDimPtr>,std::tuple<decltype(didx)>>(*this, std::tuple{didx});
   } else {
-    return Ref<Block<Elem,Rank>,std::tuple<Idx>>(*this, std::tuple{idx});
+    return Ref<Block<Elem,Rank,MultiDimPtr>,std::tuple<Idx>>(*this, std::tuple{idx});
   }
 }
 
-template <typename Elem, int Rank>
+template <typename Elem, int Rank, bool MultiDimPtr>
 template <typename LIdx>
-builder::dyn_var<Elem> Block<Elem,Rank>::plidx(LIdx lidx) {
+builder::dyn_var<Elem> Block<Elem,Rank,MultiDimPtr>::plidx(LIdx lidx) {
   // don't need to delinearize here since the pseudo index is just a normal
   // index for a block
-  return allocator->read(lidx);
+  builder::dyn_var<loop_type> idxs[physical<Rank,MultiDimPtr>()];
+  idxs[0] = lidx;
+  return allocator->read(idxs);
 }
 
-template <typename Elem, int Rank>
-View<Elem,Rank> Block<Elem,Rank>::view() {
-  return View<Elem,Rank>(this->bextents, this->bstrides, this->borigin,
+template <typename Elem, int Rank, bool MultiDimPtr>
+View<Elem,Rank,MultiDimPtr> Block<Elem,Rank,MultiDimPtr>::view() {
+  return View<Elem,Rank,MultiDimPtr>(this->bextents, this->bstrides, this->borigin,
 			 this->bextents, this->bstrides, this->borigin,
 			 this->allocator);
 }
 
-template <typename Elem, int Rank>
+template <typename Elem, int Rank, bool MultiDimPtr>
 template <typename...Slices>
-View<Elem,Rank> Block<Elem,Rank>::view(Slices...slices) {
+View<Elem,Rank,MultiDimPtr> Block<Elem,Rank,MultiDimPtr>::view(Slices...slices) {
   // the block parameters stay the same, but we need to update the
   // view parameters  
   SLoc_T vstops;
@@ -345,14 +371,14 @@ View<Elem,Rank> Block<Elem,Rank>::view(Slices...slices) {
   SLoc_T origin = apply<AddFunctor,Rank>(this->borigin, apply<MulFunctor,Rank>(vorigin, this->bstrides));
   // new strides = old strides * new strides
   SLoc_T strides = apply<MulFunctor,Rank>(this->bstrides, vstrides);
-  return View<Elem,Rank>(this->bextents, this->bstrides, this->borigin,
+  return View<Elem,Rank,MultiDimPtr>(this->bextents, this->bstrides, this->borigin,
 			 vextents, strides, vorigin,
 			 this->allocator);  
 }
 
-template <typename Elem, int Rank>
+template <typename Elem, int Rank, bool MultiDimPtr>
 template <typename T>
-void Block<Elem,Rank>::dump_data() {
+void Block<Elem,Rank,MultiDimPtr>::dump_data() {
   // TODO format nicely with the max string length thing
   static_assert(Rank<=3, "dump_data only supports ranks 1, 2, and 3");
   if constexpr (Rank == 1) {
@@ -380,9 +406,10 @@ void Block<Elem,Rank>::dump_data() {
   }
 }
 
-template <typename Elem, int Rank>
-Block<Elem,Rank>::Block(SLoc_T bextents, SLoc_T bstrides, SLoc_T borigin, bool memset_data) :
+template <typename Elem, int Rank, bool MultiDimPtr>
+Block<Elem,Rank,MultiDimPtr>::Block(SLoc_T bextents, SLoc_T bstrides, SLoc_T borigin, bool memset_data) :
   bextents(deepcopy(bextents)), bstrides(deepcopy(bstrides)), borigin(deepcopy(borigin)) {
+  static_assert(!MultiDimPtr);
   this->allocator = std::make_shared<HeapAllocation<Elem>>(reduce<MulFunctor>(bextents));
   if (memset_data) {
     int elem_size = sizeof(Elem);
@@ -391,9 +418,10 @@ Block<Elem,Rank>::Block(SLoc_T bextents, SLoc_T bstrides, SLoc_T borigin, bool m
   }
 }
 
-template <typename Elem, int Rank>
-Block<Elem,Rank>::Block(SLoc_T bextents, bool memset_data) :
+template <typename Elem, int Rank, bool MultiDimPtr>
+Block<Elem,Rank,MultiDimPtr>::Block(SLoc_T bextents, bool memset_data) :
   bextents(std::move(bextents)) {
+  static_assert(!MultiDimPtr);
   for (builder::static_var<int> i = 0; i < Rank; i=i+1) {
     bstrides[i] = 1;
     borigin[i] = 0;
@@ -406,8 +434,10 @@ Block<Elem,Rank>::Block(SLoc_T bextents, bool memset_data) :
   }
 }
 
-template <typename Elem, int Rank>
-Block<Elem,Rank>::Block(SLoc_T bextents, std::shared_ptr<Allocation<Elem>> allocator, bool memset_data) :
+template <typename Elem, int Rank, bool MultiDimPtr>
+Block<Elem,Rank,MultiDimPtr>::Block(SLoc_T bextents, 
+				    std::shared_ptr<Allocation<Elem,physical<Rank,MultiDimPtr>()>> allocator, 
+				    bool memset_data) :
   bextents(std::move(bextents)), allocator(allocator) {
   for (builder::static_var<int> i = 0; i < Rank; i=i+1) {
     bstrides[i] = 1;
@@ -420,49 +450,35 @@ Block<Elem,Rank>::Block(SLoc_T bextents, std::shared_ptr<Allocation<Elem>> alloc
   }
 }
 
-template <typename Elem, int Rank>
-Block<Elem,Rank> Block<Elem,Rank>::heap(SLoc_T bextents) {
-  return Block<Elem, Rank>(bextents, false);
+template <typename Elem, int Rank, bool MultiDimPtr>
+Block<Elem,Rank,MultiDimPtr> Block<Elem,Rank,MultiDimPtr>::heap(SLoc_T bextents) {
+  return Block<Elem,Rank,MultiDimPtr>(bextents, false);
 }    
 
-template <typename Elem, int Rank>
+template <typename Elem, int Rank, bool MultiDimPtr>
 template <loop_type...Extents>
-Block<Elem,Rank> Block<Elem,Rank>::stack() {
+Block<Elem,Rank,MultiDimPtr> Block<Elem,Rank,MultiDimPtr>::stack() {
   static_assert(Rank == sizeof...(Extents));
   auto allocator = std::make_shared<StackAllocation<Elem,mul_reduce<Extents...>()>>();
   auto bextents = to_Loc_T<Extents...>();
-  return Block<Elem, Rank>(bextents, allocator);
+  return Block<Elem,Rank,MultiDimPtr>(bextents, allocator);
 }
 
-template <typename Elem, int Rank>
-template <typename Elem2>
-Block<Elem,Rank> Block<Elem,Rank>::user(SLoc_T bextents, builder::dyn_var<Elem2*> user) {                                    
-  static_assert(std::is_same<Elem,Elem2>());
-  auto allocator = std::make_shared<UserAllocation<Elem>>(user);
-  return Block<Elem, Rank>(bextents, allocator);
+template <typename Elem, int Rank, bool MultiDimPtr>
+Block<Elem,Rank,MultiDimPtr> Block<Elem,Rank,MultiDimPtr>::user(SLoc_T bextents, 
+								builder::dyn_var<typename decltype(ptr_wrap<Elem,Rank>())::P> user) {  
+  if constexpr (MultiDimPtr) {
+    auto allocator = std::make_shared<UserAllocation<Elem,typename decltype(ptr_wrap<Elem,Rank>())::P,Rank>>(user);
+    return Block<Elem,Rank,MultiDimPtr>(bextents, allocator);
+  } else {
+    auto allocator = std::make_shared<UserAllocation<Elem,Elem*,1>>(user);
+    return Block<Elem,Rank,MultiDimPtr>(bextents, allocator);
+  }
 }
 
-  /*template <typename Elem, int Rank>
-template <typename Elem2>
-Block<Elem,Rank> Block<Elem,Rank>::heap(SLoc_T bextents, builder::dyn_var<Elem2*> user) {
-  // without this and Elem2, typechecker thinks dyn_var<float*> and dyn_var<int*> are the same
-  static_assert(std::is_same<Elem,Elem2>());
-  auto allocator = std::make_shared<UserHeapAllocation<Elem>>(user);
-  return Block<Elem, Rank>(bextents, allocator);
-}  
-
-template <typename Elem, int Rank>
-template <typename Elem2>
-Block<Elem,Rank> Block<Elem,Rank>::stack(SLoc_T bextents, builder::dyn_var<Elem2[]> user) {
-  // without this and Elem2, typechecker thinks dyn_var<float[]> and dyn_var<int[]> are the same
-  static_assert(std::is_same<Elem,Elem2>());
-  auto allocator = std::make_shared<UserStackAllocation<Elem>>(user);
-  return Block<Elem, Rank>(bextents, allocator);
-  }*/
-
-template <typename Elem, int Rank>
+template <typename Elem, int Rank, bool MultiDimPtr>
 template <typename...Iters>
-builder::dyn_var<Elem> View<Elem,Rank>::operator()(std::tuple<Iters...> iters) {
+builder::dyn_var<Elem> View<Elem,Rank,MultiDimPtr>::operator()(std::tuple<Iters...> iters) {
   static_assert(sizeof...(Iters) <= Rank);
   if constexpr (sizeof...(Iters) < Rank) {
     // we need padding at the front
@@ -477,19 +493,21 @@ builder::dyn_var<Elem> View<Elem,Rank>::operator()(std::tuple<Iters...> iters) {
     // then linearize with respect to the block
     builder::dyn_var<loop_type> lidx = linearize<0,Rank>(this->bextents, biters);
     // see block::operator for this I do it this way
-    return allocator->read(lidx);
+    builder::dyn_var<loop_type> idxs[physical<Rank,MultiDimPtr>()];
+    idxs[0] = lidx;
+    return allocator->read(idxs);
   }
 }
 
-template <typename Elem, int Rank>
+template <typename Elem, int Rank, bool MultiDimPtr>
 template <typename...Iters>
-builder::dyn_var<Elem> View<Elem,Rank>::operator()(Iters...iters) {
+builder::dyn_var<Elem> View<Elem,Rank,MultiDimPtr>::operator()(Iters...iters) {
   return this->operator()(std::tuple{iters...});
 }
 
-template <typename Elem, int Rank>
+template <typename Elem, int Rank, bool MultiDimPtr>
 template <typename ScalarElem, typename...Iters>
-void View<Elem,Rank>::write(ScalarElem val, std::tuple<Iters...> iters) {
+void View<Elem,Rank,MultiDimPtr>::write(ScalarElem val, std::tuple<Iters...> iters) {
   static_assert(sizeof...(Iters) <= Rank);
   if constexpr (sizeof...(Iters) < Rank) {
     // we need padding at the front
@@ -503,33 +521,35 @@ void View<Elem,Rank>::write(ScalarElem val, std::tuple<Iters...> iters) {
     auto biters = compute_block_relative_iters<0>(iters);
     // then linearize with respect to the block
     builder::dyn_var<loop_type> lidx = linearize<0,Rank>(this->bextents, biters);
-    allocator->write(val, lidx);
+    builder::dyn_var<loop_type> idxs[physical<Rank,MultiDimPtr>()];
+    idxs[0] = lidx;
+    allocator->write(val, idxs);
   }
 }
 
-template <typename Elem, int Rank>
+template <typename Elem, int Rank, bool MultiDimPtr>
 template <typename Idx>
-Ref<View<Elem,Rank>,std::tuple<typename RefIdxType<Idx>::type>> View<Elem,Rank>::operator[](Idx idx) {
+Ref<View<Elem,Rank,MultiDimPtr>,std::tuple<typename RefIdxType<Idx>::type>> View<Elem,Rank,MultiDimPtr>::operator[](Idx idx) {
   if constexpr (is_dyn_like<Idx>::value) {
     // potentially slice builder::builder to dyn_var 
     builder::dyn_var<loop_type> didx = idx;
-    return Ref<View<Elem,Rank>,std::tuple<decltype(didx)>>(*this, std::tuple{didx});
+    return Ref<View<Elem,Rank,MultiDimPtr>,std::tuple<decltype(didx)>>(*this, std::tuple{didx});
   } else {
-    return Ref<View<Elem,Rank>,std::tuple<Idx>>(*this, std::tuple{idx});
+    return Ref<View<Elem,Rank,MultiDimPtr>,std::tuple<Idx>>(*this, std::tuple{idx});
   }
 }
 
-template <typename Elem, int Rank>
+template <typename Elem, int Rank, bool MultiDimPtr>
 template <typename LIdx>
-builder::dyn_var<Elem> View<Elem,Rank>::plidx(LIdx lidx) {
+builder::dyn_var<Elem> View<Elem,Rank,MultiDimPtr>::plidx(LIdx lidx) {
   // must delinearize relative to the view
   auto coord = delinearize<0,Rank>(lidx, this->vextents);
   return this->operator()(coord);
 }
 
-template <typename Elem, int Rank>
+template <typename Elem, int Rank, bool MultiDimPtr>
 template <typename...Slices>
-View<Elem,Rank> View<Elem,Rank>::view(Slices...slices) {
+View<Elem,Rank,MultiDimPtr> View<Elem,Rank,MultiDimPtr>::view(Slices...slices) {
   // the block parameters stay the same, but we need to update the
   // view parameters  
   SLoc_T vstops;
@@ -545,14 +565,14 @@ View<Elem,Rank> View<Elem,Rank>::view(Slices...slices) {
   SLoc_T origin = apply<AddFunctor,Rank>(this->vorigin, apply<MulFunctor,Rank>(vorigin, this->vstrides));
   // new strides = old strides * new strides
   SLoc_T strides = apply<MulFunctor,Rank>(this->vstrides, vstrides);
-  return View<Elem,Rank>(this->bextents, this->bstrides, this->borigin,
+  return View<Elem,Rank,MultiDimPtr>(this->bextents, this->bstrides, this->borigin,
 			 vextents, strides, origin,
 			 this->allocator);
 }
 
-template <typename Elem, int Rank>
+template <typename Elem, int Rank, bool MultiDimPtr>
 template <int Depth, typename...Coords>
-auto View<Elem,Rank>::compute_block_relative_iters(const std::tuple<Coords...> &viters) {
+auto View<Elem,Rank,MultiDimPtr>::compute_block_relative_iters(const std::tuple<Coords...> &viters) {
   if constexpr (Depth == sizeof...(Coords)) {
     return std::tuple{};
   } else {
@@ -562,9 +582,9 @@ auto View<Elem,Rank>::compute_block_relative_iters(const std::tuple<Coords...> &
   }
 }
 
-template <typename Elem, int Rank>
+template <typename Elem, int Rank, bool MultiDimPtr>
 template <typename T>
-void View<Elem, Rank>::dump_data() {
+void View<Elem,Rank,MultiDimPtr>::dump_data() {
   // TODO format nicely with the max string length thing
   static_assert(Rank<=3, "dump_data only supports ranks 1, 2, and 3");
   if constexpr (Rank == 1) {
@@ -592,8 +612,8 @@ void View<Elem, Rank>::dump_data() {
   }
 }
 
-template <typename Elem, int Rank>
-void View<Elem,Rank>::dump_loc() {
+template <typename Elem, int Rank, bool MultiDimPtr>
+void View<Elem,Rank,MultiDimPtr>::dump_loc() {
   print_string("View location info");
   print_newline();
   print_string("  BExtents:");
