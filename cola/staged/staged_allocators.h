@@ -3,6 +3,7 @@
 #pragma once
 
 #include "builder/dyn_var.h"
+#include "builder/array.h"
 #include "staged_utils.h"
 #include "fwddecls.h"
 
@@ -52,7 +53,7 @@ namespace cola {
 
 /// 
 /// Base class for defining the type of allocation to use for blocks and views
-template <typename Elem>
+template <typename Elem, int PhysicalRank>
 struct Allocation {
 
   virtual ~Allocation() = default;
@@ -75,11 +76,11 @@ struct Allocation {
 
   ///
   /// Read an element from the underlying data allocation.
-  virtual builder::dyn_var<Elem> read(builder::dyn_var<loop_type> lidx) = 0;
+  virtual builder::dyn_var<Elem> read(builder::dyn_arr<loop_type,PhysicalRank> &idxs) = 0;
 
   ///
   /// Write an element to the underlying data allocation.
-  virtual void write(builder::dyn_var<Elem> val, builder::dyn_var<loop_type> lidx) = 0;
+  virtual void write(builder::dyn_var<Elem> val, builder::dyn_arr<loop_type,PhysicalRank> &idxs) = 0;
 
   ///
   /// Memset on the underlying data allocation.
@@ -119,6 +120,24 @@ struct Allocation {
       }									\
     }									\
 }
+
+#define DISPATCH_MULTI_READER(dtype)					\
+  template <typename Data>						\
+  struct DispatchMultiRead<dtype, Data> {				\
+    template <unsigned long N>							\
+    auto operator()(builder::dyn_arr<loop_type, N> &idxs, Data data) { \
+      return multi_read_##dtype(data,idxs);				\
+    }									\
+  }
+
+#define DISPATCH_MULTI_WRITER(dtype)					\
+  template <typename Data>						\
+  struct DispatchMultiWrite<dtype, Data> {				\
+    template <unsigned long N>							\
+    void operator()(builder::dyn_var<dtype> val, builder::dyn_arr<loop_type,N> &idxs, Data data) { \
+      multi_write_##dtype(data, idxs, val);				\
+    }									\
+  }
 
 #define DISPATCH_MEMSET(dtype)						\
   template <typename Data, bool IsHeapArr>				\
@@ -169,6 +188,34 @@ DISPATCH_WRITER(int64_t);
 DISPATCH_WRITER(float);
 DISPATCH_WRITER(double);
 
+template <typename Elem, typename Data>
+struct DispatchMultiRead { };
+DISPATCH_MULTI_READER(uint8_t);
+DISPATCH_MULTI_READER(uint16_t);
+DISPATCH_MULTI_READER(uint32_t);
+DISPATCH_MULTI_READER(uint64_t);
+DISPATCH_MULTI_READER(char);
+DISPATCH_MULTI_READER(int8_t);
+DISPATCH_MULTI_READER(int16_t);
+DISPATCH_MULTI_READER(int32_t);
+DISPATCH_MULTI_READER(int64_t);
+DISPATCH_MULTI_READER(float);
+DISPATCH_MULTI_READER(double);
+
+template <typename Elem, typename Data>
+struct DispatchMultiWrite { };
+DISPATCH_MULTI_WRITER(uint8_t);
+DISPATCH_MULTI_WRITER(uint16_t);
+DISPATCH_MULTI_WRITER(uint32_t);
+DISPATCH_MULTI_WRITER(uint64_t);
+DISPATCH_MULTI_WRITER(char);
+DISPATCH_MULTI_WRITER(int8_t);
+DISPATCH_MULTI_WRITER(int16_t);
+DISPATCH_MULTI_WRITER(int32_t);
+DISPATCH_MULTI_WRITER(int64_t);
+DISPATCH_MULTI_WRITER(float);
+DISPATCH_MULTI_WRITER(double);
+
 template <typename Elem, bool IsHeapArry, typename Data>
 struct DispatchMemset { };
 DISPATCH_MEMSET(uint8_t);
@@ -212,6 +259,20 @@ void dispatch_write(builder::dyn_var<Elem> val, builder::dyn_var<loop_type> lidx
 }
 
 ///
+/// Calls the appropriate external read function based on the Elem and allocation type
+template <typename Elem, typename Data, unsigned long N>
+auto dispatch_multi_read(builder::dyn_arr<loop_type,N> &idxs, Data data) {
+  return DispatchMultiRead<Elem,Data>()(idxs, data);
+}
+
+///
+/// Calls the appropriate external write function based on the Elem and allocation type
+template <typename Elem, typename Data, unsigned long N>
+void dispatch_multi_write(builder::dyn_var<Elem> val, builder::dyn_arr<loop_type,N> &idxs, Data data) {
+  DispatchMultiWrite<Elem,Data>()(val, idxs, data);
+}
+
+///
 /// Calls the appropriate external write function based on the Elem and allocation type
 template <typename Elem, bool IsHeapArr, typename Data>
 void dispatch_memset(Data data, builder::dyn_var<Elem> val, builder::dyn_var<loop_type> sz) {
@@ -228,7 +289,7 @@ auto dispatch_build_heap(builder::dyn_var<loop_type> sz) {
 ///
 /// Defines an internally-allocated reference-counted heap
 template <typename Elem>
-struct HeapAllocation : public Allocation<Elem> {
+struct HeapAllocation : public Allocation<Elem,1> {
 
   virtual ~HeapAllocation() = default;
 
@@ -236,9 +297,9 @@ struct HeapAllocation : public Allocation<Elem> {
 
   bool is_heap_strategy() const override { return true; }
 
-  builder::dyn_var<Elem> read(builder::dyn_var<loop_type> lidx) override;
+  builder::dyn_var<Elem> read(builder::dyn_arr<loop_type,1> &idxs) override;
 
-  void write(builder::dyn_var<Elem> val, builder::dyn_var<loop_type> lidx) override;
+  void write(builder::dyn_var<Elem> val, builder::dyn_arr<loop_type,1> &idxs) override;
 
   void memset(builder::dyn_var<loop_type> sz) override;
 
@@ -248,15 +309,15 @@ struct HeapAllocation : public Allocation<Elem> {
 ///
 /// Defines an internally-allocated stack
 template <typename Elem, int Size>
-struct StackAllocation : public Allocation<Elem> {
+struct StackAllocation : public Allocation<Elem,1> {
 
   virtual ~StackAllocation() = default;
 
   bool is_stack_strategy() const override { return true; }
 
-  builder::dyn_var<Elem> read(builder::dyn_var<loop_type> lidx) override;
+  builder::dyn_var<Elem> read(builder::dyn_arr<loop_type,1> &idxs) override;
 
-  void write(builder::dyn_var<Elem> val, builder::dyn_var<loop_type> lidx) override;
+  void write(builder::dyn_var<Elem> val, builder::dyn_arr<loop_type,1> &idxs) override;
 
   void memset(builder::dyn_var<loop_type> sz) override;
 
@@ -265,45 +326,45 @@ struct StackAllocation : public Allocation<Elem> {
 };
                 
 /// Defines a user-allocated region of data
-template <typename Elem>
-struct UserAllocation : public Allocation<Elem> {
+template <typename Elem, typename Storage, int PhysicalRank>
+struct UserAllocation : public Allocation<Elem, PhysicalRank> {
 
   virtual ~UserAllocation() = default;
 
-  explicit UserAllocation(builder::dyn_var<Elem*> data) : data(data) { }
+  explicit UserAllocation(builder::dyn_var<Storage> data) : data(data) { }
 
   bool is_user_heap_strategy() const override { return true; }
 
-  builder::dyn_var<Elem> read(builder::dyn_var<loop_type> lidx) override;
+  builder::dyn_var<Elem> read(builder::dyn_arr<loop_type,PhysicalRank> &idxs) override;
 
-  void write(builder::dyn_var<Elem> val, builder::dyn_var<loop_type> lidx) override;
+  void write(builder::dyn_var<Elem> val, builder::dyn_arr<loop_type,PhysicalRank> &idxs) override;
 
   void memset(builder::dyn_var<loop_type> sz) override;
-
-  builder::dyn_var<Elem*> data;
+  
+  builder::dyn_var<Storage> data;
 
 };
 
-template <typename Elem>
-builder::dyn_var<HEAP_T<Elem>> Allocation<Elem>::heap() {
+template <typename Elem, int PhysicalRank>
+builder::dyn_var<HEAP_T<Elem>> Allocation<Elem, PhysicalRank>::heap() {
   assert(is_heap_strategy());
   return static_cast<HeapAllocation<Elem>*>(this)->data;
 }
-template <typename Elem>
+template <typename Elem, int PhysicalRank>
 template <int Sz>
-builder::dyn_var<Elem[Sz]> Allocation<Elem>::stack() {
+builder::dyn_var<Elem[Sz]> Allocation<Elem, PhysicalRank>::stack() {
   assert(is_stack_strategy());
   return static_cast<StackAllocation<Elem,Sz>*>(this)->data;
 }
 
 template <typename Elem>
-builder::dyn_var<Elem> HeapAllocation<Elem>::read(builder::dyn_var<loop_type> lidx) { 
-  return dispatch_read<Elem,true>(lidx, data);
+builder::dyn_var<Elem> HeapAllocation<Elem>::read(builder::dyn_arr<loop_type,1> &idxs) { 
+  return data[idxs[0]];
 }
 
 template <typename Elem>
-void HeapAllocation<Elem>::write(builder::dyn_var<Elem> val, builder::dyn_var<loop_type> lidx) { 
-  dispatch_write<Elem,true>(val, lidx, data);
+void HeapAllocation<Elem>::write(builder::dyn_var<Elem> val, builder::dyn_arr<loop_type,1> &idxs) { 
+  data[idxs[0]] = val;
 }
 
 template <typename Elem>
@@ -312,13 +373,13 @@ void HeapAllocation<Elem>::memset(builder::dyn_var<loop_type> sz) {
 }
 
 template <typename Elem, int Sz>
-builder::dyn_var<Elem> StackAllocation<Elem,Sz>::read(builder::dyn_var<loop_type> lidx) { 
-  return dispatch_read<Elem,false>(lidx, data);
+builder::dyn_var<Elem> StackAllocation<Elem,Sz>::read(builder::dyn_arr<loop_type,1> &idxs) { 
+  return data[idxs[0]];
 }
 
 template <typename Elem, int Sz>
-void StackAllocation<Elem,Sz>::write(builder::dyn_var<Elem> val, builder::dyn_var<loop_type> lidx) { 
-  dispatch_write<Elem,false>(val, lidx, data);
+void StackAllocation<Elem,Sz>::write(builder::dyn_var<Elem> val, builder::dyn_arr<loop_type,1> &idxs) { 
+  data[idxs[0]] = val;
 }
 
 template <typename Elem, int Sz>
@@ -326,19 +387,51 @@ void StackAllocation<Elem,Sz>::memset(builder::dyn_var<loop_type> sz) {
   dispatch_memset<Elem,false>(data, Elem(0), sz);
 }  
 
-template <typename Elem>  
-builder::dyn_var<Elem> UserAllocation<Elem>::read(builder::dyn_var<loop_type> lidx) {
-  return dispatch_read<Elem,false>(lidx, data);
+template <int Rank, int Depth, typename Data, typename Idxs>
+auto multi_read(Data &data, Idxs &idxs) {
+  auto x = data[idxs[Depth]];
+  if constexpr (Depth == Rank - 1) {
+    return x;
+  } else {
+    return multi_read<Rank,Depth+1>(x, idxs);
+  }
 }
 
-template <typename Elem>
-void UserAllocation<Elem>::write(builder::dyn_var<Elem> val, builder::dyn_var<loop_type> lidx) {
-  dispatch_write<Elem,false>(val, lidx, data);
+template <int Rank, int Depth, typename Data, typename Val, typename Idxs>
+void multi_write(Data &data, Val val, Idxs &idxs) {
+  if constexpr (Depth == Rank - 1) {
+    data[idxs[Depth]] = val;
+  } else {
+    auto x = data[idxs[Depth]];
+    multi_write<Rank,Depth+1>(x, val, idxs);
+  }
 }
 
-template <typename Elem>
-void UserAllocation<Elem>::memset(builder::dyn_var<loop_type> sz) {
-  dispatch_memset<Elem,false>(data, Elem(0), sz);
+template <typename Elem, typename Storage, int PhysicalRank>  
+builder::dyn_var<Elem> UserAllocation<Elem,Storage,PhysicalRank>::read(builder::dyn_arr<loop_type,PhysicalRank> &idxs) {
+//  if constexpr (PhysicalRank == 1) {
+//    return dispatch_read<Elem,false>(idxs[0], data);
+//  } else {
+//    return dispatch_multi_read<Elem>(idxs, data);
+  return multi_read<PhysicalRank,0>(data, idxs);
+//  return data[0][0];
+//  return 10;
+//  }
+}
+
+template <typename Elem, typename Storage, int PhysicalRank>
+void UserAllocation<Elem,Storage,PhysicalRank>::write(builder::dyn_var<Elem> val, builder::dyn_arr<loop_type,PhysicalRank> &idxs) {
+//  if constexpr (PhysicalRank == 1) {
+//    dispatch_write<Elem,false>(val, idxs[0], data);
+//  } else {
+//    dispatch_multi_write<Elem>(val, idxs, data);    
+  multi_write<PhysicalRank,0>(data, val, idxs);
+  //  }
+}
+
+template <typename Elem, typename Storage, int PhysicalRank>
+void UserAllocation<Elem,Storage,PhysicalRank>::memset(builder::dyn_var<loop_type> sz) {
+  assert(false);
 }
 
 }

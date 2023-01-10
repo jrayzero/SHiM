@@ -4,6 +4,7 @@
 #include <chrono>
 
 #include "builder/dyn_var.h"
+#include "builder/array.h"
 #include "blocks/c_code_generator.h"
 #include "blocks/rce.h"
 #include "staged/staged.h"
@@ -12,6 +13,7 @@ using namespace std;
 using namespace cola;
 using builder::dyn_var;
 using builder::static_var;
+using builder::dyn_arr;
 
 using dint = dyn_var<int>;
 using sint = static_var<int>;
@@ -58,7 +60,7 @@ void color_one(RGB_T RGB, Block<int,3> YCbCr, dint comp) {
 }
 
 template <typename RGB_T, typename YCbCr_T>
-void color(RGB_T RGB, YCbCr_T YCbCr) {
+void color(RGB_T &RGB, YCbCr_T &YCbCr) {
   YCbCr[0][i][j] = 
     cast<int>(cast<double>(RGB[i][j][0])*0.299 + 
 	      cast<double>(RGB[i][j][1])*0.587 + 
