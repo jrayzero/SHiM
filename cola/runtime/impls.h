@@ -114,4 +114,12 @@ void print(Args...args) {
   std::cout << ss.str();
 }
 
+template <bool dummy=false>
+void cola_assert(bool cond, std::string msg) {
+  if (!cond) {
+    std::cerr << "Condition failed (" << msg << ")" << std::endl;
+    exit(-1);
+  }
+}
+
 }

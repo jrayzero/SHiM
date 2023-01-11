@@ -152,4 +152,51 @@ struct RefIdxType<builder::dyn_var<loop_type>> {
   using type = builder::dyn_var<loop_type>;
 };
 
+///
+/// Wrap Elem with a pointer
+template <typename Elem>
+struct PtrWrap {
+  using P = Elem*;
+};
+
+/// 
+/// Wrap Elem as Elem* if !MultiDimPtr. Otherwise wrap it as Elem***... where there
+/// are Rank-levels of pointer depth.
+template <typename Elem, unsigned long Rank, bool MultiDimPtr, int Depth=0>
+auto ptr_wrap() {  
+  if constexpr (MultiDimPtr == true) {
+    if constexpr (Depth == Rank-1) {
+      return PtrWrap<Elem>();
+    } else {
+      return PtrWrap<typename decltype(ptr_wrap<Elem,Rank,MultiDimPtr,Depth+1>())::P>();
+    }
+  } else {
+    return PtrWrap<Elem>(); // Becomes Elem*
+  }
+}
+
+///
+/// Return the physical layout of the underlying data based on whether MultiDimPtr==true 
+/// (return Rank) or false (return 1)
+template <unsigned long Rank, bool MultiDimPtr>
+constexpr int physical() {
+  if constexpr (MultiDimPtr) {
+    return Rank;
+  } else {
+    return 1;
+  }
+}
+
+/// 
+/// Count the number of pointer levels on Elem
+template <typename Elem>
+struct Peel { constexpr int operator()() { return 0; } };
+template <typename Elem>
+struct Peel<Elem*> { constexpr int operator()() { return 1 + Peel<Elem>()(); } };
+
+template <typename Elem>
+constexpr int peel() {
+  return Peel<Elem>()();
+}
+
 }

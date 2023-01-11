@@ -4,7 +4,7 @@
 
 #include <map>
 
-namespace builder {
+namespace cola {
 
 ///
 /// Unspecialized template to determine the core type of a compound expression
@@ -133,6 +133,10 @@ struct ElemToStr<T[Sz]> {
   static constexpr bool isArr = true;
 };
 
+}
+
+namespace builder {
+
 template <typename Name>
 struct GetName { };
 
@@ -172,10 +176,10 @@ protected:
     std::string n = GetName<T>()();
     assert(StructInfo::structs.count(n) > 0);
     dyn_var<FieldType> field = as_member_of(this_ptr, field_name);
-    std::string type = ElemToStr<FieldType>::str;
+    std::string type = cola::ElemToStr<FieldType>::str;
     std::string repr = type + " " + field_name;
-    if constexpr (ElemToStr<FieldType>::isArr) {
-      repr += "[" + ElemToStr<FieldType>::sz + "]";
+    if constexpr (cola::ElemToStr<FieldType>::isArr) {
+      repr += "[" + cola::ElemToStr<FieldType>::sz + "]";
     }
     if (StructInfo::structs[n].count(field_name) == 0) {
       StructInfo::structs[n][field_name] = repr;
