@@ -1,5 +1,6 @@
 cmake_minimum_required(VERSION 3.13)
 project(HMDA)
+include(ctest)
 set(CMAKE_VERBOSE_MAKEFILE ON)
 
 # clang++ -O3 -S -emit-llvm -I/Users/jray/CLionProjects/HMDA-BuildIt/hmda -I/Users/jray/CLionProjects/HMDA-BuildIt/hmda/unstaged -I/Users/jray/CLionProjects/HMDA-BuildIt/hmda/staged -I/Users/jray/CLionProjects/HMDA-BuildIt/buildit/include -std=c++17 ../examples/example1.cpp -o example.ll
@@ -91,3 +92,48 @@ function (scratch name)
 endfunction()
 
 scratch(scratch1)
+scratch(scratch2)
+
+function (CoLaJM name)
+ add_executable(s${name} ${CMAKE_SOURCE_DIR}/apps/JM/${name}.cpp)
+ target_link_libraries(s${name} buildit)
+ 
+ # now run the staged code
+ add_custom_command(OUTPUT ${CMAKE_BINARY_DIR}/s${name}.cpp ${CMAKE_BINARY_DIR}/s${name}.h
+                    COMMAND ${CMAKE_BINARY_DIR}/s${name} ARGS s${name}
+                    DEPENDS ${CMAKE_BINARY_DIR}/s${name})
+
+ # build the generate cpp code 		    	    
+ add_library(${name} STATIC ${CMAKE_BINARY_DIR}/s${name}.cpp)
+
+ # and build it with the unstaged part
+# add_executable(${name} ${CMAKE_SOURCE_DIR}/scratch/${name}.c)
+# target_include_directories(${name} PUBLIC ${CMAKE_BINARY_DIR})		    
+# target_link_libraries(${name} ${name}_cpp)
+endfunction()
+
+CoLaJM(intra16x16)
+
+# run "make test" to build all the tests
+add_custom_target(tests)
+function (tester name)
+ # build the staged code
+ add_executable(${name}_generator ${CMAKE_SOURCE_DIR}/tests/${name}.cpp)
+ target_link_libraries(${name}_generator buildit)
+ 
+ # now run the staged code
+ add_custom_command(OUTPUT ${CMAKE_BINARY_DIR}/${name}_generated.cpp ${CMAKE_BINARY_DIR}/${name}_generated.h
+                    COMMAND ${CMAKE_BINARY_DIR}/${name}_generator
+                    DEPENDS ${CMAKE_BINARY_DIR}/${name}_generator)
+
+ # and build it with the unstaged part
+ add_executable(${name} ${CMAKE_SOURCE_DIR}/tests/test_driver.cpp ${CMAKE_BINARY_DIR}/${name}_generated.cpp)                        
+ target_include_directories(${name} PUBLIC ${CMAKE_SOURCE_DIR}/hmda ${CMAKE_BINARY_DIR})
+ target_compile_definitions(${name} PUBLIC WHICH_TEST=${name})
+ add_test(NAME ${name} COMMAND ${name})
+ add_dependencies(tests ${name})
+endfunction()
+
+tester(test0)
+tester(test1)
+

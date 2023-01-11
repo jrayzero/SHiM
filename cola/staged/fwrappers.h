@@ -25,6 +25,7 @@ builder::dyn_var<int(int,int)> bor = builder::as_global("cola::bor");
 builder::dyn_var<int(int,int)> band = builder::as_global("cola::band");
 builder::dyn_var<int(int,int)> pow = builder::as_global("cola::pow");
 builder::dyn_var<int(int)> ceil = builder::as_global("cola::ceil");
+builder::dyn_var<void(bool,char*)> hassert = builder::as_global("cola::cola_assert");
 
 // Note: the arg tyoe for these casts isn't right, but I don't want to write every combination
 // of dyn_var<to(from)>, and buildit doesn't seem to care.
@@ -151,17 +152,18 @@ builder::dyn_var<HEAP_T<int64_t>(loop_type)> build_heaparr_int64_t = builder::as
 builder::dyn_var<HEAP_T<float>(loop_type)> build_heaparr_float = builder::as_global("cola::build_heaparr<float>");
 builder::dyn_var<HEAP_T<double>(loop_type)> build_heaparr_double = builder::as_global("cola::build_heaparr<double>");
 
-builder::dyn_var<void(uint8_t)> print_elem_uint8_t = builder::as_global("cola::print_elem");
-builder::dyn_var<void(uint16_t)> print_elem_uint16_t = builder::as_global("cola::print_elem");
-builder::dyn_var<void(uint32_t)> print_elem_uint32_t = builder::as_global("cola::print_elem");
-builder::dyn_var<void(uint64_t)> print_elem_uint64_t = builder::as_global("cola::print_elem");
-builder::dyn_var<void(char)> print_elem_char = builder::as_global("cola::print_elem");
-builder::dyn_var<void(int8_t)> print_elem_int8_t = builder::as_global("cola::print_elem");
-builder::dyn_var<void(int16_t)> print_elem_int16_t = builder::as_global("cola::print_elem");
-builder::dyn_var<void(int32_t)> print_elem_int32_t = builder::as_global("cola::print_elem");
-builder::dyn_var<void(int64_t)> print_elem_int64_t = builder::as_global("cola::print_elem");
-builder::dyn_var<void(float)> print_elem_float = builder::as_global("cola::print_elem");
-builder::dyn_var<void(double)> print_elem_double = builder::as_global("cola::print_elem");
+builder::dyn_var<void(uint8_t)> print_elem_uint8_t = builder::as_global("cola::print_elem<uint8_t>");
+builder::dyn_var<void(uint16_t)> print_elem_uint16_t = builder::as_global("cola::print_elem<uint16_t>");
+builder::dyn_var<void(uint32_t)> print_elem_uint32_t = builder::as_global("cola::print_elem<uint32_t>");
+builder::dyn_var<void(unsigned long)> print_elem_unsigned = builder::as_global("cola::print_elem<unsigned long>");
+builder::dyn_var<void(uint64_t)> print_elem_uint64_t = builder::as_global("cola::print_elem<uint64_t>");
+builder::dyn_var<void(char)> print_elem_char = builder::as_global("cola::print_elem<char>");
+builder::dyn_var<void(int8_t)> print_elem_int8_t = builder::as_global("cola::print_elem<int8_t>");
+builder::dyn_var<void(int16_t)> print_elem_int16_t = builder::as_global("cola::print_elem<int16_t>");
+builder::dyn_var<void(int32_t)> print_elem_int32_t = builder::as_global("cola::print_elem<int32_t>");
+builder::dyn_var<void(int64_t)> print_elem_int64_t = builder::as_global("cola::print_elem<int64_t>");
+builder::dyn_var<void(float)> print_elem_float = builder::as_global("cola::print_elem<float>");
+builder::dyn_var<void(double)> print_elem_double = builder::as_global("cola::print_elem<double>");
 
 //template <typename Arg0, typename...Args>
 //buil scat_inner(builder::dyn_var<void*> &cur, Arg0 arg0, Args...args) {

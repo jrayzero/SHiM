@@ -12,6 +12,7 @@
 #include "expr.h"
 #include "staged_utils.h"
 #include "staged_allocators.h"
+#include "object.h"
 
 namespace cola {
 
@@ -27,43 +28,6 @@ namespace cola {
 // 3. If we don't deepcopy, then the user could modify dyn_vars that they use for extents and such, which
 // would affect the location of a given block/view. This is bad. It'd basically be like having a pointer
 // represent the location information.
-
-template <typename Elem>
-struct PtrWrap {
-  using P = Elem*;
-};
-
-template <typename Elem, unsigned long Rank, bool MultiDimPtr, int Depth=0>
-auto ptr_wrap() {  
-  if constexpr (MultiDimPtr == true) {
-    if constexpr (Depth == Rank-1) {
-      return PtrWrap<Elem>();
-    } else {
-      return PtrWrap<typename decltype(ptr_wrap<Elem,Rank,MultiDimPtr,Depth+1>())::P>();
-    }
-  } else {
-    return PtrWrap<Elem>(); // Becomes Elem*
-  }
-}
-
-template <unsigned long Rank, bool MultiDimPtr>
-constexpr int physical() {
-  if constexpr (MultiDimPtr) {
-    return Rank;
-  } else {
-    return 1;
-  }
-}
-
-template <typename Elem>
-struct Peel { constexpr int operator()() { return 0; } };
-template <typename Elem>
-struct Peel<Elem*> { constexpr int operator()() { return 1 + Peel<Elem>()(); } };
-
-template <typename Elem>
-constexpr int peel() {
-  return Peel<Elem>()();
-}
 
 ///
 /// A region of data with a location
@@ -123,6 +87,8 @@ struct Block {
   template <typename Elem2, bool MultiDimPtr2>
   View<Elem,Rank,MultiDimPtr> colocate(View<Elem2,Rank,MultiDimPtr2> &view);
 
+  View<Elem,Rank,MultiDimPtr> atomize(builder::dyn_arr<loop_type,Rank> &atoms);
+
   ///
   /// Write a single element at the specified coordinate
   /// Prefer the operator[] write method over this.
@@ -147,6 +113,10 @@ struct Block {
   /// Generate code for printing a rank 1, 2, or 3 Block.
   template <typename T=Elem>
   void dump_data();
+
+  ///
+  /// print out the location info
+  void dump_loc();
 
   std::shared_ptr<Allocation<Elem,physical<Rank,MultiDimPtr>()>> allocator;
   SLoc_T bextents;
@@ -175,9 +145,11 @@ struct View {
   /// Create a View from the specified location information
   View(SLoc_T bextents, SLoc_T bstrides, SLoc_T borigin,
        SLoc_T vextents, SLoc_T vstrides, SLoc_T vorigin,
+       SLoc_T atoms,
        std::shared_ptr<Allocation<Elem,physical<Rank,MultiDimPtr>()>> allocator) :
     bextents(bextents), bstrides(bstrides), borigin(borigin),
     vextents(vextents), vstrides(vstrides), vorigin(vorigin), 
+    atoms(atoms),
     allocator(allocator) { }
 
   ///
@@ -201,6 +173,8 @@ struct View {
   template <typename Elem2, bool MultiDimPtr2>
   View<Elem,Rank,MultiDimPtr> colocate(View<Elem2,Rank,MultiDimPtr2> &view);
 
+  View<Elem,Rank,MultiDimPtr> atomize(builder::dyn_arr<loop_type,Rank> &atoms);
+
   ///
   /// Write a single element at the specified coordinate
   /// Prefer the operator[] write method over this.
@@ -222,7 +196,8 @@ struct View {
   template <typename T=Elem>
   void dump_data();
 
-  // print out the location info
+  ///
+  /// print out the location info
   void dump_loc();
 
   ///
@@ -237,7 +212,8 @@ struct View {
   SLoc_T borigin;
   SLoc_T vextents;
   SLoc_T vstrides;
-  SLoc_T vorigin;
+  SLoc_T vorigin;  
+  SLoc_T atoms;
 
 };
 
@@ -437,10 +413,23 @@ View<Elem,Rank,MultiDimPtr> Block<Elem,Rank,MultiDimPtr>::colocate(View<Elem2,Ra
 } 
 
 template <typename Elem, unsigned long Rank, bool MultiDimPtr>
+View<Elem,Rank,MultiDimPtr> Block<Elem,Rank,MultiDimPtr>::atomize(builder::dyn_arr<loop_type,Rank> &atoms) {
+  return {this->bextents, this->bstrides, this->borigin,
+    this->bextents, this->bstrides, this->borigin,
+    atoms,
+    this->allocator};  
+}
+
+template <typename Elem, unsigned long Rank, bool MultiDimPtr>
 View<Elem,Rank,MultiDimPtr> Block<Elem,Rank,MultiDimPtr>::view() {
-  return View<Elem,Rank,MultiDimPtr>(this->bextents, this->bstrides, this->borigin,
-				     this->bextents, this->bstrides, this->borigin,
-				     this->allocator);
+  builder::dyn_arr<loop_type,Rank> atoms;
+  for (builder::static_var<int> i = 0; i < Rank; i++) {
+    atoms[i] = 1;
+  }
+  return {this->bextents, this->bstrides, this->borigin,
+    this->bextents, this->bstrides, this->borigin,
+    atoms,
+    this->allocator};
 }
 
 template <typename Elem, unsigned long Rank, bool MultiDimPtr>
@@ -466,8 +455,12 @@ View<Elem,Rank,MultiDimPtr> Block<Elem,Rank,MultiDimPtr>::view(Slices...slices) 
   // new strides = old strides * new strides
   SLoc_T strides;
   apply<MulFunctor,Rank>(strides, this->bstrides, vstrides);
+  builder::dyn_arr<loop_type,Rank> atoms;
+  for (builder::static_var<int> i = 0; i < Rank; i=i+1) {
+    atoms[i] = 1;
+  }
   return View<Elem,Rank,MultiDimPtr>(this->bextents, this->bstrides, this->borigin,
-				     vextents, strides, vorigin,
+				     vextents, strides, vorigin, atoms,
 				     this->allocator);  
 }
 
@@ -499,6 +492,33 @@ void Block<Elem,Rank,MultiDimPtr>::dump_data() {
       print_newline();
     }
   }
+}
+
+template <typename Elem, unsigned long Rank, bool MultiDimPtr>
+void Block<Elem,Rank,MultiDimPtr>::dump_loc() {
+  print_string("Block location info");
+  print_newline();
+  print_string("  Underlying data structure: ");
+  print_string(ElemToStr<typename decltype(ptr_wrap<Elem,Rank,MultiDimPtr>())::P>::str);
+  print_newline();
+  print_string("  BExtents:");
+  for (builder::static_var<int> r = 0; r < Rank; r=r+1) {
+    print_string(" ");
+    dispatch_print_elem<int>(bextents[r]);    
+  }
+  print_newline();
+  print_string("  BStrides:");
+  for (builder::static_var<int> r = 0; r < Rank; r=r+1) {
+    print_string(" ");
+    dispatch_print_elem<int>(bstrides[r]);    
+  }
+  print_newline();
+  print_string("  BOrigin:");
+  for (builder::static_var<int> r = 0; r < Rank; r=r+1) {
+    print_string(" ");
+    dispatch_print_elem<int>(borigin[r]);    
+  }
+  print_newline();
 }
 
 template <typename Elem, unsigned long Rank, bool MultiDimPtr>
@@ -683,6 +703,18 @@ View<Elem,Rank,MultiDimPtr> View<Elem,Rank,MultiDimPtr>::colocate(View<Elem2,Ran
 } 
 
 template <typename Elem, unsigned long Rank, bool MultiDimPtr>
+View<Elem,Rank,MultiDimPtr> View<Elem,Rank,MultiDimPtr>::atomize(builder::dyn_arr<loop_type,Rank> &atoms) {
+  builder::dyn_arr<loop_type,Rank> combined;
+  for (builder::static_var<int> i = 0; i < Rank; i=i+1) {
+    combined[i] = this->atomis[i] * atoms[i];
+  }
+  return {this->bextents, this->bstrides, this->borigin,
+    this->bextents, this->bstrides, this->borigin,
+    combined,
+    this->allocator};  
+}
+
+template <typename Elem, unsigned long Rank, bool MultiDimPtr>
 template <typename...Slices>
 View<Elem,Rank,MultiDimPtr> View<Elem,Rank,MultiDimPtr>::view(Slices...slices) {
   // the block parameters stay the same, but we need to update the
@@ -706,8 +738,9 @@ View<Elem,Rank,MultiDimPtr> View<Elem,Rank,MultiDimPtr>::view(Slices...slices) {
   SLoc_T strides;
   apply<MulFunctor,Rank>(strides, this->vstrides, vstrides);
   return View<Elem,Rank,MultiDimPtr>(this->bextents, this->bstrides, this->borigin,
-			 vextents, strides, origin,
-			 this->allocator);
+				     vextents, strides, origin,
+				     this->atoms,
+				     this->allocator);
 }
 
 template <typename Elem, unsigned long Rank, bool MultiDimPtr>
@@ -755,6 +788,10 @@ template <typename Elem, unsigned long Rank, bool MultiDimPtr>
 void View<Elem,Rank,MultiDimPtr>::dump_loc() {
   print_string("View location info");
   print_newline();
+  print_string("  Underlying data structure: ");
+  std::string x = ElemToStr<typename decltype(ptr_wrap<Elem,Rank,MultiDimPtr>())::P>::str;
+  print_string(x);
+  print_newline();
   print_string("  BExtents:");
   for (builder::static_var<int> r = 0; r < Rank; r=r+1) {
     print_string(" ");
@@ -789,6 +826,14 @@ void View<Elem,Rank,MultiDimPtr>::dump_loc() {
   for (builder::static_var<int> r = 0; r < Rank; r=r+1) {
     print_string(" ");
     dispatch_print_elem<int>(vorigin[r]);    
+  }  
+  print_newline();
+  print_string("  Atoms:");
+  for (builder::static_var<int> r = 0; r < Rank; r=r+1) {
+    print_string(" ");
+    dispatch_print_elem<int>(atoms[r]);    
+//    builder::dyn_var<loop_type> a = atoms[r];
+//    dispatch_print_elem<int>(a);
   }  
   print_newline();
 }
