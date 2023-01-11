@@ -11,6 +11,8 @@
 
 namespace cola {
 
+#define ASSERT(cond) cola_assert(cond, #cond)
+
 void cola_assert(builder::dyn_var<bool> condition, const char *msg="") {
   hassert(condition, msg);
 }
