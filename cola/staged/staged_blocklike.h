@@ -29,6 +29,8 @@ namespace cola {
 // would affect the location of a given block/view. This is bad. It'd basically be like having a pointer
 // represent the location information.
 
+// 4. colocation doesn't utilize atoms
+
 ///
 /// A region of data with a location
 /// If MultiDimPtr = true, the underlying array is a pointer to pointer to etc... (like Rank 2 = **).
@@ -401,15 +403,23 @@ builder::dyn_var<Elem> Block<Elem,Rank,MultiDimPtr>::plidx(LIdx lidx) {
 template <typename Elem, unsigned long Rank, bool MultiDimPtr>
 template <typename Elem2, bool MultiDimPtr2>
 View<Elem,Rank,MultiDimPtr> Block<Elem,Rank,MultiDimPtr>::colocate(Block<Elem2,Rank,MultiDimPtr2> &block) {
-  return {this->bextents, this->bstrides, this->borigin, 
+  builder::dyn_arr<loop_type,Rank> atoms;
+  for (builder::static_var<int> i = 0; i < Rank; i++) {
+    atoms[i] = 1;
+  }
+  return {this->bextents, this->bstrides, this->borigin, atoms,
     block.bextents, block.bstrides, block.borigin, this->allocator};
 }
 
 template <typename Elem, unsigned long Rank, bool MultiDimPtr>
 template <typename Elem2, bool MultiDimPtr2>
 View<Elem,Rank,MultiDimPtr> Block<Elem,Rank,MultiDimPtr>::colocate(View<Elem2,Rank,MultiDimPtr2> &view) {
+  builder::dyn_arr<loop_type,Rank> atoms;
+  for (builder::static_var<int> i = 0; i < Rank; i++) {
+    atoms[i] = 1;
+  }
   return {this->bextents, this->bstrides, this->borigin, 
-    view.vextents, view.strides, view.origin, this->allocator};
+    view.vextents, view.vstrides, view.vorigin, atoms, this->allocator};
 } 
 
 template <typename Elem, unsigned long Rank, bool MultiDimPtr>
@@ -691,15 +701,23 @@ builder::dyn_var<Elem> View<Elem,Rank,MultiDimPtr>::plidx(LIdx lidx) {
 template <typename Elem, unsigned long Rank, bool MultiDimPtr>
 template <typename Elem2, bool MultiDimPtr2>
 View<Elem,Rank,MultiDimPtr> View<Elem,Rank,MultiDimPtr>::colocate(Block<Elem2,Rank,MultiDimPtr2> &block) {
-  return {this->bextents, this->bstrides, this->borigin, 
+  builder::dyn_arr<loop_type,Rank> atoms;
+  for (builder::static_var<int> i = 0; i < Rank; i++) {
+    atoms[i] = 1;
+  }
+  return {this->bextents, this->bstrides, this->borigin, atoms,
     block.bextents, block.bstrides, block.borigin, this->allocator};
 }
 
 template <typename Elem, unsigned long Rank, bool MultiDimPtr>
 template <typename Elem2, bool MultiDimPtr2>
 View<Elem,Rank,MultiDimPtr> View<Elem,Rank,MultiDimPtr>::colocate(View<Elem2,Rank,MultiDimPtr2> &view) {
-  return {this->bextents, this->bstrides, this->borigin, 
-    view.vextents, view.strides, view.origin, this->allocator};
+  builder::dyn_arr<loop_type,Rank> atoms;
+  for (builder::static_var<int> i = 0; i < Rank; i++) {
+    atoms[i] = 1;
+  }
+  return {this->bextents, this->bstrides, this->borigin, atoms,
+    view.vextents, view.vstrides, view.vorigin, this->allocator};
 } 
 
 template <typename Elem, unsigned long Rank, bool MultiDimPtr>
