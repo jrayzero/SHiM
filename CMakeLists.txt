@@ -116,7 +116,7 @@ CoLaJM(intra16x16)
 
 # run "make test" to build all the tests
 add_custom_target(tests)
-function (tester name)
+function (tester name useDefaultDriver)
  # build the staged code
  add_executable(${name}_generator ${CMAKE_SOURCE_DIR}/tests/${name}.cpp)
  target_link_libraries(${name}_generator buildit)
@@ -127,13 +127,18 @@ function (tester name)
                     DEPENDS ${CMAKE_BINARY_DIR}/${name}_generator)
 
  # and build it with the unstaged part
- add_executable(${name} ${CMAKE_SOURCE_DIR}/tests/test_driver.cpp ${CMAKE_BINARY_DIR}/${name}_generated.cpp)                        
+ if (${useDefaultDriver})
+   add_executable(${name} ${CMAKE_SOURCE_DIR}/tests/test_driver.cpp ${CMAKE_BINARY_DIR}/${name}_generated.cpp)                        
+ else()
+   add_executable(${name} ${CMAKE_SOURCE_DIR}/tests/${name}_driver.cpp ${CMAKE_BINARY_DIR}/${name}_generated.cpp)                        
+ endif()
  target_include_directories(${name} PUBLIC ${CMAKE_SOURCE_DIR}/hmda ${CMAKE_BINARY_DIR})
  target_compile_definitions(${name} PUBLIC WHICH_TEST=${name})
  add_test(NAME ${name} COMMAND ${name})
  add_dependencies(tests ${name})
 endfunction()
 
-tester(test0)
-tester(test1)
-
+tester(test0 true)
+tester(test1 true)
+tester(test2 false)
+tester(test3 false)
