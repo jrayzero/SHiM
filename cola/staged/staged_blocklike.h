@@ -117,6 +117,12 @@ struct Block {
   template <typename LIdx>
   builder::dyn_var<Elem> plidx(LIdx lidx);
 
+  template <typename Elem2, bool MultiDimPtr2>
+  View<Elem,Rank,MultiDimPtr> colocate(Block<Elem2,Rank,MultiDimPtr2> &block);
+
+  template <typename Elem2, bool MultiDimPtr2>
+  View<Elem,Rank,MultiDimPtr> colocate(View<Elem2,Rank,MultiDimPtr2> &view);
+
   ///
   /// Write a single element at the specified coordinate
   /// Prefer the operator[] write method over this.
@@ -189,6 +195,12 @@ struct View {
   template <typename LIdx>
   builder::dyn_var<Elem> plidx(LIdx lidx);
 
+  template <typename Elem2, bool MultiDimPtr2>
+  View<Elem,Rank,MultiDimPtr> colocate(Block<Elem2,Rank,MultiDimPtr2> &block);
+
+  template <typename Elem2, bool MultiDimPtr2>
+  View<Elem,Rank,MultiDimPtr> colocate(View<Elem2,Rank,MultiDimPtr2> &view);
+
   ///
   /// Write a single element at the specified coordinate
   /// Prefer the operator[] write method over this.
@@ -213,6 +225,12 @@ struct View {
   // print out the location info
   void dump_loc();
 
+  ///
+  /// Compute the indices into the underlying block.
+  template <int Depth, unsigned long N>
+  void compute_block_relative_iters(const builder::dyn_arr<loop_type,N> &viters,
+				    builder::dyn_arr<loop_type,N> &out);
+
   std::shared_ptr<Allocation<Elem,physical<Rank,MultiDimPtr>()>> allocator;
   SLoc_T bextents;
   SLoc_T bstrides;
@@ -220,14 +238,6 @@ struct View {
   SLoc_T vextents;
   SLoc_T vstrides;
   SLoc_T vorigin;
-
-private:
-  
-  ///
-  /// Compute the indices into the underlying block.
-  template <int Depth, unsigned long N>
-  void compute_block_relative_iters(const builder::dyn_arr<loop_type,N> &viters,
-				    builder::dyn_arr<loop_type,N> &out);
 
 };
 
@@ -411,6 +421,20 @@ builder::dyn_var<Elem> Block<Elem,Rank,MultiDimPtr>::plidx(LIdx lidx) {
     return allocator->read(idxs);
   }
 }
+
+template <typename Elem, unsigned long Rank, bool MultiDimPtr>
+template <typename Elem2, bool MultiDimPtr2>
+View<Elem,Rank,MultiDimPtr> Block<Elem,Rank,MultiDimPtr>::colocate(Block<Elem2,Rank,MultiDimPtr2> &block) {
+  return {this->bextents, this->bstrides, this->borigin, 
+    block.bextents, block.bstrides, block.borigin, this->allocator};
+}
+
+template <typename Elem, unsigned long Rank, bool MultiDimPtr>
+template <typename Elem2, bool MultiDimPtr2>
+View<Elem,Rank,MultiDimPtr> Block<Elem,Rank,MultiDimPtr>::colocate(View<Elem2,Rank,MultiDimPtr2> &view) {
+  return {this->bextents, this->bstrides, this->borigin, 
+    view.vextents, view.strides, view.origin, this->allocator};
+} 
 
 template <typename Elem, unsigned long Rank, bool MultiDimPtr>
 View<Elem,Rank,MultiDimPtr> Block<Elem,Rank,MultiDimPtr>::view() {
@@ -643,6 +667,20 @@ builder::dyn_var<Elem> View<Elem,Rank,MultiDimPtr>::plidx(LIdx lidx) {
   delinearize<0,Rank>(coord, lidx, this->vextents);
   return this->operator()(coord);
 }
+
+template <typename Elem, unsigned long Rank, bool MultiDimPtr>
+template <typename Elem2, bool MultiDimPtr2>
+View<Elem,Rank,MultiDimPtr> View<Elem,Rank,MultiDimPtr>::colocate(Block<Elem2,Rank,MultiDimPtr2> &block) {
+  return {this->bextents, this->bstrides, this->borigin, 
+    block.bextents, block.bstrides, block.borigin, this->allocator};
+}
+
+template <typename Elem, unsigned long Rank, bool MultiDimPtr>
+template <typename Elem2, bool MultiDimPtr2>
+View<Elem,Rank,MultiDimPtr> View<Elem,Rank,MultiDimPtr>::colocate(View<Elem2,Rank,MultiDimPtr2> &view) {
+  return {this->bextents, this->bstrides, this->borigin, 
+    view.vextents, view.strides, view.origin, this->allocator};
+} 
 
 template <typename Elem, unsigned long Rank, bool MultiDimPtr>
 template <typename...Slices>
