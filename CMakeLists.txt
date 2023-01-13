@@ -94,25 +94,22 @@ endfunction()
 scratch(scratch1)
 scratch(scratch2)
 
-function (CoLaJM name)
- add_executable(s${name} ${CMAKE_SOURCE_DIR}/apps/JM/${name}.cpp)
- target_link_libraries(s${name} buildit)
+function (CoLaJM)
+ set(name CoLaJM)
+ add_executable(${name}_generator ${CMAKE_SOURCE_DIR}/apps/JM/${name}.cpp)
+ target_link_libraries(${name}_generator buildit)
  
  # now run the staged code
- add_custom_command(OUTPUT ${CMAKE_BINARY_DIR}/s${name}.cpp ${CMAKE_BINARY_DIR}/s${name}.h
-                    COMMAND ${CMAKE_BINARY_DIR}/s${name} ARGS s${name}
-                    DEPENDS ${CMAKE_BINARY_DIR}/s${name})
+ add_custom_command(OUTPUT ${CMAKE_BINARY_DIR}/${name}_generated.c ${CMAKE_BINARY_DIR}/${name}_generated.h
+                    COMMAND ${CMAKE_BINARY_DIR}/${name}_generator
+                    DEPENDS ${CMAKE_BINARY_DIR}/${name}_generator)
 
  # build the generate cpp code 		    	    
- add_library(${name} STATIC ${CMAKE_BINARY_DIR}/s${name}.cpp)
+ add_library(${name} STATIC ${CMAKE_BINARY_DIR}/${name}_generated.c)
 
- # and build it with the unstaged part
-# add_executable(${name} ${CMAKE_SOURCE_DIR}/scratch/${name}.c)
-# target_include_directories(${name} PUBLIC ${CMAKE_BINARY_DIR})		    
-# target_link_libraries(${name} ${name}_cpp)
 endfunction()
 
-CoLaJM(intra16x16)
+CoLaJM()
 
 # run "make test" to build all the tests
 add_custom_target(tests)

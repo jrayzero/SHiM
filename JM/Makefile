@@ -17,8 +17,12 @@ STC?= 0
 OPENMP?= 0
 
 USE_COLA?=0
+VERBOSE?=0
 CFLAGS+=-DUSE_COLA=$(USE_COLA)
 CC?= $(shell which clang)
+ifeq ($(VERBOSE),1)
+CC+="-v"
+endif
 
 #check for LLVM and silence warnings accordingly
 LLVM = $(shell $(CC) --version | grep clang)
