@@ -155,6 +155,9 @@ void stage(Func func, bool isCPP, std::string name, std::string fn_prefix, std::
   if (!isCPP) {
     src << "#include <stdio.h>" << std::endl;
     src << "#include <math.h>" << std::endl;
+    src << "#include <stdbool.h>" << std::endl;
+    src << "#include <stdlib.h>" << std::endl;
+    hdr << "#include <stdbool.h>" << std::endl;
   }
   // Plain C does not support the HeapArray and things like that!
   if (isCPP)
