@@ -97,48 +97,6 @@ struct Allocation {
 
 };
 
-#define DISPATCH_READER(dtype)						\
-  template <typename Data, bool IsHeapArr>				\
-  struct DispatchRead<dtype, IsHeapArr, Data> {				\
-    auto operator()(builder::dyn_var<loop_type> lidx, Data data) {	\
-      if constexpr (IsHeapArr) {					\
-	return read_heaparr_##dtype(data,lidx);				\
-      }	else {								\
-	return read_##dtype(data,lidx);					\
-      }									\
-    }									\
-  }
-
-#define DISPATCH_WRITER(dtype)						\
-  template <typename Data, bool IsHeapArr>				\
-  struct DispatchWrite<dtype, IsHeapArr, Data> {			\
-    void operator()(builder::dyn_var<dtype> val, builder::dyn_var<loop_type> lidx, Data data) { \
-      if constexpr (IsHeapArr) {					\
-	write_heaparr_##dtype(data, lidx, val);				\
-      } else {								\
-	write_##dtype(data, lidx, val);					\
-      }									\
-    }									\
-}
-
-#define DISPATCH_MULTI_READER(dtype)					\
-  template <typename Data>						\
-  struct DispatchMultiRead<dtype, Data> {				\
-    template <unsigned long N>							\
-    auto operator()(builder::dyn_arr<loop_type, N> &idxs, Data data) { \
-      return multi_read_##dtype(data,idxs);				\
-    }									\
-  }
-
-#define DISPATCH_MULTI_WRITER(dtype)					\
-  template <typename Data>						\
-  struct DispatchMultiWrite<dtype, Data> {				\
-    template <unsigned long N>							\
-    void operator()(builder::dyn_var<dtype> val, builder::dyn_arr<loop_type,N> &idxs, Data data) { \
-      multi_write_##dtype(data, idxs, val);				\
-    }									\
-  }
-
 #define DISPATCH_MEMSET(dtype)						\
   template <typename Data, bool IsHeapArr>				\
   struct DispatchMemset<dtype, IsHeapArr, Data> {			\
@@ -159,62 +117,6 @@ struct Allocation {
       return build_heaparr_##dtype(sz);			\
     }							\
   }
-
-template <typename Elem, bool IsHeapArr, typename Data>
-struct DispatchRead { };
-DISPATCH_READER(uint8_t);
-DISPATCH_READER(uint16_t);
-DISPATCH_READER(uint32_t);
-DISPATCH_READER(uint64_t);
-DISPATCH_READER(char);
-DISPATCH_READER(int8_t);
-DISPATCH_READER(int16_t);
-DISPATCH_READER(int32_t);
-DISPATCH_READER(int64_t);
-DISPATCH_READER(float);
-DISPATCH_READER(double);
-
-template <typename Elem, bool IsHeapArr, typename Data>
-struct DispatchWrite { };
-DISPATCH_WRITER(uint8_t);
-DISPATCH_WRITER(uint16_t);
-DISPATCH_WRITER(uint32_t);
-DISPATCH_WRITER(uint64_t);
-DISPATCH_WRITER(char);
-DISPATCH_WRITER(int8_t);
-DISPATCH_WRITER(int16_t);
-DISPATCH_WRITER(int32_t);
-DISPATCH_WRITER(int64_t);
-DISPATCH_WRITER(float);
-DISPATCH_WRITER(double);
-
-template <typename Elem, typename Data>
-struct DispatchMultiRead { };
-DISPATCH_MULTI_READER(uint8_t);
-DISPATCH_MULTI_READER(uint16_t);
-DISPATCH_MULTI_READER(uint32_t);
-DISPATCH_MULTI_READER(uint64_t);
-DISPATCH_MULTI_READER(char);
-DISPATCH_MULTI_READER(int8_t);
-DISPATCH_MULTI_READER(int16_t);
-DISPATCH_MULTI_READER(int32_t);
-DISPATCH_MULTI_READER(int64_t);
-DISPATCH_MULTI_READER(float);
-DISPATCH_MULTI_READER(double);
-
-template <typename Elem, typename Data>
-struct DispatchMultiWrite { };
-DISPATCH_MULTI_WRITER(uint8_t);
-DISPATCH_MULTI_WRITER(uint16_t);
-DISPATCH_MULTI_WRITER(uint32_t);
-DISPATCH_MULTI_WRITER(uint64_t);
-DISPATCH_MULTI_WRITER(char);
-DISPATCH_MULTI_WRITER(int8_t);
-DISPATCH_MULTI_WRITER(int16_t);
-DISPATCH_MULTI_WRITER(int32_t);
-DISPATCH_MULTI_WRITER(int64_t);
-DISPATCH_MULTI_WRITER(float);
-DISPATCH_MULTI_WRITER(double);
 
 template <typename Elem, bool IsHeapArry, typename Data>
 struct DispatchMemset { };
@@ -243,34 +145,6 @@ DISPATCH_BUILDER(int32_t);
 DISPATCH_BUILDER(int64_t);
 DISPATCH_BUILDER(float);
 DISPATCH_BUILDER(double);
-
-///
-/// Calls the appropriate external read function based on the Elem and allocation type
-template <typename Elem, bool IsHeapArr, typename Data>
-auto dispatch_read(builder::dyn_var<loop_type> lidx, Data data) {
-  return DispatchRead<Elem,IsHeapArr,Data>()(lidx, data);
-}
-
-///
-/// Calls the appropriate external write function based on the Elem and allocation type
-template <typename Elem, bool IsHeapArr, typename Data>
-void dispatch_write(builder::dyn_var<Elem> val, builder::dyn_var<loop_type> lidx, Data data) {
-  DispatchWrite<Elem,IsHeapArr,Data>()(val, lidx, data);
-}
-
-///
-/// Calls the appropriate external read function based on the Elem and allocation type
-template <typename Elem, typename Data, unsigned long N>
-auto dispatch_multi_read(builder::dyn_arr<loop_type,N> &idxs, Data data) {
-  return DispatchMultiRead<Elem,Data>()(idxs, data);
-}
-
-///
-/// Calls the appropriate external write function based on the Elem and allocation type
-template <typename Elem, typename Data, unsigned long N>
-void dispatch_multi_write(builder::dyn_var<Elem> val, builder::dyn_arr<loop_type,N> &idxs, Data data) {
-  DispatchMultiWrite<Elem,Data>()(val, idxs, data);
-}
 
 ///
 /// Calls the appropriate external write function based on the Elem and allocation type
@@ -409,24 +283,12 @@ void multi_write(Data &data, Val val, Idxs &idxs) {
 
 template <typename Elem, typename Storage, int PhysicalRank>  
 builder::dyn_var<Elem> UserAllocation<Elem,Storage,PhysicalRank>::read(builder::dyn_arr<loop_type,PhysicalRank> &idxs) {
-//  if constexpr (PhysicalRank == 1) {
-//    return dispatch_read<Elem,false>(idxs[0], data);
-//  } else {
-//    return dispatch_multi_read<Elem>(idxs, data);
   return multi_read<PhysicalRank,0>(data, idxs);
-//  return data[0][0];
-//  return 10;
-//  }
 }
 
 template <typename Elem, typename Storage, int PhysicalRank>
 void UserAllocation<Elem,Storage,PhysicalRank>::write(builder::dyn_var<Elem> val, builder::dyn_arr<loop_type,PhysicalRank> &idxs) {
-//  if constexpr (PhysicalRank == 1) {
-//    dispatch_write<Elem,false>(val, idxs[0], data);
-//  } else {
-//    dispatch_multi_write<Elem>(val, idxs, data);    
   multi_write<PhysicalRank,0>(data, val, idxs);
-  //  }
 }
 
 template <typename Elem, typename Storage, int PhysicalRank>
