@@ -199,4 +199,12 @@ constexpr int peel() {
   return Peel<Elem>()();
 }
 
+template <typename Item, typename...Items>
+void print_many(Item item, Items...items) {
+  print(item);
+  if constexpr (sizeof...(Items) > 0) {
+    print_many(items...);
+  }
+}
+
 }

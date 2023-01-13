@@ -143,7 +143,7 @@ void stage(Func func, bool isCPP, std::string name, std::string fn_prefix, std::
   std::ofstream src;
   std::ofstream hdr;
   std::string header = fn_prefix + ".h";  
-  std::string source = fn_prefix + ".cpp";
+  std::string source = isCPP ? fn_prefix + ".cpp" : fn_prefix + ".c";
   hdr.open(header);
   src.open(source);
   if (name.empty()) name = "__my_staged_func";
@@ -152,17 +152,17 @@ void stage(Func func, bool isCPP, std::string name, std::string fn_prefix, std::
   hdr << "#pragma once" << std::endl;
   hdr << pre_hdr;
   src << pre_src;
-  src << "#include \"runtime/runtime.h\"" << std::endl;
+  if (!isCPP) {
+    src << "#include <stdio.h>" << std::endl;
+    src << "#include <math.h>" << std::endl;
+  }
+  // Plain C does not support the HeapArray and things like that!
+  if (isCPP)
+    src << "#include \"runtime/runtime.h\"" << std::endl;
   std::stringstream src2;
   std::vector<std::string> sigs = hmda_cpp_code_generator::generate_code(ast, src2, 0);
   for (auto sig : sigs) {
-    if (isCPP) {
-      hdr << sig << ";" << std::endl;
-    } else {
-      // TODO If have non-primitive types (i.e. classes) need to prefix with "struct"
-      src << "extern \"C\" " << sig << ";" << std::endl;
-      hdr << sig << ";" << std::endl;
-    }
+    hdr << sig << ";" << std::endl;
   }
   src << src2.str();
   hdr.flush();
@@ -171,6 +171,13 @@ void stage(Func func, bool isCPP, std::string name, std::string fn_prefix, std::
   src.close();
   std::chrono::steady_clock::time_point stop = std::chrono::steady_clock::now();
   std::cout << "Staging took " << std::chrono::duration_cast<std::chrono::nanoseconds> (stop - start).count()/1e9 << "s" << std::endl;  
+}
+
+std::string basename(std::string path, std::string suffix="") {
+  std::stringstream f;
+  std::string f2 = std::filesystem::path(path).stem();
+  f << f2 << suffix;
+  return f.str();
 }
 
 }

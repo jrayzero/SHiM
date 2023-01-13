@@ -17,6 +17,7 @@ builder::dyn_var<loop_type(loop_type)> hfloor = builder::as_global("floor");
 builder::dyn_var<void(void)> print_newline = builder::as_global("cola::print_newline");
 builder::dyn_var<void(char*)> print_string = builder::as_global("cola::print_string");
 builder::dyn_var<void(void*)> print = builder::as_global("cola::print");
+builder::dyn_var<void(void*)> cprint = builder::as_global("printf");
 builder::dyn_var<void(void*)> printn = builder::as_global("cola::printn");
 builder::dyn_var<void*(void*,void*)> scat_items = builder::as_global("cola::scat_items");
 builder::dyn_var<int(int,int)> lshift = builder::as_global("cola::lshift");
