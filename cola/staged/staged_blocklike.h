@@ -29,7 +29,19 @@ namespace cola {
 // would affect the location of a given block/view. This is bad. It'd basically be like having a pointer
 // represent the location information.
 
-// 4. colocation doesn't utilize atoms
+// 4. Interpolation factors logically increase the extent of the hmda.
+// For example, if this block is 10x10 and the interpolation factors are 3x2,
+// we can access the resulting view as if it were a 30x20 region.
+// Note that interpolation factors don't impact the physical size, so if you
+// took that 10x10 interpolated view and did inline indexing with it, it would
+// iterate over the 10x10 region, not 30x20.
+// When you read/write/slice from the interpolated hmda, it divides the accessors by the 
+// interpolation factors. 
+// When you call colocate on an interpolated hmda, it still uses the parameters from the 
+// thing you are interpolating with, but it DIVIDES THE OTHER OBJECTS EXTENT AND LOCATION by the interpolation
+// factors. Otherwise your physical size would be very wrong. If the other object has an interpolation,
+// this is undefined.
+
 
 ///
 /// A region of data with a location
@@ -83,13 +95,20 @@ struct Block {
   template <typename LIdx>
   builder::dyn_var<Elem> plidx(LIdx lidx);
 
+  ///
+  /// Create a view on this' data using the location of block.
   template <typename Elem2, bool MultiDimPtr2>
   View<Elem,Rank,MultiDimPtr> colocate(Block<Elem2,Rank,MultiDimPtr2> &block);
 
+  ///
+  /// Create a view on this' data using the location of view (not its underlying block!)
   template <typename Elem2, bool MultiDimPtr2>
   View<Elem,Rank,MultiDimPtr> colocate(View<Elem2,Rank,MultiDimPtr2> &view);
 
-  View<Elem,Rank,MultiDimPtr> atomize(builder::dyn_arr<loop_type,Rank> &atoms);
+  /// 
+  /// Create interpolation factors that logically increase the extent of this block.
+  template <typename...Factors>
+  View<Elem,Rank,MultiDimPtr> logically_interpolate(Factors...factors);
 
   ///
   /// Write a single element at the specified coordinate
@@ -147,11 +166,11 @@ struct View {
   /// Create a View from the specified location information
   View(SLoc_T bextents, SLoc_T bstrides, SLoc_T borigin,
        SLoc_T vextents, SLoc_T vstrides, SLoc_T vorigin,
-       SLoc_T atoms,
+       SLoc_T interpolation_factors,
        std::shared_ptr<Allocation<Elem,physical<Rank,MultiDimPtr>()>> allocator) :
     bextents(bextents), bstrides(bstrides), borigin(borigin),
     vextents(vextents), vstrides(vstrides), vorigin(vorigin), 
-    atoms(atoms),
+    interpolation_factors(interpolation_factors),
     allocator(allocator) { }
 
   ///
@@ -169,13 +188,24 @@ struct View {
   template <typename LIdx>
   builder::dyn_var<Elem> plidx(LIdx lidx);
 
+  ///
+  /// Create a view on this' data using the location of block.
   template <typename Elem2, bool MultiDimPtr2>
   View<Elem,Rank,MultiDimPtr> colocate(Block<Elem2,Rank,MultiDimPtr2> &block);
 
+  ///
+  /// Create a view on this' data using the location of view (not its underlying block!)
   template <typename Elem2, bool MultiDimPtr2>
   View<Elem,Rank,MultiDimPtr> colocate(View<Elem2,Rank,MultiDimPtr2> &view);
 
-  View<Elem,Rank,MultiDimPtr> atomize(builder::dyn_arr<loop_type,Rank> &atoms);
+  /// 
+  /// Create interpolation factors that logically increase the extent of this block.
+  template <typename...Factors>
+  View<Elem,Rank,MultiDimPtr> logically_interpolate(Factors...factors);
+
+  ///
+  /// Reset interpolation factors back to 1
+  View<Elem,Rank,MultiDimPtr> reset();
 
   ///
   /// Write a single element at the specified coordinate
@@ -215,8 +245,7 @@ struct View {
   SLoc_T vextents;
   SLoc_T vstrides;
   SLoc_T vorigin;  
-  SLoc_T atoms;
-
+  SLoc_T interpolation_factors;
 };
 
 ///
@@ -403,42 +432,54 @@ builder::dyn_var<Elem> Block<Elem,Rank,MultiDimPtr>::plidx(LIdx lidx) {
 template <typename Elem, unsigned long Rank, bool MultiDimPtr>
 template <typename Elem2, bool MultiDimPtr2>
 View<Elem,Rank,MultiDimPtr> Block<Elem,Rank,MultiDimPtr>::colocate(Block<Elem2,Rank,MultiDimPtr2> &block) {
-  builder::dyn_arr<loop_type,Rank> atoms;
-  for (builder::static_var<int> i = 0; i < Rank; i++) {
-    atoms[i] = 1;
+  SLoc_T interpolation_factors;
+  for (builder::static_var<int> i = 0; i < Rank; i=i+1) {
+    interpolation_factors[i] = 1;
   }
-  return {this->bextents, this->bstrides, this->borigin, atoms,
-    block.bextents, block.bstrides, block.borigin, this->allocator};
+  return {this->bextents, this->bstrides, this->borigin, 
+    block.bextents, block.bstrides, block.borigin,  
+    interpolation_factors,
+    this->allocator};
 }
 
 template <typename Elem, unsigned long Rank, bool MultiDimPtr>
 template <typename Elem2, bool MultiDimPtr2>
 View<Elem,Rank,MultiDimPtr> Block<Elem,Rank,MultiDimPtr>::colocate(View<Elem2,Rank,MultiDimPtr2> &view) {
-  builder::dyn_arr<loop_type,Rank> atoms;
-  for (builder::static_var<int> i = 0; i < Rank; i++) {
-    atoms[i] = 1;
-  }
+//  SLoc_T interpolation_factors;
+//  for (builder::static_var<int> i = 0; i < Rank; i=i+1) {
+//    interpolation_factors[i] = 1;
+//  }
   return {this->bextents, this->bstrides, this->borigin, 
-    view.vextents, view.vstrides, view.vorigin, atoms, this->allocator};
+    view.vextents, view.vstrides, view.vorigin, 
+    view.interpolation_factors,
+    this->allocator};
 } 
 
 template <typename Elem, unsigned long Rank, bool MultiDimPtr>
-View<Elem,Rank,MultiDimPtr> Block<Elem,Rank,MultiDimPtr>::atomize(builder::dyn_arr<loop_type,Rank> &atoms) {
+template <typename...Factors>
+View<Elem,Rank,MultiDimPtr> Block<Elem,Rank,MultiDimPtr>::logically_interpolate(Factors...factors) {
+  SLoc_T ifactors{factors...};
+  SLoc_T vextents;
+  SLoc_T vorigin;
+  for (builder::static_var<loop_type> i = 0; i < Rank; i=i+1) {
+    vextents[i] = this->bextents[i] * ifactors[i];
+    vorigin[i] = this->borigin[i] * ifactors[i];
+  }
   return {this->bextents, this->bstrides, this->borigin,
-    this->bextents, this->bstrides, this->borigin,
-    atoms,
-    this->allocator};  
+    vextents, this->bstrides, vorigin,
+    ifactors,
+    this->allocator};
 }
 
 template <typename Elem, unsigned long Rank, bool MultiDimPtr>
 View<Elem,Rank,MultiDimPtr> Block<Elem,Rank,MultiDimPtr>::view() {
-  builder::dyn_arr<loop_type,Rank> atoms;
-  for (builder::static_var<int> i = 0; i < Rank; i++) {
-    atoms[i] = 1;
+  SLoc_T interpolation_factors;
+  for (builder::static_var<int> i = 0; i < Rank; i=i+1) {
+    interpolation_factors[i] = 1;
   }
   return {this->bextents, this->bstrides, this->borigin,
     this->bextents, this->bstrides, this->borigin,
-    atoms,
+    interpolation_factors,
     this->allocator};
 }
 
@@ -456,21 +497,16 @@ View<Elem,Rank,MultiDimPtr> Block<Elem,Rank,MultiDimPtr>::view(Slices...slices) 
   // convert vstops into extents
   SLoc_T vextents;
   convert_stops_to_extents<Rank>(vextents, vorigin, vstops, vstrides);
-  // now make everything relative to the prior block
-  // new origin = old origin + vorigin * old strides
-//  SLoc_T origin;
-//  SLoc_T tmp;
-//  apply<MulFunctor,Rank>(tmp, vorigin, this->bstrides);
-//  apply<AddFunctor,Rank>(origin, this->borigin, tmp);
   // new strides = old strides * new strides
   SLoc_T strides;
   apply<MulFunctor,Rank>(strides, this->bstrides, vstrides);
-  builder::dyn_arr<loop_type,Rank> atoms;
+  SLoc_T interpolation_factors;
   for (builder::static_var<int> i = 0; i < Rank; i=i+1) {
-    atoms[i] = 1;
+    interpolation_factors[i] = 1;
   }
   return View<Elem,Rank,MultiDimPtr>(this->bextents, this->bstrides, this->borigin,
-				     vextents, strides, vorigin, atoms,
+				     vextents, strides, vorigin,
+				     interpolation_factors,
 				     this->allocator);  
 }
 
@@ -620,7 +656,7 @@ builder::dyn_var<Elem> View<Elem,Rank,MultiDimPtr>::read(builder::dyn_arr<loop_t
     }
     return this->read(arr);
   } else {
-    // the iters are relative to the View, so first make them relative to the block
+    // first make them relative to the block
     // bi0 = vi0 * vstride0 + vorigin0
     builder::dyn_arr<loop_type,N> bcoords;
     compute_block_relative_iters<0>(coords, bcoords);
@@ -694,42 +730,71 @@ template <typename LIdx>
 builder::dyn_var<Elem> View<Elem,Rank,MultiDimPtr>::plidx(LIdx lidx) {
   // must delinearize relative to the view
   SLoc_T coord;
-  delinearize<0,Rank>(coord, lidx, this->vextents);
-  return this->operator()(coord);
+  delinearize<0,Rank>(coord, lidx, vextents);
+  return this->read(coord);
 }
 
 template <typename Elem, unsigned long Rank, bool MultiDimPtr>
 template <typename Elem2, bool MultiDimPtr2>
 View<Elem,Rank,MultiDimPtr> View<Elem,Rank,MultiDimPtr>::colocate(Block<Elem2,Rank,MultiDimPtr2> &block) {
-  builder::dyn_arr<loop_type,Rank> atoms;
-  for (builder::static_var<int> i = 0; i < Rank; i++) {
-    atoms[i] = 1;
+  // adjust by the factors
+  SLoc_T extents;
+  SLoc_T origin;
+  for (builder::static_var<int> i = 0; i < Rank; i=i+1) {
+    extents[i] = block.bextents[i] * this->interpolation_factors[i];
+    origin[i] = block.borigin[i] * this->interpolation_factors[i];
   }
-  return {this->bextents, this->bstrides, this->borigin, atoms,
-    block.bextents, block.bstrides, block.borigin, this->allocator};
+  return {this->bextents, this->bstrides, this->borigin, 
+    extents, block.bstrides, origin, 
+    this->interpolation_factors, 
+    this->allocator};
 }
 
 template <typename Elem, unsigned long Rank, bool MultiDimPtr>
 template <typename Elem2, bool MultiDimPtr2>
 View<Elem,Rank,MultiDimPtr> View<Elem,Rank,MultiDimPtr>::colocate(View<Elem2,Rank,MultiDimPtr2> &view) {
-  builder::dyn_arr<loop_type,Rank> atoms;
-  for (builder::static_var<int> i = 0; i < Rank; i++) {
-    atoms[i] = 1;
-  }
-  return {this->bextents, this->bstrides, this->borigin, atoms,
-    view.vextents, view.vstrides, view.vorigin, this->allocator};
+  // no adjustment by interpolation factors needed since you assume the interpolation factors make it 
+  // so you are relative to the view param already! 
+  // example: view=a macroblock and this=predication status. you have one intraprediction per macroblock,
+  // so we'd assume this has already been interpolated by 16x16 so it has the same granularity as the
+  // macroblock.
+  return {this->bextents, this->bstrides, this->borigin,
+    view.vextents, view.vstrides, view.vorigin, 
+    this->interpolation_factors, 
+    this->allocator};
 } 
 
 template <typename Elem, unsigned long Rank, bool MultiDimPtr>
-View<Elem,Rank,MultiDimPtr> View<Elem,Rank,MultiDimPtr>::atomize(builder::dyn_arr<loop_type,Rank> &atoms) {
-  builder::dyn_arr<loop_type,Rank> combined;
+template <typename...Factors>
+View<Elem,Rank,MultiDimPtr> View<Elem,Rank,MultiDimPtr>::logically_interpolate(Factors...factors) {
+  SLoc_T ifactors{factors...};
+  SLoc_T new_vextents;
+  SLoc_T new_vorigin;
   for (builder::static_var<int> i = 0; i < Rank; i=i+1) {
-    combined[i] = this->atomis[i] * atoms[i];
+    new_vextents[i] = this->vextents[i] * ifactors[i];
+    new_vorigin[i] = this->vorigin[i] * ifactors[i];
+    ifactors[i] = ifactors[i] * this->interpolation_factors[i];
+  }  
+  return {this->bextents, this->bstrides, this->borigin,
+    new_vextents, this->vstrides, new_vorigin,
+    ifactors,
+    this->allocator};
+}
+
+template <typename Elem, unsigned long Rank, bool MultiDimPtr>
+View<Elem,Rank,MultiDimPtr> View<Elem,Rank,MultiDimPtr>::reset() {
+  SLoc_T ones;
+  SLoc_T adjusted_vextents;
+  SLoc_T adjusted_vorigin;
+  for (builder::static_var<int> i = 0; i < Rank; i=i+1) {
+    ones[i] = 1;
+    adjusted_vextents[i] = vextents[i] / this->interpolation_factors[i];
+    adjusted_vorigin[i] = vorigin[i] / this->interpolation_factors[i];
   }
   return {this->bextents, this->bstrides, this->borigin,
-    this->bextents, this->bstrides, this->borigin,
-    combined,
-    this->allocator};  
+    adjusted_vextents, this->vstrides, adjusted_vorigin,
+    ones,
+    this->allocator};
 }
 
 template <typename Elem, unsigned long Rank, bool MultiDimPtr>
@@ -757,7 +822,7 @@ View<Elem,Rank,MultiDimPtr> View<Elem,Rank,MultiDimPtr>::view(Slices...slices) {
   apply<MulFunctor,Rank>(strides, this->vstrides, vstrides);
   return View<Elem,Rank,MultiDimPtr>(this->bextents, this->bstrides, this->borigin,
 				     vextents, strides, origin,
-				     this->atoms,
+				     this->interpolation_factors,
 				     this->allocator);
 }
 
@@ -767,7 +832,7 @@ void View<Elem,Rank,MultiDimPtr>::compute_block_relative_iters(const builder::dy
 							       builder::dyn_arr<loop_type,N> &out) {
   if constexpr (Depth == N) {
   } else {
-    out[Depth] = viters[Depth] * vstrides[Depth] + vorigin[Depth];
+    out[Depth] = (viters[Depth] * vstrides[Depth] + vorigin[Depth]) / this->interpolation_factors[Depth];
     compute_block_relative_iters<Depth+1>(viters, out);
   }
 }
@@ -828,10 +893,16 @@ void View<Elem,Rank,MultiDimPtr>::dump_loc() {
     dispatch_print_elem<int>(borigin[r]);    
   }
   print_newline();
-  print_string("  VExtents:");
+  print_string("  Interpolated VExtents:");
   for (builder::static_var<int> r = 0; r < Rank; r=r+1) {
     print_string(" ");
     dispatch_print_elem<int>(vextents[r]);    
+  }
+  print_newline();
+  print_string("  UnInterpolated VExtents:");
+  for (builder::static_var<int> r = 0; r < Rank; r=r+1) {
+    print_string(" ");
+    dispatch_print_elem<int>(vextents[r] / interpolation_factors[r]);    
   }
   print_newline();
   print_string("  VStrides:");
@@ -846,12 +917,16 @@ void View<Elem,Rank,MultiDimPtr>::dump_loc() {
     dispatch_print_elem<int>(vorigin[r]);    
   }  
   print_newline();
-  print_string("  Atoms:");
+  print_string("  UnInterpolated VOrigin:");
   for (builder::static_var<int> r = 0; r < Rank; r=r+1) {
     print_string(" ");
-    dispatch_print_elem<int>(atoms[r]);    
-//    builder::dyn_var<loop_type> a = atoms[r];
-//    dispatch_print_elem<int>(a);
+    dispatch_print_elem<int>(vorigin[r] / interpolation_factors[r]);    
+  }  
+  print_newline();
+  print_string("  Interpolation factors:");
+  for (builder::static_var<int> r = 0; r < Rank; r=r+1) {
+    print_string(" ");
+    dispatch_print_elem<int>(interpolation_factors[r]);    
   }  
   print_newline();
 }

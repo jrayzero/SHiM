@@ -7,3 +7,17 @@ cmake-build-release
 hmda/staged/loops.h
 hmda/staged/schedule.h
 .idea
+3rdParty/*
+JM/bin/**
+JM/lencod/dependencies
+JM/lencod/obj
+JM/rtp_loss/**
+JM/rtpdump/**
+jm19.0.zip
+output.h264
+scratch
+**/*.zip
+**/*ppm
+**/*jpg
+cola_save
+examples.old

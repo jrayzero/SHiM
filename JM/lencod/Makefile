@@ -42,11 +42,12 @@ STATIC=
 endif
 
 LIBS=   -lm $(STATIC)
-ifeq ($(USE_COLA),1)
-LIBS+= -L../../build/ -lcolaJM
-endif
-CFLAGS+=  -std=gnu99 -pedantic -fno-strict-aliasing -fsigned-char $(STATIC)
+CFLAGS+= -std=gnu99  -pedantic -fno-strict-aliasing -fsigned-char $(STATIC)
 FLAGS=  $(CFLAGS) -Wall -I$(INCDIR) -I$(ADDINCDIR) -D __USE_LARGEFILE64 -D _FILE_OFFSET_BITS=64
+ifeq ($(USE_COLA),1)
+LIBS+= -L/Users/jray/CLionProjects/HMDA-BuildIt/build/ -lCoLaJM
+FLAGS+= -I/Users/jray/CLionProjects/HMDA-BuildIt/build/
+endif
 
 ifeq ($(M32),1)
 FLAGS+=-m32

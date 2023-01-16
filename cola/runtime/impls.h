@@ -13,26 +13,6 @@ HeapArray<Elem> build_heaparr(loop_type sz) {
 }
 
 template <typename Elem>
-Elem read(Elem *data, loop_type lidx) {
-  return data[lidx];
-}
-
-template <typename Elem>
-void write(Elem *data, loop_type lidx, Elem val) {
-  data[lidx] = val;
-}
-
-template <typename Elem>
-Elem read(const HeapArray<Elem> &heaparr, loop_type lidx) {
-  return heaparr[lidx];
-}
-
-template <typename Elem>
-void write(HeapArray<Elem> &heaparr, loop_type lidx, Elem val) {
-  heaparr.write(lidx, val);
-}
-
-template <typename Elem>
 void hmemset(Elem *data, Elem val, loop_type sz) {
   memset(data, val, sz);
 }
