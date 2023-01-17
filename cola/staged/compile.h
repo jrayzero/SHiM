@@ -162,6 +162,10 @@ void stage(Func func, bool isCPP, std::string name, std::string fn_prefix, std::
   // Plain C does not support the HeapArray and things like that!
   if (isCPP)
     src << "#include \"runtime/runtime.h\"" << std::endl;
+  if (!isCPP) {
+    src << "#define lshift(a,b) (a) << (b)" << std::endl;
+    src << "#define rshift(a,b) (a) >> (b)" << std::endl;
+  }
   std::stringstream src2;
   std::vector<std::string> sigs = hmda_cpp_code_generator::generate_code(ast, src2, 0);
   for (auto sig : sigs) {

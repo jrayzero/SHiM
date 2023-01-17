@@ -53,6 +53,7 @@ function (CoLaJM)
  set(name CoLaJM)
  add_executable(${name}_generator ${CMAKE_SOURCE_DIR}/apps/JM/${name}.cpp)
  target_link_libraries(${name}_generator buildit)
+ target_include_directories(${name}_generator PUBLIC ${CMAKE_SOURCE_DIR}/JM/lencod/inc ${CMAKE_SOURCE_DIR}/JM/lcommon/inc)
  
  # now run the staged code
  add_custom_command(OUTPUT ${CMAKE_BINARY_DIR}/${name}_generated.c ${CMAKE_BINARY_DIR}/${name}_generated.h

@@ -22,10 +22,13 @@ builder::dyn_var<void(void*)> printn = builder::as_global("cola::printn");
 builder::dyn_var<void*(void*,void*)> scat_items = builder::as_global("cola::scat_items");
 builder::dyn_var<int(int,int)> lshift = builder::as_global("cola::lshift");
 builder::dyn_var<int(int,int)> rshift = builder::as_global("cola::rshift");
+builder::dyn_var<int(int,int)> clshift = builder::as_global("lshift");
+builder::dyn_var<int(int,int)> crshift = builder::as_global("rshift");
 builder::dyn_var<int(int,int)> bor = builder::as_global("cola::bor");
 builder::dyn_var<int(int,int)> band = builder::as_global("cola::band");
 builder::dyn_var<int(int,int)> pow = builder::as_global("cola::pow");
 builder::dyn_var<int(int)> ceil = builder::as_global("cola::ceil");
+builder::dyn_var<int(int)> cabs = builder::as_global("abs");
 builder::dyn_var<void(bool,char*)> hassert = builder::as_global("cola::cola_assert");
 
 // Note: the arg tyoe for these casts isn't right, but I don't want to write every combination
