@@ -298,6 +298,12 @@ struct Ref : public Expr<Ref<BlockLike,Idxs>> {
   template <typename Rhs>
   void operator=(Rhs rhs);
 
+  ///
+  /// Trigger evaluation (i.e. loop construction) of this access.
+  /// Used with a dyn_var or builder, and forces builder to a dyn_var
+//  template <typename Rhs, typename std::enable_if<is_dyn_like<Rhs>::value, int>::type=0>
+  void operator=(builder::builder rhs);
+
   Idxs idxs;
   BlockLike block_like;
 
@@ -998,6 +1004,7 @@ Ref<BlockLike, Idxs> &Ref<BlockLike,Idxs>::operator=(Ref<BlockLike, Idxs> &rhs) 
   return *this;
 }
   
+// raw value
 template <typename BlockLike, typename Idxs>
 void Ref<BlockLike,Idxs>::operator=(typename BlockLike::Elem_T x) {
   this->verify_unadorned();
@@ -1014,6 +1021,17 @@ void Ref<BlockLike,Idxs>::operator=(Rhs rhs) {
   this->verify_unique<0>();
   static_assert(std::tuple_size<Idxs>() == BlockLike::Rank_T);
   realize_loop_nest(rhs);
+}
+
+template <typename BlockLike, typename Idxs>
+//template <typename Rhs, typename std::enable_if<is_dyn_like<Rhs>::value, int>::type>
+void Ref<BlockLike,Idxs>::operator=(builder::builder rhs) {
+  // in the even Rhs is a builder::builder, force that do dyn_var! things go very wrong otherwise
+  builder::dyn_var<typename BlockLike::Elem_T> rhs2 = rhs;
+  this->verify_unadorned();
+  this->verify_unique<0>();
+  static_assert(std::tuple_size<Idxs>() == BlockLike::Rank_T);
+  realize_loop_nest(rhs2);
 }
 
 template <typename BlockLike, typename Idxs>
