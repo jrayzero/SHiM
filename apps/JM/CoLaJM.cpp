@@ -32,7 +32,7 @@ static Iter<'j'> j;
 
 // Add on some additional functions to views here
 // TODO may want to end up using this to collect all the data that I need
-template <typename Elem, unsigned long Rank, bool MultiDimPtr>
+/*template <typename Elem, unsigned long Rank, bool MultiDimPtr>
 struct JMView {
 
   explicit JMView(View<Elem,Rank,MultiDimPtr> *view) : view(view) { }
@@ -61,7 +61,7 @@ struct JMView {
 template <typename Elem, unsigned long Rank, bool MultiDimPtr>
 JMView<Elem,Rank,MultiDimPtr> to_JMView(View<Elem,Rank,MultiDimPtr> *view) {
   return JMView(view);
-}
+}*/
 
 /*
 template <typename Pred, typename Ref>
@@ -133,7 +133,7 @@ static void get_16x16_dc(Pred &pred, Ref &ref) {
 // 3. the availability marker for the surrounding mblks which seem to have 
 // additionaly constraints
 template <typename T, bool M, typename IntraPred>
-static void set_intrapred_16x16(JMView<T,2,M> &mb, 
+static void set_intrapred_16x16(View<T,2,M> &mb, 
 				dbool &up_available,  
 				dbool &left_available,
 				dbool &all_available,
@@ -147,16 +147,10 @@ static void set_intrapred_16x16(JMView<T,2,M> &mb,
   left_available = mb.logically_exists(0,-1) && mbAddrA_available;
   all_available = up_available && left_available && mbAddrD_available;
   if (use_constrained_intra==1) {
-    auto coloc = intra.colocate(*mb.view);
-    // now any access to coloc will get divided by the above values BEFORE using the specified coordinates.
-    // so coloc(-1,0) below would first divide the block/view extents and origin by 16 in each dimension, and
-    // then do the access
+    auto coloc = intra.colocate(mb);
     up_available = up_available && (coloc(-16,0) != 0);
     left_available = left_available && (coloc(0,-16) != 0);
     all_available = all_available && (coloc(-16,-16) != 0);
-    PB(up_available);
-    PB(left_available);
-    PB(all_available);
   }
 }
 
@@ -173,13 +167,6 @@ static void find_sad_16x16_CoLa(dyn_var<unsigned short**> raw_img_enc,
 				dint mbAddrA_available,
 				dint mbAddrD_available
 				) {
-//  PD(pixelH);
-//  PD(pixelW);
-//  PD(mbH);
-//  PD(mbW);
-//  PD(mbY);
-//  PD(mbX);
-//  PD(use_constrained_intra_pred);
   // set up our HMDAs
   auto img_enc = Block<unsigned short, 2, true>::user({pixelH, pixelW}, raw_img_enc);
   auto intra_block = Block<short,2>::user({mbH, mbW}, raw_intra_block).logically_interpolate(16,16);
@@ -187,9 +174,8 @@ static void find_sad_16x16_CoLa(dyn_var<unsigned short**> raw_img_enc,
   dbool up_available = false;
   dbool left_available = false;
   dbool all_available = false;
-  auto jm_mblk = to_JMView(&mblk);
   // figure out what's available for the macroblock
-  set_intrapred_16x16(jm_mblk, up_available, left_available, all_available,
+  set_intrapred_16x16(mblk, up_available, left_available, all_available,
 		      mbAddrB_available,
 		      mbAddrA_available,
 		      mbAddrD_available,

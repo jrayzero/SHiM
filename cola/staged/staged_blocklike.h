@@ -42,7 +42,6 @@ namespace cola {
 // factors. Otherwise your physical size would be very wrong. If the other object has an interpolation,
 // this is undefined.
 
-
 ///
 /// A region of data with a location
 /// If MultiDimPtr = true, the underlying array is a pointer to pointer to etc... (like Rank 2 = **).
@@ -233,11 +232,12 @@ struct View {
   void dump_loc();
 
   ///
-  /// Compute the indices into the underlying block.
-  template <int Depth, unsigned long N>
-  void compute_block_relative_iters(const builder::dyn_arr<loop_type,N> &viters,
-				    builder::dyn_arr<loop_type,N> &out);
-
+  /// True if global coords computed from the input coords are >= 0.
+  /// Does not guarantee that the data physically exists in the underlying block.  
+  template <typename...Coords>
+  builder::dyn_var<bool> logically_exists(Coords...coords);
+  
+  
   std::shared_ptr<Allocation<Elem,physical<Rank,MultiDimPtr>()>> allocator;
   SLoc_T bextents;
   SLoc_T bstrides;
@@ -246,6 +246,16 @@ struct View {
   SLoc_T vstrides;
   SLoc_T vorigin;  
   SLoc_T interpolation_factors;
+
+private:
+  
+  ///
+  /// Compute the absolute indices of the coordinates
+  template <int Depth, unsigned long N>
+  void compute_absolute_location(const builder::dyn_arr<loop_type,N> &coords,
+				    builder::dyn_arr<loop_type,N> &out);
+
+
 };
 
 ///
@@ -656,10 +666,10 @@ builder::dyn_var<Elem> View<Elem,Rank,MultiDimPtr>::read(builder::dyn_arr<loop_t
     }
     return this->read(arr);
   } else {
-    // first make them relative to the block
+    // first get the global location
     // bi0 = vi0 * vstride0 + vorigin0
     builder::dyn_arr<loop_type,N> bcoords;
-    compute_block_relative_iters<0>(coords, bcoords);
+    compute_absolute_location<0>(coords, bcoords);
     // then linearize with respect to the block
     if constexpr (MultiDimPtr==true) {
       return allocator->read(bcoords);
@@ -701,7 +711,7 @@ void View<Elem,Rank,MultiDimPtr>::write(ScalarElem val, builder::dyn_arr<loop_ty
     // the iters are relative to the View, so first make them relative to the block
     // bi0 = vi0 * vstride0 + vorigin0
     builder::dyn_arr<loop_type,N> bcoords;
-    compute_block_relative_iters<0>(coords, bcoords);
+    compute_absolute_location<0>(coords, bcoords);
     // then linearize with respect to the block
     if constexpr (MultiDimPtr==true) {
       allocator->write(val, bcoords);
@@ -828,12 +838,12 @@ View<Elem,Rank,MultiDimPtr> View<Elem,Rank,MultiDimPtr>::view(Slices...slices) {
 
 template <typename Elem, unsigned long Rank, bool MultiDimPtr>
 template <int Depth, unsigned long N>
-void View<Elem,Rank,MultiDimPtr>::compute_block_relative_iters(const builder::dyn_arr<loop_type,N> &viters,
+void View<Elem,Rank,MultiDimPtr>::compute_absolute_location(const builder::dyn_arr<loop_type,N> &coords,
 							       builder::dyn_arr<loop_type,N> &out) {
   if constexpr (Depth == N) {
   } else {
-    out[Depth] = (viters[Depth] * vstrides[Depth] + vorigin[Depth]) / this->interpolation_factors[Depth];
-    compute_block_relative_iters<Depth+1>(viters, out);
+    out[Depth] = (coords[Depth] * vstrides[Depth] + vorigin[Depth]) / this->interpolation_factors[Depth];
+    compute_absolute_location<Depth+1>(coords, out);
   }
 }
 
@@ -930,6 +940,21 @@ void View<Elem,Rank,MultiDimPtr>::dump_loc() {
   }  
   print_newline();
 }
+
+template <typename Elem, unsigned long Rank, bool MultiDimPtr>
+template <typename...Coords>
+builder::dyn_var<bool> View<Elem,Rank,MultiDimPtr>::logically_exists(Coords...coords) {
+  static_assert(sizeof...(coords) == Rank);
+  builder::dyn_arr<int,Rank> rel;
+  compute_absolute_location<0>(builder::dyn_arr<int,Rank>{coords...}, rel);
+  for (builder::static_var<loop_type> i = 0; i < Rank; i++) {
+    if (rel[i] < 0) {
+      return false; 
+    }
+  }
+  return true;
+}
+
 
 ///
 /// Helper for verifying unique uses of Iter types
