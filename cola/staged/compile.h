@@ -21,7 +21,7 @@ public:
   static std::vector<std::string> generate_code(block::block::Ptr ast, std::ostream &oss, int indent = 0) {
     hmda_cpp_code_generator generator;
     generator.curr_indent = indent;
-    // first generate all the struct definitions
+/*    // first generate all the struct definitions
     std::stringstream structs;
     for (auto kv : builder::StructInfo::structs) {
       structs << "struct " << kv.first << " {" << std::endl;
@@ -30,7 +30,7 @@ public:
       }
       structs << "};" << std::endl;
     }
-    oss << structs.str();
+    oss << structs.str();*/
     // then back to the usual
     ast->accept(&generator);
     oss << generator.last;

@@ -6,6 +6,7 @@
 #include "builder/dyn_var.h"
 #include "builder/array.h"
 #include "staged/staged.h"
+#include "containers.h"
 // within JM
 #include "defines.h"
 #include "typedefs.h"
@@ -27,10 +28,9 @@ static Iter<'x'> x;
 #define PD(item) print(#item " = %d\\n", item)
 #define PB(item) print(#item " = %d\\n", item)
 
-// Notes on types in JM:
-// 1. imgpel = unsigned short
-// 2. mblk->intra_block is linear array where [i] is the i^th mblk in raster order (calloc'd in lencode.c)
-// 3. availability depends on whether neighboring mblks are in the same slice, but I don't see any checks for
+// Notes on JM:
+// - mblk->intra_block is linear array where [i] is the i^th mblk in raster order (calloc'd in lencode.c)
+// - availability depends on whether neighboring mblks are in the same slice, but I don't see any checks for
 // that happening in JM...
 
 #define RSHIFT_RND(x,a) ((a) > 0) ? (crshift((((x) + (clshift(1, ((a)-1) ))), (a)))) : (clshift((x), (-(a))))
@@ -48,12 +48,12 @@ static dint clip1Y(dint x) {
 
 template <typename Pred, typename Ref>
 static void get_16x16_vertical(Pred &pred, Ref &ref) {
-  pred[y][x] = ref[-1][x];
+  pred[(int)VERT_PRED_16][y][x] = ref[-1][x];
 }
 
 template <typename Pred, typename Ref>
 static void get_16x16_horizontal(Pred &pred, Ref &ref) {
-  pred[y][x] = ref[y][-1];
+  pred[(int)HOR_PRED_16][y][x] = ref[y][-1];
 }
 
 template <typename Pred, typename Ref>
@@ -79,7 +79,7 @@ static void get_16x16_dc(Pred &pred, Ref &ref,
   } else {
     s = 128;
   }
-  pred[y][x] = s;
+  pred[(int)DC_PRED_16][y][x] = s;
 }
 
 template <typename Pred, typename Ref>
@@ -96,7 +96,7 @@ static void get_16x16_plane(Pred &pred, Ref &ref) {
   dint c = crshift((dint)(5 * V + 32), 6);
   for (dint y = 0; y < 16; y=y+1) {
     for (dint x = 0; x < 16; x=x+1) {
-      pred[y][x] = clip1Y(crshift((dint)(a+b*(x-7)+c*(y-7)+16),5));
+      pred[(int)PLANE_16][y][x] = clip1Y(crshift((dint)(a+b*(x-7)+c*(y-7)+16),5));
     }
   }
 }
@@ -107,21 +107,18 @@ static void get_16x16_plane(Pred &pred, Ref &ref) {
 // 3. the availability marker for the surrounding mblks which seem to have 
 // additionaly constraints
 template <typename T, bool M, typename IntraPred>
-static void set_intrapred_16x16(View<T,2,M> &mb, 
+static void set_intrapred_16x16(View<T,2,M> &mblk_recons,
+				Macroblock &macroblock, 
 				dbool &up_available,  
 				dbool &left_available,
 				dbool &all_available,
-				dint &mbAddrB_available, // up
-				dint &mbAddrA_available, // left
-				dint &mbAddrD_available, // up and left
-				dint &use_constrained_intra,
 				IntraPred &&intra) {
   // for constrainedIntraPred, you can only use surrounding data that also uses intrapred
-  up_available = mb.logically_exists(-1,0) && mbAddrB_available;
-  left_available = mb.logically_exists(0,-1) && mbAddrA_available;
-  all_available = up_available && left_available && mbAddrD_available;
-  if (use_constrained_intra==1) {
-    auto coloc = intra.colocate(mb);
+  up_available = mblk_recons.logically_exists(-1,0) && macroblock->mb_addr_B_available;
+  left_available = mblk_recons.logically_exists(0,-1) && macroblock->mb_addr_A_available;
+  all_available = up_available && left_available && macroblock->mb_addr_D_available;
+  if (macroblock->p_inp->use_constrained_intra_pred==1) {
+    auto coloc = intra.colocate(mblk_recons);
     up_available = up_available && (coloc(-16,0) != 0);
     left_available = left_available && (coloc(0,-16) != 0);
     all_available = all_available && (coloc(-16,-16) != 0);
@@ -129,71 +126,57 @@ static void set_intrapred_16x16(View<T,2,M> &mb,
 }
 
 template <typename Pred, typename Orig>
-static dint sad_16x16(Pred &pred, Orig &orig_mblk, dyn_var<int32_t/*distblk*/> min_cost) {
+static dint sad_16x16(Pred &pred, Orig &orig_mblk, dint cur_mode, dint min_cost) {
 //  dint imin_cost = crshift(min_cost, LAMBDA_ACCURACY_BITS);
   dint i32_cost = 0;
   for (dint i = 0; i < 16; i=i+1) {
     for (dint j = 0; j < 16; j=j+1) {
-      i32_cost += cabs(orig_mblk(i,j) - pred(i,j));
+      i32_cost += cabs(orig_mblk(i,j) - pred(cur_mode,i,j));
     }
   }
   return clshift(i32_cost, LAMBDA_ACCURACY_BITS);
 }
 
 template <typename Pred, typename Orig>
-static dint select_best(dint &best_cost, dint &best_mode, 
+static void select_best(dint &best_cost, dint &best_mode, 
 			Pred &pred, Orig &&orig_mblk,
 			const dint &cur_mode) {
-  dyn_var<int32_t/*distblk*/> cur_cost = sad_16x16(pred, orig_mblk, best_cost);
+  dyn_var<int32_t> cur_cost = sad_16x16(pred, orig_mblk, cur_mode, best_cost);
   if (cur_cost < best_cost) {
     best_cost = cur_cost;
     best_mode = cur_mode;
   }
-  return cur_cost;
 }
 
 // TODO create the appropriate structs and pass them in rather than passing in individual 
 // values here.
 // TODO support distblk in buildit (int64 in the current case I'm working on) because it fails. Using int32 instead
-static void find_sad_16x16_CoLa(dyn_var<imgpel**> raw_img_orig,
-				dyn_var<imgpel**> raw_img_recons,
-				dyn_var<short*> raw_intra_block,
-				// image size in pixels
-				dshort pixelH, dshort pixelW,
-				// image size in macroblocks
-				dshort mbH, dshort mbW,
-				// macroblock location in pixels
-				dshort mbY, dshort mbX,
-				dint use_constrained_intra_pred,
-				dint mbAddrB_available,
-				dint mbAddrA_available,
-				dint mbAddrD_available,
-				dint P444_joined,
-				dint intra_disable_inter_only,
-				dint slice_type,
-				dint intra_16x16_hv_disable,
-				dint intra_16x16_plane_disable
-				) {
+static dyn_var<int> find_sad_16x16_CoLa(Macroblock macroblock) {
   // set up our HMDAs
-  auto img_recons = Block<imgpel, 2, true>::user({pixelH, pixelW}, raw_img_recons);
-  auto img_orig = Block<imgpel, 2, true>::user({pixelH, pixelW}, raw_img_orig);
-  auto intra_block = Block<short,2>::user({mbH, mbW}, raw_intra_block).logically_interpolate(16,16);
-  auto mblk = img_recons.view(slice(mbY,mbY+16,1), slice(mbX,mbX+16,1));
+  auto pixelH = macroblock->p_inp->source.height[0];
+  auto pixelW = macroblock->p_inp->source.width[0];
+  auto mbY = macroblock->p_inp->source.mb_height;
+  auto mbX = macroblock->p_inp->source.mb_width;
+  auto img_orig = Block<imgpel, 2, true>::user({pixelH, pixelW}, 
+					       macroblock->p_vid->p_cur_img);
+  auto img_recons = Block<imgpel, 2, true>::user({pixelH, pixelW}, 
+						 macroblock->p_vid->enc_picture->p_curr_img);
+  auto intra_block = Block<short,2>::user({mbY, mbX}, 
+					  macroblock->p_vid->intra_block).logically_interpolate(16,16);
+  auto mblk_recons = img_recons.view(slice(mbY,mbY+16,1), slice(mbX,mbX+16,1));
   dbool up_available = false;
   dbool left_available = false;
   dbool all_available = false;
   // figure out what's available for the macroblock
-  set_intrapred_16x16(mblk, up_available, left_available, all_available,
-		      mbAddrB_available,
-		      mbAddrA_available,
-		      mbAddrD_available,
-		      use_constrained_intra_pred,
+  set_intrapred_16x16(mblk_recons, macroblock, 
+		      up_available, left_available, all_available,
 		      intra_block);
-  if (P444_joined) {
+  // NOTE: seems to be a bug with member access inside a conditional
+  if (macroblock->p_slice->P444_joined != 0) {
     print("Not supporting P444 joined.\\n");
     hexit(-1);
   }
-  dyn_var<int32_t/*distblk*/> best_cost = INT_MAX;
+  dint best_cost = INT_MAX;
   dint best_mode = 0;
   // TODO optimization for converting into a reduction, or a special syntax for a reduction
   // there are two reductions here--one within the SAD computation, and one for selecting 
@@ -201,39 +184,51 @@ static void find_sad_16x16_CoLa(dyn_var<imgpel**> raw_img_orig,
   for (sint mode = 0; mode < 4; mode=mode+1) {
     // check for disabled modes
     dbool break_out = false;
-    if (intra_disable_inter_only==0 || (slice_type != I_SLICE && slice_type != SI_SLICE)) {
-      if (intra_16x16_hv_disable != 0 && (mode == VERT_PRED_16 || mode == HOR_PRED_16)) {
+    if (macroblock->p_inp->intra_disable_inter_only==0 || 
+	(macroblock->p_slice->slice_type != I_SLICE && 
+	 macroblock->p_slice->slice_type != SI_SLICE)) {
+      if (macroblock->p_inp->intra_16x16_hv_disable != 0 && 
+	  (mode == VERT_PRED_16 || mode == HOR_PRED_16)) {
 	//	continue; // breaks buildit
 	break_out = true;
       }
-      if (intra_16x16_plane_disable != 0 && mode == PLANE_16) {
+      if (macroblock->p_inp->intra_16x16_plane_disable != 0 && 
+	  mode == PLANE_16) {
 	//	continue; // breaks buildit
 	break_out = true;
       }
     }
-    if (!break_out) {//intra_disable_inter_only != 0 && (slice_type == I_SLICE || slice_type == SI_SLICE)) {
+    if (!break_out) {
       // now run the modes based on what data is available
-      auto pred = Block<imgpel, 2, false>::stack<16,16>();
-      if (mode == VERT_PRED_16 && up_available) {
-	get_16x16_vertical(pred, mblk);
-	dint cur_cost = select_best(best_cost, best_mode, pred, img_orig.colocate(mblk), mode);
+      auto pred = Block<imgpel,3,true>::user({4,16,16}, macroblock->p_slice->mpr_16x16[0]);
+      // TODO use partial views here to do pred.partial(mode) so then users can access 
+      // pred as a 2d structure
+      if (mode == VERT_PRED_16 && up_available) {	
+	get_16x16_vertical(pred, mblk_recons);
+	select_best(best_cost, best_mode, pred, img_orig.colocate(mblk_recons), mode);
       } else if (mode == HOR_PRED_16 && left_available) {
-	get_16x16_horizontal(pred, mblk);
-	dint cur_cost = select_best(best_cost, best_mode, pred, img_orig.colocate(mblk), mode);
+	get_16x16_horizontal(pred, mblk_recons);
+	select_best(best_cost, best_mode, pred, img_orig.colocate(mblk_recons), mode);
       } else if (mode == PLANE_16 && all_available) {
-	get_16x16_plane(pred, mblk);
-	dint cur_cost = select_best(best_cost, best_mode, pred, img_orig.colocate(mblk), mode);
+	get_16x16_plane(pred, mblk_recons);
+	select_best(best_cost, best_mode, pred, img_orig.colocate(mblk_recons), mode);
       } else if (mode == DC_PRED_16) {
 	// DC mode
-	get_16x16_dc(pred, mblk, left_available, up_available);
-	dint cur_cost = select_best(best_cost, best_mode, pred, img_orig.colocate(mblk), mode);
+	get_16x16_dc(pred, mblk_recons, left_available, up_available);
+	select_best(best_cost, best_mode, pred, img_orig.colocate(mblk_recons), mode);
       }
     }
   }
   print("Best mode and cost = (%d,%d)\\n", best_mode, best_cost);
+  macroblock->i16_mode = best_mode;
+  return best_cost;
 }
 
 int main(int argc, char **argv) {
   CompileOptions::isCPP = false;
-  stage(find_sad_16x16_CoLa, "find_sad_16x16_CoLa", basename(__FILE__, "_generated"), "", "");
+  stringstream includes;
+  includes << "#include \"global.h\"" << endl;
+  includes << "#include \"mbuffer.h\"" << endl;
+  stage(find_sad_16x16_CoLa, "find_sad_16x16_CoLa", basename(__FILE__, "_generated"), 
+	includes.str(), includes.str());
 }

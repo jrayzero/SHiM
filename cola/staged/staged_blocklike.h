@@ -322,7 +322,7 @@ private:
   /// Helper method for realizing values for the Idxs of this ref
   template <int Depth, typename LhsIdxs, unsigned long N>
   void realize_each(LhsIdxs lhs, const builder::dyn_arr<loop_type,N> &iters,
-		    builder::dyn_arr<loop_type,N> &out);
+		    builder::dyn_arr<loop_type,BlockLike::Rank_T> &out);
   
   ///
   /// Create the loop nest for this ref and also evaluate the rhs.
@@ -1059,26 +1059,27 @@ void Ref<BlockLike,Idxs>::operator=(builder::builder rhs) {
 }
 
 template <typename BlockLike, typename Idxs>
-template <int Depth, typename LhsIdxs, unsigned long N>
+template <int IdxDepth, typename LhsIdxs, unsigned long N>
 void Ref<BlockLike,Idxs>::realize_each(LhsIdxs lhs, 
 				       const builder::dyn_arr<loop_type,N> &iters,
-				       builder::dyn_arr<loop_type,N> &out) {
-  auto i = std::get<Depth>(idxs);
+				       builder::dyn_arr<loop_type,BlockLike::Rank_T> &out) {
+  auto i = std::get<IdxDepth>(idxs); // these are the rhs indexes!
   if constexpr (is_dyn_like<decltype(i)>::value ||
 		std::is_same<decltype(i),loop_type>()) {
-    if constexpr (Depth < N - 1) {
-      out[Depth] = i;
-      realize_each<Depth+1>(lhs, iters, out);
+    // this is just a plain value--use it directly
+    if constexpr (IdxDepth < BlockLike::Rank_T - 1) {
+      out[IdxDepth] = i;
+      realize_each<IdxDepth+1>(lhs, iters, out);
     } else {
-      out[Depth] = i;
+      out[IdxDepth] = i;
     }
   } else {
     auto r = i.realize(lhs, iters);
-    if constexpr (Depth < N - 1) {
-      out[Depth] = r;
-      realize_each<Depth+1>(lhs, iters, out);
+    if constexpr (IdxDepth < BlockLike::Rank_T - 1) {
+      out[IdxDepth] = r;
+      realize_each<IdxDepth+1>(lhs, iters, out);
     } else {
-      out[Depth] = r;
+      out[IdxDepth] = r;
     }
   }
 }
@@ -1088,7 +1089,9 @@ template <typename LhsIdxs, unsigned long N>
 builder::dyn_var<typename BlockLike::Elem_T> Ref<BlockLike,Idxs>::realize(LhsIdxs lhs, 
 									  const builder::dyn_arr<loop_type,N> &iters) {
   // first realize each idx
-  builder::dyn_arr<loop_type,N> arr;
+  // use Rank_T instead of N b/c the rhs refs may be diff
+  // dimensions than lhs
+  builder::dyn_arr<loop_type,BlockLike::Rank_T> arr; 
   realize_each<0>(lhs, iters, arr);
   // then access the thing  
   return block_like.read(arr);

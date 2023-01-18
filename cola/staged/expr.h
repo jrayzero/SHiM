@@ -15,7 +15,7 @@ namespace cola {
 ///
 /// Unspecialized template to determine the core type of a compound expression
 template <typename T>
-struct GetCoreT { using Core_T = void; };
+struct GetCoreT { using Core_T = T; };
 
 ///
 /// Core type is bool

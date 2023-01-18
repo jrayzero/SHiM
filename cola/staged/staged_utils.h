@@ -199,4 +199,144 @@ constexpr int peel() {
   return Peel<Elem>()();
 }
 
+template <typename Elem>
+constexpr bool is_ptr() {
+  return peel<Elem>() > 0;
+}
+
+///
+/// Unspecialized template to determine the core type of a compound expression
+template <typename T>
+struct ElemToStr { };
+
+///
+/// Core type is a builder name
+template <const char* Name>
+struct ElemToStr<builder::name<Name>> { 
+  inline static std::string str = Name; 
+  static constexpr bool isArr = false;
+};
+
+///
+/// Core type is bool
+template <>
+struct ElemToStr<bool> { 
+  inline static std::string str = "bool"; 
+  static constexpr bool isArr = false;
+};
+
+///
+/// Core type is uint8_t
+template <>
+struct ElemToStr<uint8_t> { 
+  inline static std::string str = "uint8_t"; 
+  static constexpr bool isArr = false;
+};
+
+///
+/// Core type is uint16_t
+template <>
+struct ElemToStr<uint16_t> { 
+  inline static std::string str = "uint16_t"; 
+  static constexpr bool isArr = false;
+};
+
+///
+/// Core type is uint32_t
+template <>
+struct ElemToStr<uint32_t> { 
+  inline static std::string str = "uint32_t"; 
+  static constexpr bool isArr = false;
+};
+
+///
+/// Core type is uint64_t
+template <>
+struct ElemToStr<uint64_t> { 
+  inline static std::string str = "uint64_t"; 
+  static constexpr bool isArr = false;
+};
+
+///
+/// Core type is char
+template <>
+struct ElemToStr<char> { 
+  inline static std::string str = "char"; 
+  static constexpr bool isArr = false;
+};
+
+///
+/// Core type is int8_t (signed char)
+template <>
+struct ElemToStr<int8_t> { 
+  inline static std::string str = "int8_t"; 
+  static constexpr bool isArr = false;
+};
+
+///
+/// Core type is int16_t
+template <>
+struct ElemToStr<int16_t> { 
+  inline static std::string str = "int16_t"; 
+  static constexpr bool isArr = false;
+};
+
+///
+/// Core type is int32_t
+template <>
+struct ElemToStr<int32_t> { 
+  inline static std::string str = "int32_t"; 
+  static constexpr bool isArr = false;
+};
+
+///
+/// Core type is int64_t
+template <>
+struct ElemToStr<int64_t> { 
+  inline static std::string str = "int64_t"; 
+  static constexpr bool isArr = false;
+};
+
+///
+/// Core type is float
+template <>
+struct ElemToStr<float> { 
+  inline static std::string str = "float"; 
+  static constexpr bool isArr = false;
+};
+
+///
+/// Core type is double
+template <>
+struct ElemToStr<double> { 
+  inline static std::string str = "double"; 
+  static constexpr bool isArr = false;
+};
+
+///
+/// Core type is core type of T
+template <typename T>
+struct ElemToStr<T*> { 
+  inline static std::string str = ElemToStr<T>::str + "*";  
+  static constexpr bool isArr = false;
+};
+
+///
+/// Core type is core type of T
+template <typename T>
+struct ElemToStr<T[]> { 
+  inline static std::string str = ElemToStr<T>::str; 
+  inline static std::string sz = "";
+  static constexpr bool isArr = true;
+};
+
+///
+/// Core type is core type of T
+template <typename T, int Sz>
+struct ElemToStr<T[Sz]> { 
+  inline static std::string str = ElemToStr<T>::str;
+  inline static std::string sz = std::to_string(Sz);
+  static constexpr bool isArr = true;
+};
+
 }
