@@ -24,8 +24,8 @@ using dbool = dyn_var<bool>;
 static Iter<'y'> y;
 static Iter<'x'> x;
 
-#define PD(item) cprint(#item " = %d\\n", item)
-#define PB(item) cprint(#item " = %d\\n", item)
+#define PD(item) print(#item " = %d\\n", item)
+#define PB(item) print(#item " = %d\\n", item)
 
 // Notes on types in JM:
 // 1. imgpel = unsigned short
@@ -56,7 +56,6 @@ static void get_16x16_horizontal(Pred &pred, Ref &ref) {
   pred[y][x] = ref[y][-1];
 }
 
-// TODO reductions! Start with naive generation (all comps at innermost loop level) then expand it out
 template <typename Pred, typename Ref>
 static void get_16x16_dc(Pred &pred, Ref &ref, 
 			 dbool &left_available, dbool &up_available) { 
@@ -64,20 +63,19 @@ static void get_16x16_dc(Pred &pred, Ref &ref,
   dint s = 0;
   if (up_available && left_available) {
     for (dint q = 0; q < 16; q=q+1) {
-      s += p(-1,q);
-      s += p(q,-1);      
+      s += p(-1,q) + p(q,-1);
     }
-    s = crshift(s+16,5);
+    s = RSHIFT_RND_SF(s+16,5);
   } else if (up_available) {
     for (dint q = 0; q < 16; q=q+1) {
       s += p(-1,q);
     }
-    s = crshift(s+8,4);
+    s = RSHIFT_RND_SF(s+8,4);
   } else if (left_available) {
     for (dint q = 0; q < 16; q=q+1) {
       s += p(q,-1);
     }
-    s = crshift(s+8,4);
+    s = RSHIFT_RND_SF(s+8,4);
   } else {
     s = 128;
   }
@@ -96,7 +94,6 @@ static void get_16x16_plane(Pred &pred, Ref &ref) {
   dint a = 16 * (p(15,-1) + p(-1,15));
   dint b = crshift((dint)(5 * H + 32), 6);
   dint c = crshift((dint)(5 * V + 32), 6);
-  // TODO need to support conditionals within this notation
   for (dint y = 0; y < 16; y=y+1) {
     for (dint x = 0; x < 16; x=x+1) {
       pred[y][x] = clip1Y(crshift((dint)(a+b*(x-7)+c*(y-7)+16),5));
@@ -193,7 +190,7 @@ static void find_sad_16x16_CoLa(dyn_var<imgpel**> raw_img_orig,
 		      use_constrained_intra_pred,
 		      intra_block);
   if (P444_joined) {
-    cprint("Not supporting P444 joined.\\n");
+    print("Not supporting P444 joined.\\n");
     hexit(-1);
   }
   dyn_var<int32_t/*distblk*/> best_cost = INT_MAX;
@@ -230,19 +227,13 @@ static void find_sad_16x16_CoLa(dyn_var<imgpel**> raw_img_orig,
 	// DC mode
 	get_16x16_dc(pred, mblk, left_available, up_available);
 	dint cur_cost = select_best(best_cost, best_mode, pred, img_orig.colocate(mblk), mode);
-/*	for (dint i = 0; i < 16; i=i+1) {
-	  for (dint j = 0; j < 16; j=j+1) {
-	    cprint("%d ", pred(i,j));
-	  }
-	  cprint("\\n");
-	}
-	cprint("\\n");*/
       }
     }
   }
-  cprint("Best mode and cost = (%d,%d)\\n", best_mode, best_cost);
+  print("Best mode and cost = (%d,%d)\\n", best_mode, best_cost);
 }
 
 int main(int argc, char **argv) {
-  stage(find_sad_16x16_CoLa, false, "find_sad_16x16_CoLa", basename(__FILE__, "_generated"), "", "");
+  CompileOptions::isCPP = false;
+  stage(find_sad_16x16_CoLa, "find_sad_16x16_CoLa", basename(__FILE__, "_generated"), "", "");
 }
