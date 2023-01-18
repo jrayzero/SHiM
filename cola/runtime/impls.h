@@ -22,12 +22,12 @@ void hmemset(HeapArray<Elem> &data, Elem val, loop_type sz) {
   memset(data.base->data, val, sz);
 }
 
-template <typename To, typename From>
-To cast(From val) { 
-  return (To)val; 
-}
+//template <typename To, typename From>
+//To cast(From val) { 
+//  return (To)val; 
+//}
 
-template <typename Elem>
+/*template <typename Elem>
 void print_elem(Elem elem) {
   std::cout << elem << " ";
 }
@@ -40,7 +40,7 @@ void print_newline() {
 template <bool dummy=false>
 void print_string(std::string s) {
   std::cout << s;
-}
+}*/
 
 template <typename V, typename S>
 V lshift(V val, S amt) {
@@ -80,7 +80,7 @@ void cat(std::stringstream &ss, Arg arg, Args...args) {
   }
 }
 
-template <typename...Args>
+/*template <typename...Args>
 void printn(Args...args) {
   std::stringstream ss;
   cat(ss, args...);  
@@ -92,7 +92,7 @@ void print(Args...args) {
   std::stringstream ss;
   cat(ss, args...);  
   std::cout << ss.str();
-}
+}*/
 
 template <bool dummy=false>
 void cola_assert(bool cond, std::string msg) {

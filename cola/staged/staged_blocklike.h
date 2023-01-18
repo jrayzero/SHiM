@@ -561,26 +561,26 @@ void Block<Elem,Rank,MultiDimPtr>::dump_data() {
 
 template <typename Elem, unsigned long Rank, bool MultiDimPtr>
 void Block<Elem,Rank,MultiDimPtr>::dump_loc() {
-  print_string("Block location info");
+  print("Block location info");
   print_newline();
-  print_string("  Underlying data structure: ");
-  print_string(ElemToStr<typename decltype(ptr_wrap<Elem,Rank,MultiDimPtr>())::P>::str);
+  print("  Underlying data structure: ");
+  print(ElemToStr<typename decltype(ptr_wrap<Elem,Rank,MultiDimPtr>())::P>::str);
   print_newline();
-  print_string("  BExtents:");
+  print("  BExtents:");
   for (builder::static_var<int> r = 0; r < Rank; r=r+1) {
-    print_string(" ");
+    print(" ");
     dispatch_print_elem<int>(bextents[r]);    
   }
   print_newline();
-  print_string("  BStrides:");
+  print("  BStrides:");
   for (builder::static_var<int> r = 0; r < Rank; r=r+1) {
-    print_string(" ");
+    print(" ");
     dispatch_print_elem<int>(bstrides[r]);    
   }
   print_newline();
-  print_string("  BOrigin:");
+  print("  BOrigin:");
   for (builder::static_var<int> r = 0; r < Rank; r=r+1) {
-    print_string(" ");
+    print(" ");
     dispatch_print_elem<int>(borigin[r]);    
   }
   print_newline();
@@ -909,63 +909,63 @@ void View<Elem,Rank,MultiDimPtr>::dump_data() {
 
 template <typename Elem, unsigned long Rank, bool MultiDimPtr>
 void View<Elem,Rank,MultiDimPtr>::dump_loc() {
-  print_string("View location info");
+  print("View location info");
   print_newline();
-  print_string("  Underlying data structure: ");
+  print("  Underlying data structure: ");
   std::string x = ElemToStr<typename decltype(ptr_wrap<Elem,Rank,MultiDimPtr>())::P>::str;
-  print_string(x);
+  print(x);
   print_newline();
-  print_string("  BExtents:");
+  print("  BExtents:");
   for (builder::static_var<int> r = 0; r < Rank; r=r+1) {
-    print_string(" ");
+    print(" ");
     dispatch_print_elem<int>(bextents[r]);    
   }
   print_newline();
-  print_string("  BStrides:");
+  print("  BStrides:");
   for (builder::static_var<int> r = 0; r < Rank; r=r+1) {
-    print_string(" ");
+    print(" ");
     dispatch_print_elem<int>(bstrides[r]);    
   }
   print_newline();
-  print_string("  BOrigin:");
+  print("  BOrigin:");
   for (builder::static_var<int> r = 0; r < Rank; r=r+1) {
-    print_string(" ");
+    print(" ");
     dispatch_print_elem<int>(borigin[r]);    
   }
   print_newline();
-  print_string("  Interpolated VExtents:");
+  print("  Interpolated VExtents:");
   for (builder::static_var<int> r = 0; r < Rank; r=r+1) {
-    print_string(" ");
+    print(" ");
     dispatch_print_elem<int>(vextents[r]);    
   }
   print_newline();
-  print_string("  UnInterpolated VExtents:");
+  print("  UnInterpolated VExtents:");
   for (builder::static_var<int> r = 0; r < Rank; r=r+1) {
-    print_string(" ");
+    print(" ");
     dispatch_print_elem<int>(vextents[r] / interpolation_factors[r]);    
   }
   print_newline();
-  print_string("  VStrides:");
+  print("  VStrides:");
   for (builder::static_var<int> r = 0; r < Rank; r=r+1) {
-    print_string(" ");
+    print(" ");
     dispatch_print_elem<int>(vstrides[r]);    
   }
   print_newline();
-  print_string("  VOrigin:");
+  print("  VOrigin:");
   for (builder::static_var<int> r = 0; r < Rank; r=r+1) {
-    print_string(" ");
+    print(" ");
     dispatch_print_elem<int>(vorigin[r]);    
   }  
   print_newline();
-  print_string("  UnInterpolated VOrigin:");
+  print("  UnInterpolated VOrigin:");
   for (builder::static_var<int> r = 0; r < Rank; r=r+1) {
-    print_string(" ");
+    print(" ");
     dispatch_print_elem<int>(vorigin[r] / interpolation_factors[r]);    
   }  
   print_newline();
-  print_string("  Interpolation factors:");
+  print("  Interpolation factors:");
   for (builder::static_var<int> r = 0; r < Rank; r=r+1) {
-    print_string(" ");
+    print(" ");
     dispatch_print_elem<int>(interpolation_factors[r]);    
   }  
   print_newline();

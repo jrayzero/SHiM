@@ -98,26 +98,26 @@ void apply(Loc_T<Rank> &arr,
   }
 }
 
-#define DISPATCH_PRINT_ELEM(dtype)				\
+#define DISPATCH_PRINT_ELEM(dtype, formatter)				\
   template <>							\
   struct DispatchPrintElem<dtype> {				\
     template <typename Val>					\
-    void operator()(Val val) { print_elem_##dtype(val); }	\
+    void operator()(Val val) { print(formatter, val); }	\
   }
 
 template <typename T>
 struct DispatchPrintElem { };
-DISPATCH_PRINT_ELEM(uint8_t);
-DISPATCH_PRINT_ELEM(uint16_t);
-DISPATCH_PRINT_ELEM(uint32_t);
-DISPATCH_PRINT_ELEM(uint64_t);
-DISPATCH_PRINT_ELEM(char);
-DISPATCH_PRINT_ELEM(int8_t);
-DISPATCH_PRINT_ELEM(int16_t);
-DISPATCH_PRINT_ELEM(int32_t);
-DISPATCH_PRINT_ELEM(int64_t);
-DISPATCH_PRINT_ELEM(float);
-DISPATCH_PRINT_ELEM(double);
+DISPATCH_PRINT_ELEM(uint8_t, "%u");
+DISPATCH_PRINT_ELEM(uint16_t, "%u");
+DISPATCH_PRINT_ELEM(uint32_t, "%u");
+DISPATCH_PRINT_ELEM(uint64_t, "%u");
+DISPATCH_PRINT_ELEM(char, "%c");
+DISPATCH_PRINT_ELEM(int8_t, "%d");
+DISPATCH_PRINT_ELEM(int16_t, "%d");
+DISPATCH_PRINT_ELEM(int32_t, "%d");
+DISPATCH_PRINT_ELEM(int64_t, "%d");
+DISPATCH_PRINT_ELEM(float, "%f");
+DISPATCH_PRINT_ELEM(double, "%f");
 
 ///
 /// Call the appropriate print_elem function based on Elem
@@ -127,7 +127,7 @@ void dispatch_print_elem(Val val) {
 }
 
 ///
-/// Create the type that resultsing from concatenting Idx to tuple<Idxs...>
+/// Create the type that resulting from concatenting Idx to tuple<Idxs...>
 template <typename A, typename B>
 struct TupleTypeCat { };
 
@@ -197,14 +197,6 @@ struct Peel<Elem*> { constexpr int operator()() { return 1 + Peel<Elem>()(); } }
 template <typename Elem>
 constexpr int peel() {
   return Peel<Elem>()();
-}
-
-template <typename Item, typename...Items>
-void print_many(Item item, Items...items) {
-  print(item);
-  if constexpr (sizeof...(Items) > 0) {
-    print_many(items...);
-  }
 }
 
 }
