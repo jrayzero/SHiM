@@ -86,13 +86,13 @@ static inline void get_i16x16_dc(imgpel **cur_pred, imgpel *PredPel, int left_av
   if (up_available)
   {
     s0 = left_available
-      ? ((s1 + s2 + 16)>>(MB_BLOCK_SHIFT + 1)) // no edge
-      : ((s1+8) >> MB_BLOCK_SHIFT);          // left edge
+      ? (rshift_rnd_sf((s1 + s2 + 16),(MB_BLOCK_SHIFT + 1))) // no edge
+      : (rshift_rnd_sf((s1+8), MB_BLOCK_SHIFT));          // left edge
   }
   else
     {
     s0 = left_available
-      ? ((s2+8) >> MB_BLOCK_SHIFT)           // upper edge
+      ? rshift_rnd_sf((s2+8), MB_BLOCK_SHIFT)           // upper edge
       : PredPel[1];                              // top left corner, nothing to predict from
   }
 
@@ -124,8 +124,8 @@ static inline void get_i16x16_plane(imgpel **cur_pred, imgpel *PredPel, int max_
     ih += i*(*(u_pred + i) - *(u_pred - i));
     iv += i*(*t_pred++ - *b_pred--);
   }
-  ih += 8 * (*(u_pred + 8) - PredPel[0]);
-  iv += 8 * (*t_pred++ - PredPel[0]);
+  ih += 8*(*(u_pred + 8) - PredPel[0]);
+  iv += 8*(*t_pred++ - PredPel[0]);
 
   ib = (5 * ih + 32) >> 6;
   ic = (5 * iv + 32) >> 6;
@@ -136,7 +136,8 @@ static inline void get_i16x16_plane(imgpel **cur_pred, imgpel *PredPel, int max_
   {
     for (i=0;i< MB_BLOCK_SIZE;++i)
     {
-      cur_pred[j][i]= (imgpel) iClip1( max_imgpel_value, ((iaa + (i - 7) * ib + (j - 7) * ic) >> 5));// store plane prediction
+      // JESS added the + 16 here
+      cur_pred[j][i]= (imgpel) iClip1( max_imgpel_value, ((iaa + (i - 7) * ib + (j - 7) * ic + 16) >> 5));// store plane prediction
     }
   }
 }
@@ -468,31 +469,12 @@ distblk distI16x16_sse(Macroblock *currMB, imgpel **img_org, imgpel **pred_img, 
  ************************************************************************/
 distblk find_sad_16x16_JM(Macroblock *currMB)
 {
+#if USE_COLA==1
+  return find_sad_16x16_CoLa(currMB);
+#else
   Slice *currSlice = currMB->p_Slice;
   VideoParameters *p_Vid = currMB->p_Vid;
   InputParameters *p_Inp = currMB->p_Inp;
-#if USE_COLA==1
-  find_sad_16x16_CoLa(p_Vid->pCurImg,
-		      p_Vid->enc_picture->p_curr_img,
-		      p_Vid->intra_block,
-		      p_Inp->source.height[0],
-		      p_Inp->source.width[0],
-		      p_Inp->source.mb_height,
-		      p_Inp->source.mb_width,
-		      currMB->pix_y,
-		      currMB->pix_x,		      
-		      p_Inp->UseConstrainedIntraPred,
-		      currMB->mbAvailB,
-		      currMB->mbAvailA,
-		      currMB->mbAvailD,
-		      currSlice->P444_joined,
-		      p_Inp->IntraDisableInterOnly,
-		      currSlice->slice_type,
-		      p_Inp->Intra16x16ParDisable,
-		      p_Inp->Intra16x16PlaneDisable		      
-		      );
-  return DISTBLK_MAX;
-#else
   distblk current_intra_sad_2, best_intra_sad2 = DISTBLK_MAX;
   int k;
   imgpel  ***curr_mpr_16x16 = currSlice->mpr_16x16[0];
@@ -540,10 +522,7 @@ distblk find_sad_16x16_JM(Macroblock *currMB)
     }    
   }
   printf("Best mode and cost = (%d,%d)\n", currMB->i16mode, best_intra_sad2);
-  
-// JESS make sure to add this back!
-//  return best_intra_sad2;
-  return DISTBLK_MAX;
+  return best_intra_sad2;
 #endif
 }
 

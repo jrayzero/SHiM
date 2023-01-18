@@ -62,6 +62,7 @@ function (CoLaJM)
 
  # build the generate cpp code 		    	    
  add_library(${name} STATIC ${CMAKE_BINARY_DIR}/${name}_generated.c)
+ target_include_directories(${name} PUBLIC ${CMAKE_SOURCE_DIR}/JM/lencod/inc ${CMAKE_SOURCE_DIR}/JM/lcommon/inc)
 
 endfunction()
 

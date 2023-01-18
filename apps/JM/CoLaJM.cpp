@@ -39,8 +39,8 @@ static Iter<'x'> x;
 static dint clip1Y(dint x) {
   if (x < 0) {
     return 0;
-  } else if (x > 127) {
-    return 127;
+  } else if (x > 128) {
+    return 128;
   } else {
     return x;
   }
@@ -84,7 +84,7 @@ static void get_16x16_dc(Pred &pred, Ref &ref,
 
 template <typename Pred, typename Ref>
 static void get_16x16_plane(Pred &pred, Ref &ref) {
-  auto p = ref;
+  auto &p = ref;
   dint H = 0;
   dint V = 0;
   for (dint q = 0; q < 8; q=q+1) {
@@ -127,7 +127,6 @@ static void set_intrapred_16x16(View<T,2,M> &mblk_recons,
 
 template <typename Pred, typename Orig>
 static dint sad_16x16(Pred &pred, Orig &orig_mblk, dint cur_mode, dint min_cost) {
-//  dint imin_cost = crshift(min_cost, LAMBDA_ACCURACY_BITS);
   dint i32_cost = 0;
   for (dint i = 0; i < 16; i=i+1) {
     for (dint j = 0; j < 16; j=j+1) {
@@ -148,22 +147,21 @@ static void select_best(dint &best_cost, dint &best_mode,
   }
 }
 
-// TODO create the appropriate structs and pass them in rather than passing in individual 
-// values here.
 // TODO support distblk in buildit (int64 in the current case I'm working on) because it fails. Using int32 instead
 static dyn_var<int> find_sad_16x16_CoLa(Macroblock macroblock) {
   // set up our HMDAs
   auto pixelH = macroblock->p_inp->source.height[0];
   auto pixelW = macroblock->p_inp->source.width[0];
-  auto mbY = macroblock->p_inp->source.mb_height;
-  auto mbX = macroblock->p_inp->source.mb_width;
+  auto mbH = macroblock->p_inp->source.mb_height;
+  auto mbW = macroblock->p_inp->source.mb_width;
   auto img_orig = Block<imgpel, 2, true>::user({pixelH, pixelW}, 
 					       macroblock->p_vid->p_cur_img);
   auto img_recons = Block<imgpel, 2, true>::user({pixelH, pixelW}, 
 						 macroblock->p_vid->enc_picture->p_curr_img);
-  auto intra_block = Block<short,2>::user({mbY, mbX}, 
+  auto intra_block = Block<short,2>::user({mbH, mbW}, 
 					  macroblock->p_vid->intra_block).logically_interpolate(16,16);
-  auto mblk_recons = img_recons.view(slice(mbY,mbY+16,1), slice(mbX,mbX+16,1));
+  auto mblk_recons = img_recons.view(slice(macroblock->pix_y,macroblock->pix_y+16,1), 
+				     slice(macroblock->pix_x,macroblock->pix_x+16,1));
   dbool up_available = false;
   dbool left_available = false;
   dbool all_available = false;
@@ -189,12 +187,10 @@ static dyn_var<int> find_sad_16x16_CoLa(Macroblock macroblock) {
 	 macroblock->p_slice->slice_type != SI_SLICE)) {
       if (macroblock->p_inp->intra_16x16_hv_disable != 0 && 
 	  (mode == VERT_PRED_16 || mode == HOR_PRED_16)) {
-	//	continue; // breaks buildit
 	break_out = true;
       }
       if (macroblock->p_inp->intra_16x16_plane_disable != 0 && 
 	  mode == PLANE_16) {
-	//	continue; // breaks buildit
 	break_out = true;
       }
     }
