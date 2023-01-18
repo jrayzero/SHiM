@@ -33,6 +33,9 @@ static Iter<'x'> x;
 // 3. availability depends on whether neighboring mblks are in the same slice, but I don't see any checks for
 // that happening in JM...
 
+#define RSHIFT_RND(x,a) ((a) > 0) ? (crshift((((x) + (clshift(1, ((a)-1) ))), (a)))) : (clshift((x), (-(a))))
+#define RSHIFT_RND_SF(x,a) crshift(((x) + clshift(1, ((a)-1))), (a))
+
 static dint clip1Y(dint x) {
   if (x < 0) {
     return 0;
@@ -42,7 +45,6 @@ static dint clip1Y(dint x) {
     return x;
   }
 }
-
 
 template <typename Pred, typename Ref>
 static void get_16x16_vertical(Pred &pred, Ref &ref) {
@@ -58,40 +60,28 @@ static void get_16x16_horizontal(Pred &pred, Ref &ref) {
 template <typename Pred, typename Ref>
 static void get_16x16_dc(Pred &pred, Ref &ref, 
 			 dbool &left_available, dbool &up_available) { 
-  auto p = ref;
+  auto &p = ref;
+  dint s = 0;
   if (up_available && left_available) {
-    dint s = 0;
     for (dint q = 0; q < 16; q=q+1) {
-      s += p(-1,q) + p(q,-1);
+      s += p(-1,q);
+      s += p(q,-1);      
     }
-    cprint("DC 1\\n");
-    pred[y][x] = crshift((s + 16), 5);
-    // ideally want: 
-    // pred[i][j] = ((p[-1][ri] + p[rj][-1]) + 16) >> 5
-    // but actually, this is ambiguous--do you add 16 and shift by 5 every
-    // iteration, or at the end (I want the latter, but that's not 
-    // necessarily clear.
-    // think it would be like
-    // pred[i][j] = (p[-1][ri] + p[rj][-1]);
-    // pred[i][j] = (pred[i][j] + 16) >> 5
-    // and then you'd fuse them
+    s = crshift(s+16,5);
   } else if (up_available) {
-    dint s = 0;
     for (dint q = 0; q < 16; q=q+1) {
       s += p(-1,q);
     }
-    cprint("DC 2\\n");
-    pred[y][x] = crshift((s + 8), 4);
+    s = crshift(s+8,4);
   } else if (left_available) {
-    dint s = 0;
     for (dint q = 0; q < 16; q=q+1) {
       s += p(q,-1);
     }
-    cprint("DC 3\\n");
-    pred[y][x] = crshift((s + 8), 4);
+    s = crshift(s+8,4);
   } else {
-    pred[y][x] = 128;
+    s = 128;
   }
+  pred[y][x] = s;
 }
 
 template <typename Pred, typename Ref>
@@ -143,18 +133,12 @@ static void set_intrapred_16x16(View<T,2,M> &mb,
 
 template <typename Pred, typename Orig>
 static dint sad_16x16(Pred &pred, Orig &orig_mblk, dyn_var<int32_t/*distblk*/> min_cost) {
-  dint cost = crshift(min_cost, LAMBDA_ACCURACY_BITS);
-  // TODO the JM version early exits on each row, as I have here. But see if we can do something 
-  // better (like use the SAD function)
+//  dint imin_cost = crshift(min_cost, LAMBDA_ACCURACY_BITS);
   dint i32_cost = 0;
   for (dint i = 0; i < 16; i=i+1) {
     for (dint j = 0; j < 16; j=j+1) {
       i32_cost += cabs(orig_mblk(i,j) - pred(i,j));
     }
-    // buildit generates some funky self-comparisons like var > var for this, and they are incorrect
-//    if (i32_cost > cost) {
-//      return min_cost;
-//    }
   }
   return clshift(i32_cost, LAMBDA_ACCURACY_BITS);
 }
@@ -246,13 +230,13 @@ static void find_sad_16x16_CoLa(dyn_var<imgpel**> raw_img_orig,
 	// DC mode
 	get_16x16_dc(pred, mblk, left_available, up_available);
 	dint cur_cost = select_best(best_cost, best_mode, pred, img_orig.colocate(mblk), mode);
-	for (dint i = 0; i < 16; i=i+1) {
+/*	for (dint i = 0; i < 16; i=i+1) {
 	  for (dint j = 0; j < 16; j=j+1) {
 	    cprint("%d ", pred(i,j));
 	  }
 	  cprint("\\n");
 	}
-	cprint("\\n");
+	cprint("\\n");*/
       }
     }
   }

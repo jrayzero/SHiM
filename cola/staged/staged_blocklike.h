@@ -177,6 +177,9 @@ struct View {
   template <unsigned long N>
   builder::dyn_var<Elem> read(builder::dyn_arr<loop_type,N> &coords);
 
+  template <unsigned long N>
+  void compute_coords(builder::dyn_arr<loop_type,N> &coords, builder::dyn_arr<loop_type,N> &out);
+
   ///
   /// Read a single element at the specified coordinate
   template <typename...Coords>
@@ -684,6 +687,27 @@ builder::dyn_var<Elem> View<Elem,Rank,MultiDimPtr>::read(builder::dyn_arr<loop_t
       builder::dyn_arr<loop_type,1> arr{lidx};
       return allocator->read(arr);
     }
+  }
+}
+
+template <typename Elem, unsigned long Rank, bool MultiDimPtr>
+template <unsigned long N>
+void View<Elem,Rank,MultiDimPtr>::compute_coords(builder::dyn_arr<loop_type,N> &coords,
+						 builder::dyn_arr<loop_type,N> &out) {
+  static_assert(N <= Rank);
+  if constexpr (N < Rank) {
+    // we need padding at the front
+    constexpr int pad_amt = Rank-N;
+    builder::dyn_arr<loop_type,Rank> arr;
+    for (builder::static_var<int> i = 0; i < pad_amt; i=i+1) {
+      arr[i] = 0;
+    }
+    for (builder::static_var<int> i = 0; i < N; i=i+1) {
+      arr[i+pad_amt] = coords[i];
+    }
+    this->compute_coords(arr);
+  } else {
+    compute_absolute_location<0>(coords, out);
   }
 }
 
