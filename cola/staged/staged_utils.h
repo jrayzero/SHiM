@@ -107,17 +107,17 @@ void apply(Loc_T<Rank> &arr,
 
 template <typename T>
 struct DispatchPrintElem { };
-DISPATCH_PRINT_ELEM(uint8_t, "%u");
-DISPATCH_PRINT_ELEM(uint16_t, "%u");
-DISPATCH_PRINT_ELEM(uint32_t, "%u");
-DISPATCH_PRINT_ELEM(uint64_t, "%u");
-DISPATCH_PRINT_ELEM(char, "%c");
-DISPATCH_PRINT_ELEM(int8_t, "%d");
-DISPATCH_PRINT_ELEM(int16_t, "%d");
-DISPATCH_PRINT_ELEM(int32_t, "%d");
-DISPATCH_PRINT_ELEM(int64_t, "%d");
-DISPATCH_PRINT_ELEM(float, "%f");
-DISPATCH_PRINT_ELEM(double, "%f");
+DISPATCH_PRINT_ELEM(uint8_t, "%u ");
+DISPATCH_PRINT_ELEM(uint16_t, "%u ");
+DISPATCH_PRINT_ELEM(uint32_t, "%u ");
+DISPATCH_PRINT_ELEM(uint64_t, "%u ");
+DISPATCH_PRINT_ELEM(char, "%c ");
+DISPATCH_PRINT_ELEM(int8_t, "%d ");
+DISPATCH_PRINT_ELEM(int16_t, "%d ");
+DISPATCH_PRINT_ELEM(int32_t, "%d ");
+DISPATCH_PRINT_ELEM(int64_t, "%d ");
+DISPATCH_PRINT_ELEM(float, "%f ");
+DISPATCH_PRINT_ELEM(double, "%f ");
 
 ///
 /// Call the appropriate print_elem function based on Elem
