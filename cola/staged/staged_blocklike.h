@@ -29,6 +29,14 @@ namespace cola {
 // would affect the location of a given block/view. This is bad. It'd basically be like having a pointer
 // represent the location information.
 
+// Valid indexing schemes:
+// - No frozen dims: you can specify 0 <= <nidxs> <= NLogical. If you specify less than NLogical, 0s are padded 
+// to the front indices. So If NLogical = 3 and you specify obj(8), this would be padded to obj(0,0,8).
+// - With frozen dims: you can specify
+// a) the full NLogical dims: this overrides the frozen dims
+// b) NUnfrozen dims: this combines the frozen dims with the indices specified
+// c) < NUnfrozen dims: this combines the frozen dims, 0 padding, and the indices specified
+
 ///
 /// A region of data with a location
 /// If MultiDimPtr = true, the underlying array is a pointer to pointer to etc... (like Rank 2 = **).
@@ -44,6 +52,8 @@ struct Block {
   using Elem_T = Elem;
 //  static constexpr unsigned long n_logical_dims() { return Rank; }
   static constexpr unsigned long NLogical_T = Rank;
+  static constexpr unsigned long NFrozen_T = 0;
+  static constexpr unsigned long NUnfrozen_T = 0;
   static constexpr bool IsBlock_T = true;  
 
   ///
@@ -160,6 +170,7 @@ struct View {
 //  static constexpr unsigned long NFrozen_T = Rank;
   static constexpr unsigned long NLogical_T = NUnfrozen + NFrozen;
   static constexpr unsigned long NFrozen_T = NFrozen;
+  static constexpr unsigned long NUnfrozen_T = NUnfrozen;
   static constexpr bool IsBlock_T = false;
 //  static constexpr unsigned long n_logical_dims() { return NUnfrozen + NFrozen; }
 
@@ -259,8 +270,7 @@ struct View {
   /// Does not guarantee that the data physically exists in the underlying block.  
   template <typename...Coords>
   builder::dyn_var<bool> logically_exists(Coords...coords);
-  
-  
+    
   std::shared_ptr<Allocation<Elem,physical<NLogical_T,MultiDimPtr>()>> allocator;
   SLoc_T bextents;
   SLoc_T bstrides;
@@ -278,7 +288,6 @@ private:
   template <int Depth>
   void compute_absolute_location(const builder::dyn_arr<loop_type,NLogical_T> &coords,
 				 builder::dyn_arr<loop_type,NLogical_T> &out);
-
 
 };
 
@@ -334,6 +343,11 @@ struct Ref : public Expr<Ref<BlockLike,Idxs>> {
 private:
 
   ///
+  /// For adding padding and frozen dimensions to the lhs of an assignment
+  template <typename Rhs>
+  void internal_assign(Rhs rhs);
+
+  ///
   /// Realize the value represented by this Ref
   template <typename LhsIdxs, unsigned long N>
   builder::dyn_var<typename BlockLike::Elem_T> realize(LhsIdxs lhs, 
@@ -341,7 +355,7 @@ private:
 
   ///
   /// Helper method for realizing values for the Idxs of this ref
-  template <int Depth, typename LhsIdxs, unsigned long N>
+  template <int Iter, int IdxDepth, typename LhsIdxs, unsigned long N>
   void realize_each(LhsIdxs lhs, const builder::dyn_arr<loop_type,N> &iters,
 		    builder::dyn_arr<loop_type,BlockLike::NLogical_T> &out);
   
@@ -1185,6 +1199,61 @@ Ref<BlockLike, Idxs> &Ref<BlockLike,Idxs>::operator=(Ref<BlockLike, Idxs> &rhs) 
   *this = BlockLike::Elem_T(1) * rhs;    
   return *this;
 }
+
+template <typename BlockLike, typename Idxs>
+template <typename Rhs>
+void Ref<BlockLike,Idxs>::internal_assign(Rhs rhs) {
+  if constexpr (/*is_view<BlockLike>::value && */std::tuple_size<Idxs>() < BlockLike::NLogical_T) {
+    // need frozen dimensions and/or padding
+    // get frozen dimensions
+    auto frozen = dyn_arr_to_tuple<BlockLike::NFrozen_T,0>(block_like.frozen);
+    // get any padding dimensions
+    constexpr int pad_amt = BlockLike::NUnfrozen_T - std::tuple_size<Idxs>();
+    builder::dyn_arr<loop_type,pad_amt> padded;
+    for (builder::static_var<int> i = 0; i < pad_amt; i=i+1) {
+      padded[i] = 0;
+    }
+    // now combine everything
+    static_assert(BlockLike::NFrozen_T + pad_amt + std::tuple_size<Idxs>() == BlockLike::NLogical_T); // sanity check
+    auto new_idxs = std::tuple_cat(frozen, dyn_arr_to_tuple<pad_amt,0>(padded), this->idxs);
+    auto new_ref = Ref<BlockLike, decltype(new_idxs)>(this->block_like, new_idxs);
+    new_ref.realize_loop_nest(rhs);
+  }/* else if (std::tuple_size<Idxs>() < BlockLike::NLogical_T) {
+    // just need padding
+    constexpr int pad_amt = BlockLike::NLogical_T - std::tuple_size<Idxs>();
+    builder::dyn_arr<loop_type,pad_amt> padded;
+    for (builder::static_var<int> i = 0; i < pad_amt; i=i+1) {
+      padded[i] = 0;
+    }
+    // now combine everything
+    auto new_idxs = std::tuple_cat(dyn_arr_to_tuple<pad_amt,0>(padded), this->idxs);
+    auto new_ref = Ref<BlockLike, decltype(new_idxs)>(this->block_like, new_idxs);
+    new_ref.realize_loop_nest(rhs);
+  }*/ else {
+    // no padding or unfreezing needed (you may have frozen dimensions, but they would be overridden in this case)
+    realize_loop_nest(rhs);
+  }
+}
+
+template <unsigned long NIdxs, unsigned long NLogical, unsigned long NFrozen, unsigned long NUnfrozen>
+constexpr bool verify_n_idxs() {
+  if constexpr (NIdxs == NLogical) {
+    // specified all the idxs, no freezing or padding needed
+    return true;
+  } else if constexpr (NIdxs > NLogical) {
+    // too many
+    return false;
+  } else {
+    // if you specify less, first the frozen are added, and then the padding
+    constexpr unsigned long pad_amt = NUnfrozen - NIdxs;
+    constexpr unsigned long padded_frozen = NFrozen + pad_amt;
+    if constexpr (padded_frozen + NIdxs != NLogical) {
+      return false;
+    } else {
+      return true;
+    }
+  }
+}
   
 // raw value
 template <typename BlockLike, typename Idxs>
@@ -1192,16 +1261,11 @@ void Ref<BlockLike,Idxs>::operator=(typename BlockLike::Elem_T x) {
   this->verify_unadorned();
   this->verify_unique<0>();
   // TODO can potentially memset this whole thing
-  static_assert(std::tuple_size<Idxs>() <= BlockLike::NLogical_T);
-  if constexpr (is_view<BlockLike>::value && std::tuple_size<Idxs>() < BlockLike::NLogical_T) {
-    // add frozen dimensions
-    auto tup = dyn_arr_to_tuple<BlockLike::NFrozen_T,0>(block_like.frozen);
-    auto new_idxs = std::tuple_cat(tup, this->idxs);
-    auto new_ref = Ref<BlockLike, decltype(new_idxs)>(this->block_like, new_idxs);
-    new_ref.realize_loop_nest(x);
-  } else {
-    realize_loop_nest(x);
-  }
+  constexpr unsigned long s = std::tuple_size<Idxs>();
+  static_assert(verify_n_idxs<s, BlockLike::NLogical_T, BlockLike::NFrozen_T, BlockLike::NUnfrozen_T>(),
+		"Invalid number of indices specified. Please see staged_blocklike.h for valid indexing schemes.");
+//  static_assert(std::tuple_size<Idxs>() <= BlockLike::NLogical_T);
+  internal_assign(x);
 }
 
 template <typename BlockLike, typename Idxs>
@@ -1209,16 +1273,11 @@ template <typename Rhs>
 void Ref<BlockLike,Idxs>::operator=(Rhs rhs) {
   this->verify_unadorned();
   this->verify_unique<0>();
-  static_assert(std::tuple_size<Idxs>() <= BlockLike::NLogical_T);
-  if constexpr (is_view<BlockLike>::value && std::tuple_size<Idxs>() < BlockLike::NLogical_T) {
-    // add frozen dimensions
-    auto tup = dyn_arr_to_tuple<BlockLike::NFrozen_T,0>(block_like.frozen);
-    auto new_idxs = std::tuple_cat(tup, this->idxs);
-    auto new_ref = Ref<BlockLike, decltype(new_idxs)>(this->block_like, new_idxs);
-    new_ref.realize_loop_nest(rhs);
-  } else {
-    realize_loop_nest(rhs);
-  }
+  constexpr unsigned long s = std::tuple_size<Idxs>();
+  static_assert(verify_n_idxs<s, BlockLike::NLogical_T, BlockLike::NFrozen_T, BlockLike::NUnfrozen_T>(),
+		"Invalid number of indices specified. Please see staged_blocklike.h for valid indexing schemes.");
+//  static_assert(std::tuple_size<Idxs>() <= BlockLike::NLogical_T);
+  internal_assign(rhs);
 }
 
 template <typename BlockLike, typename Idxs>
@@ -1228,48 +1287,59 @@ void Ref<BlockLike,Idxs>::operator=(builder::builder rhs) {
   builder::dyn_var<typename BlockLike::Elem_T> rhs2 = rhs;
   this->verify_unadorned();
   this->verify_unique<0>();
-  static_assert(std::tuple_size<Idxs>() <= BlockLike::NLogical_T);
-  if constexpr (is_view<BlockLike>::value && std::tuple_size<Idxs>() < BlockLike::NLogical_T) {
-    // add frozen dimensions
-    auto tup = dyn_arr_to_tuple<BlockLike::NFrozen_T,0>(block_like.frozen);
-    auto new_idxs = std::tuple_cat(tup, this->idxs);
-    auto new_ref = Ref<BlockLike, decltype(new_idxs)>(this->block_like, new_idxs);
-    new_ref.realize_loop_nest(rhs2);
-  } else {
-    realize_loop_nest(rhs2);
-  }
+  constexpr unsigned long s = std::tuple_size<Idxs>();
+  static_assert(verify_n_idxs<s, BlockLike::NLogical_T, BlockLike::NFrozen_T, BlockLike::NUnfrozen_T>(),
+		"Invalid number of indices specified. Please see staged_blocklike.h for valid indexing schemes.");
+//  static_assert(std::tuple_size<Idxs>() <= BlockLike::NLogical_T);
+  internal_assign(rhs2);
 }
 
 template <typename BlockLike, typename Idxs>
-template <int IdxDepth, typename LhsIdxs, unsigned long N>
+template <int Iter, int IdxDepth, typename LhsIdxs, unsigned long N>
 void Ref<BlockLike,Idxs>::realize_each(LhsIdxs lhs, 
 				       const builder::dyn_arr<loop_type,N> &iters,
 				       builder::dyn_arr<loop_type,BlockLike::NLogical_T> &out) {
-  if constexpr (IdxDepth == 0 && is_view<BlockLike>::value && std::tuple_size<Idxs>() < BlockLike::NLogical_T) {
+  constexpr unsigned long s = std::tuple_size<Idxs>();
+  static_assert(verify_n_idxs<s, BlockLike::NLogical_T, BlockLike::NFrozen_T, BlockLike::NUnfrozen_T>(),
+		"Invalid number of indices specified. Please see staged_blocklike.h for valid indexing schemes.");
+  if constexpr (Iter == 0 && is_view<BlockLike>::value && std::tuple_size<Idxs>() < BlockLike::NLogical_T) {
     // add frozen dimensions
     for (builder::static_var<int> i = 0; i < BlockLike::NFrozen_T; i=i+1) {
       out[i] = block_like.frozen[i];
     }
+    // add any padding dimensions
+    constexpr int pad_amt = BlockLike::NUnfrozen_T - std::tuple_size<Idxs>();
+    for (builder::static_var<int> i = 0; i < pad_amt; i=i+1) {
+      out[i+BlockLike::NFrozen_T] = 0;
+    }
     // skip ahead 
-    realize_each<BlockLike::NFrozen_T>(lhs, iters, out);
+    realize_each<BlockLike::NFrozen_T+pad_amt,IdxDepth>(lhs, iters, out);
+  } else if constexpr (Iter == 0 && std::tuple_size<Idxs>() < BlockLike::NLogical_T) { 
+    // need padding
+    constexpr int pad_amt = BlockLike::NLogical_T - std::tuple_size<Idxs>();
+    for (builder::static_var<int> i = 0; i < pad_amt; i=i+1) {
+      out[i] = 0;
+    }
+    // skip ahead 
+    realize_each<pad_amt,IdxDepth>(lhs, iters, out);
   } else {
     auto i = std::get<IdxDepth>(idxs); // these are the rhs indexes!
     if constexpr (is_dyn_like<decltype(i)>::value ||
 		  std::is_same<decltype(i),loop_type>()) {
       // this is just a plain value--use it directly
-      if constexpr (IdxDepth < BlockLike::NLogical_T - 1) {
-	out[IdxDepth] = i;
-	realize_each<IdxDepth+1>(lhs, iters, out);
+      if constexpr (Iter < BlockLike::NLogical_T - 1) {
+	out[Iter] = i;
+	realize_each<Iter+1,IdxDepth+1>(lhs, iters, out);
       } else {
-	out[IdxDepth] = i;
+	out[Iter] = i;
       }
     } else {
       auto r = i.realize(lhs, iters);
-      if constexpr (IdxDepth < BlockLike::NLogical_T - 1) {
-	out[IdxDepth] = r;
-	realize_each<IdxDepth+1>(lhs, iters, out);
+      if constexpr (Iter < BlockLike::NLogical_T - 1) {
+	out[Iter] = r;
+	realize_each<Iter+1,IdxDepth+1>(lhs, iters, out);
       } else {
-	out[IdxDepth] = r;
+	out[Iter] = r;
       }
     }
   }
@@ -1283,7 +1353,7 @@ builder::dyn_var<typename BlockLike::Elem_T> Ref<BlockLike,Idxs>::realize(LhsIdx
   // use NUnfrozen_T instead of N b/c the rhs refs may be diff
   // dimensions than lhs
   builder::dyn_arr<loop_type,BlockLike::NLogical_T> arr; 
-  realize_each<0>(lhs, iters, arr);
+  realize_each<0,0>(lhs, iters, arr);
   // then access the thing  
   return block_like.read(arr);
 }

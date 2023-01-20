@@ -45,6 +45,18 @@ static void staged() {
   ASSERT(view2(5) == view2(0,5));
   ASSERT(view2(5) == 37);
   ASSERT(view2.plidx(5) == 37);
+
+  // now insert some padding too with inline indexing
+  view2[5] = 48;
+  view2[3] = 33;
+  ASSERT(view2(5) == view2(0,5));
+  ASSERT(view2(5) == 48);
+  ASSERT(view2.plidx(5) == 48);
+  ASSERT(view2(3) == view2(0,3));
+  ASSERT(view2(3) == 33);
+  ASSERT(view2.plidx(3) == 33);
+  view2[5] = view2[3] + 1;
+  ASSERT(view2(5) == 34);
 }
 
 int main() {
