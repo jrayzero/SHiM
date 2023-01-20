@@ -441,5 +441,5 @@ int main(int argc, char **argv) {
   std::stringstream ss;
   ss << "#include \"huffman.h\"" << endl;
   ss << "#include \"bits.h\"" << endl;
-  stage(jpeg_staged, true, "jpeg", argv[1], ss.str(), ss.str());
+  stage(jpeg_staged, "jpeg", argv[1], ss.str(), ss.str());
 }
