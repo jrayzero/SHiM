@@ -8,6 +8,16 @@
 namespace cola {
 
 template <typename T>
+struct is_view {
+  static constexpr bool value = false;
+};
+
+template <typename Elem, unsigned long NUnfrozen, bool MultiDimPtr, unsigned long NFrozen>
+struct is_view<View<Elem,NUnfrozen,MultiDimPtr,NFrozen>> {
+  static constexpr bool value = true;
+};
+
+template <typename T>
 struct is_expr {
   static constexpr bool value = false;
 };

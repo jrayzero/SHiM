@@ -42,7 +42,8 @@ struct Block {
 
   using SLoc_T = Loc_T<Rank>;
   using Elem_T = Elem;
-  static constexpr unsigned long n_logical_dims() { return Rank; }
+//  static constexpr unsigned long n_logical_dims() { return Rank; }
+  static constexpr unsigned long NLogical_T = Rank;
   static constexpr bool IsBlock_T = true;  
 
   ///
@@ -89,8 +90,8 @@ struct Block {
 
   ///
   /// Create a view on this' data using the location of view (not its underlying block!)
-  template <typename Elem2, bool MultiDimPtr2, unsigned long Frozen>
-  View<Elem,Rank,MultiDimPtr,0> colocate(View<Elem2,Rank,MultiDimPtr2,Frozen> &view);
+  template <typename Elem2, bool MultiDimPtr2>
+  View<Elem,Rank,MultiDimPtr,0> colocate(View<Elem2,Rank,MultiDimPtr2,0> &view);
 
   /// 
   /// Create interpolation factors that logically increase the extent of this block.
@@ -146,26 +147,28 @@ private:
 
 ///
 /// A region of data with a location that shares its underlying data with another block or view
-/// Rank = maximum number of dimensions you can index 
-/// Frozen = number of frozen dimensions
-/// Rank + frozen = total number of logical dimensions. If MultiDimPtr=false, # physical dims == 1
+/// NUnfrozen = maximum number of dimensions you can index 
+/// NFrozen = number of frozen dimensions
+/// NUnfrozen + NFrozen = total number of logical dimensions. If MultiDimPtr=false, # physical dims == 1
 /// If MultiDimPtr=true, # physical dims == # logical dims
-template <typename Elem, unsigned long Rank, bool MultiDimPtr=false, unsigned long Frozen=0>
+template <typename Elem, unsigned long NUnfrozen, bool MultiDimPtr=false, unsigned long NFrozen=0>
 struct View {
 
-  using SLoc_T = Loc_T<Rank+Frozen>;
+  using SLoc_T = Loc_T<NUnfrozen+NFrozen>;
   using Elem_T = Elem;
 //  static constexpr unsigned long Rank_T = Rank;
-//  static constexpr unsigned long Frozen_T = Rank;
+//  static constexpr unsigned long NFrozen_T = Rank;
+  static constexpr unsigned long NLogical_T = NUnfrozen + NFrozen;
+  static constexpr unsigned long NFrozen_T = NFrozen;
   static constexpr bool IsBlock_T = false;
-  static constexpr unsigned long n_logical_dims() { return Rank + Frozen; }
+//  static constexpr unsigned long n_logical_dims() { return NUnfrozen + NFrozen; }
 
   /// 
   /// Create a View from the specified location information
   View(SLoc_T bextents, SLoc_T bstrides, SLoc_T borigin,
        SLoc_T vextents, SLoc_T vstrides, SLoc_T vorigin,
        SLoc_T interpolation_factors,
-       std::shared_ptr<Allocation<Elem,physical<n_logical_dims(),MultiDimPtr>()>> allocator) :
+       std::shared_ptr<Allocation<Elem,physical<NLogical_T,MultiDimPtr>()>> allocator) :
     bextents(bextents), bstrides(bstrides), borigin(borigin),
     vextents(vextents), vstrides(vstrides), vorigin(vorigin), 
     interpolation_factors(interpolation_factors),
@@ -177,8 +180,8 @@ struct View {
   View(SLoc_T bextents, SLoc_T bstrides, SLoc_T borigin,
        SLoc_T vextents, SLoc_T vstrides, SLoc_T vorigin,
        SLoc_T interpolation_factors,
-       std::shared_ptr<Allocation<Elem,physical<n_logical_dims(),MultiDimPtr>()>> allocator,
-       Loc_T<Frozen> frozen) :
+       std::shared_ptr<Allocation<Elem,physical<NLogical_T,MultiDimPtr>()>> allocator,
+       Loc_T<NFrozen> frozen) :
     bextents(bextents), bstrides(bstrides), borigin(borigin),
     vextents(vextents), vstrides(vstrides), vorigin(vorigin), 
     interpolation_factors(interpolation_factors),
@@ -205,21 +208,21 @@ struct View {
   ///
   /// Create a view on this' data using the location of block.
   template <typename Elem2, bool MultiDimPtr2>
-  View<Elem,Rank,MultiDimPtr,0> colocate(Block<Elem2,Rank,MultiDimPtr2> &block);
+  View<Elem,NUnfrozen,MultiDimPtr,0> colocate(Block<Elem2,NLogical_T,MultiDimPtr2> &block);
 
   ///
   /// Create a view on this' data using the location of view (not its underlying block!)
-  template <typename Elem2, bool MultiDimPtr2, unsigned long Frozen2>
-  View<Elem,Rank,MultiDimPtr,0> colocate(View<Elem2,Rank,MultiDimPtr2,Frozen2> &view);
+  template <typename Elem2, bool MultiDimPtr2>
+  View<Elem,NUnfrozen,MultiDimPtr,0> colocate(View<Elem2,NLogical_T,MultiDimPtr2,0> &view);
 
   /// 
   /// Create interpolation factors that logically increase the extent of this block.
   template <typename...Factors>
-  View<Elem,Rank,MultiDimPtr,0> logically_interpolate(Factors...factors);
+  View<Elem,NUnfrozen,MultiDimPtr,0> logically_interpolate(Factors...factors);
 
   ///
   /// Reset interpolation factors back to 1
-  View<Elem,Rank,MultiDimPtr,Frozen> reset();
+  View<Elem,NUnfrozen,MultiDimPtr,NFrozen> reset();
 
   ///
   /// Write a single element at the specified coordinate
@@ -230,12 +233,12 @@ struct View {
   ///
   /// Partially apply the coordinates and return a View that can be indexed with less dimensions.
   template <typename...Coords>
-  View<Elem,Rank-sizeof...(Coords),MultiDimPtr,Frozen+sizeof...(Coords)> freeze(Coords...coords);  
+  View<Elem,NUnfrozen-sizeof...(Coords),MultiDimPtr,NFrozen+sizeof...(Coords)> freeze(Coords...coords);  
 
   ///
   /// Slice out a View over a portion of this View
   template <typename...Slices>
-  View<Elem,Rank,MultiDimPtr,Frozen> view(Slices...slices);
+  View<Elem,NUnfrozen,MultiDimPtr,NFrozen> view(Slices...slices);
 
   /// 
   /// Perform a lazy inline access on this View
@@ -258,7 +261,7 @@ struct View {
   builder::dyn_var<bool> logically_exists(Coords...coords);
   
   
-  std::shared_ptr<Allocation<Elem,physical<n_logical_dims(),MultiDimPtr>()>> allocator;
+  std::shared_ptr<Allocation<Elem,physical<NLogical_T,MultiDimPtr>()>> allocator;
   SLoc_T bextents;
   SLoc_T bstrides;
   SLoc_T borigin;
@@ -266,15 +269,15 @@ struct View {
   SLoc_T vstrides;
   SLoc_T vorigin;  
   SLoc_T interpolation_factors;
-  builder::dyn_arr<loop_type,Frozen> frozen; // prepended
+  builder::dyn_arr<loop_type,NFrozen> frozen; // prepended
 
 private:
   
   ///
   /// Compute the absolute indices of the coordinates. Can only be called once frozen dims are prepended.
   template <int Depth>
-  void compute_absolute_location(const builder::dyn_arr<loop_type,n_logical_dims()> &coords,
-				 builder::dyn_arr<loop_type,n_logical_dims()> &out);
+  void compute_absolute_location(const builder::dyn_arr<loop_type,NLogical_T> &coords,
+				 builder::dyn_arr<loop_type,NLogical_T> &out);
 
 
 };
@@ -340,7 +343,7 @@ private:
   /// Helper method for realizing values for the Idxs of this ref
   template <int Depth, typename LhsIdxs, unsigned long N>
   void realize_each(LhsIdxs lhs, const builder::dyn_arr<loop_type,N> &iters,
-		    builder::dyn_arr<loop_type,BlockLike::n_logical_dims()> &out);
+		    builder::dyn_arr<loop_type,BlockLike::NLogical_T> &out);
   
   ///
   /// Create the loop nest for this ref and also evaluate the rhs.
@@ -480,9 +483,8 @@ View<Elem,Rank,MultiDimPtr,0> Block<Elem,Rank,MultiDimPtr>::colocate(Block<Elem2
 }
 
 template <typename Elem, unsigned long Rank, bool MultiDimPtr>
-template <typename Elem2, bool MultiDimPtr2, unsigned long Frozen>
-View<Elem,Rank,MultiDimPtr,0> Block<Elem,Rank,MultiDimPtr>::colocate(View<Elem2,Rank,MultiDimPtr2,Frozen> &view) {
-  static_assert(Frozen==0, "Cannot do colocation on a Block using a View with frozen dimensions");
+template <typename Elem2, bool MultiDimPtr2>
+View<Elem,Rank,MultiDimPtr,0> Block<Elem,Rank,MultiDimPtr>::colocate(View<Elem2,Rank,MultiDimPtr2,0> &view) {
   return {this->bextents, this->bstrides, this->borigin, 
     view.vextents, view.vstrides, view.vorigin, 
     view.interpolation_factors,
@@ -491,7 +493,7 @@ View<Elem,Rank,MultiDimPtr,0> Block<Elem,Rank,MultiDimPtr>::colocate(View<Elem2,
 
 template <typename Elem, unsigned long Rank, bool MultiDimPtr>
 template <typename...Factors>
-View<Elem,Rank,MultiDimPtr> Block<Elem,Rank,MultiDimPtr>::logically_interpolate(Factors...factors) {
+View<Elem,Rank,MultiDimPtr,0> Block<Elem,Rank,MultiDimPtr>::logically_interpolate(Factors...factors) {
   SLoc_T ifactors{factors...};
   SLoc_T vextents;
   SLoc_T vorigin;
@@ -542,6 +544,21 @@ View<Elem,Rank,MultiDimPtr,0> Block<Elem,Rank,MultiDimPtr>::view(Slices...slices
     vextents, strides, vorigin,
     interpolation_factors,
     this->allocator};  
+}
+
+template <typename Elem, unsigned long Rank, bool MultiDimPtr>
+template <typename...Coords>
+View<Elem,Rank-sizeof...(Coords),MultiDimPtr,sizeof...(Coords)> Block<Elem,Rank,MultiDimPtr>::freeze(Coords...coords) {
+  Loc_T<sizeof...(Coords)> frozen{coords...};
+  SLoc_T interpolation_factors;
+  for (builder::static_var<int> i = 0; i < Rank; i=i+1) {
+    interpolation_factors[i] = 1;
+  }
+  return {this->bextents, this->bstrides, this->borigin,
+    this->bextents, this->bstrides, this->borigin,
+    interpolation_factors,
+    this->allocator,
+    frozen};  
 }
 
 template <typename Elem, unsigned long Rank, bool MultiDimPtr>
@@ -674,14 +691,13 @@ Block<Elem,Rank,MultiDimPtr> Block<Elem,Rank,MultiDimPtr>::user(SLoc_T bextents,
   }
 }
 
-template <typename Elem, unsigned long Rank, bool MultiDimPtr, unsigned long Frozen>
+template <typename Elem, unsigned long NUnfrozen, bool MultiDimPtr, unsigned long NFrozen>
 template <unsigned long N>
-builder::dyn_var<Elem> View<Elem,Rank,MultiDimPtr,Frozen>::read(builder::dyn_arr<loop_type,N> &coords) {
-  static_assert(N <= Rank);  
-  if constexpr (N < Rank) {
+builder::dyn_var<Elem> View<Elem,NUnfrozen,MultiDimPtr,NFrozen>::read(builder::dyn_arr<loop_type,N> &coords) {
+  if constexpr (N < NUnfrozen) {
     // we need padding at the front
-    constexpr int pad_amt = Rank-N;
-    builder::dyn_arr<loop_type,Rank> arr;
+    constexpr int pad_amt = NUnfrozen-N;
+    builder::dyn_arr<loop_type,NUnfrozen> arr;
     for (builder::static_var<int> i = 0; i < pad_amt; i=i+1) {
       arr[i] = 0;
     }
@@ -690,27 +706,44 @@ builder::dyn_var<Elem> View<Elem,Rank,MultiDimPtr,Frozen>::read(builder::dyn_arr
     }
     return this->read(arr);
   } else {
-    // for my own sanity
-    static_assert(N+Frozen == n_logical_dims(), "Jess, your sanity failed!");
-    // add on any frozen dims    
-    builder::dyn_arr<loop_type,n_logical_dims()> full_coords;
-    for (builder::static_var<int> i = 0; i < Frozen; i=i+1) {
-      full_coords[i] = frozen[i];
-    }
-    for (builder::static_var<int> i = 0; i < N; i=i+1) {
-      full_coords[i+Frozen] = coords[i];
-    }
-    // first get the global location
-    // bi0 = vi0 * vstride0 + vorigin0
-    builder::dyn_arr<loop_type,N> bcoords;
-    compute_absolute_location<0>(full_coords, bcoords);
-    // then linearize with respect to the block
-    if constexpr (MultiDimPtr==true) {
-      return allocator->read(bcoords);
+    if constexpr (N == NUnfrozen) {
+      // for my own sanity
+      static_assert(N+NFrozen == NLogical_T, "Jess, your sanity failed!");
+      // add on any frozen dims    
+      builder::dyn_arr<loop_type,NLogical_T> full_coords;
+      for (builder::static_var<int> i = 0; i < NFrozen; i=i+1) {
+	full_coords[i] = frozen[i];
+      }
+      for (builder::static_var<int> i = 0; i < N; i=i+1) {
+	full_coords[i+NFrozen] = coords[i];
+      }
+      // first get the global location
+      // bi0 = vi0 * vstride0 + vorigin0
+      builder::dyn_arr<loop_type,NLogical_T> bcoords;
+      compute_absolute_location<0>(full_coords, bcoords);
+      // then linearize with respect to the block
+      if constexpr (MultiDimPtr==true) {
+	return allocator->read(bcoords);
+      } else {
+	builder::dyn_var<loop_type> lidx = linearize<0,NLogical_T>(this->bextents, bcoords);
+	builder::dyn_arr<loop_type,1> arr{lidx};
+	return allocator->read(arr);
+      }
     } else {
-      builder::dyn_var<loop_type> lidx = linearize<0,Rank>(this->bextents, bcoords);
-      builder::dyn_arr<loop_type,1> arr{lidx};
-      return allocator->read(arr);
+      static_assert(N == NLogical_T);
+      // manually specified all the dimensions (can happen with ref reads)
+      // first get the global location
+      // bi0 = vi0 * vstride0 + vorigin0
+      builder::dyn_arr<loop_type,NLogical_T> bcoords;
+      compute_absolute_location<0>(coords, bcoords);
+      // then linearize with respect to the block
+      if constexpr (MultiDimPtr==true) {
+	return allocator->read(bcoords);
+      } else {
+	builder::dyn_var<loop_type> lidx = linearize<0,NLogical_T>(this->bextents, bcoords);
+	builder::dyn_arr<loop_type,1> arr{lidx};
+	return allocator->read(arr);
+      }
     }
   }
 }
@@ -736,9 +769,9 @@ void View<Elem,Rank,MultiDimPtr>::compute_coords(builder::dyn_arr<loop_type,N> &
   }
 }*/
 
-template <typename Elem, unsigned long Rank, bool MultiDimPtr, unsigned long Frozen>
+template <typename Elem, unsigned long NUnfrozen, bool MultiDimPtr, unsigned long NFrozen>
 template <typename...Coords>
-builder::dyn_var<Elem> View<Elem,Rank,MultiDimPtr,Frozen>::operator()(Coords...coords) {
+builder::dyn_var<Elem> View<Elem,NUnfrozen,MultiDimPtr,NFrozen>::operator()(Coords...coords) {
   // it's possible to pass a dyn_arr in here and have it not complain (but screw everything up).
   // so verify that indices are valid.
   // can be either loop type or dyn_var<loop_type>
@@ -747,14 +780,13 @@ builder::dyn_var<Elem> View<Elem,Rank,MultiDimPtr,Frozen>::operator()(Coords...c
   return this->read(arr);
 }
 
-template <typename Elem, unsigned long Rank, bool MultiDimPtr, unsigned long Frozen>
+template <typename Elem, unsigned long NUnfrozen, bool MultiDimPtr, unsigned long NFrozen>
 template <typename ScalarElem, unsigned long N>
-void View<Elem,Rank,MultiDimPtr,Frozen>::write(ScalarElem val, builder::dyn_arr<loop_type,N> &coords) {
-  static_assert(N <= Rank);
-  if constexpr (N < Rank) {
+void View<Elem,NUnfrozen,MultiDimPtr,NFrozen>::write(ScalarElem val, builder::dyn_arr<loop_type,N> &coords) {
+  if constexpr (N < NUnfrozen) {
     // we need padding at the front
-    constexpr int pad_amt = Rank-N;
-    builder::dyn_arr<loop_type,Rank> arr;
+    constexpr int pad_amt = NUnfrozen-N;
+    builder::dyn_arr<loop_type,NUnfrozen> arr;
     for (builder::static_var<int> i = 0; i < pad_amt; i=i+1) {
       arr[i] = 0;
     }
@@ -763,68 +795,84 @@ void View<Elem,Rank,MultiDimPtr,Frozen>::write(ScalarElem val, builder::dyn_arr<
     }
     this->write(val, arr);
   } else {
-    // for my own sanity
-    static_assert(N+Frozen == n_logical_dims(), "Jess, your sanity failed!");
-    // add on any frozen dims    
-    builder::dyn_arr<loop_type,n_logical_dims()> full_coords;
-    for (builder::static_var<int> i = 0; i < Frozen; i=i+1) {
-      full_coords[i] = frozen[i];
-    }
-    for (builder::static_var<int> i = 0; i < N; i=i+1) {
-      full_coords[i+Frozen] = coords[i];
-    }
-    // the iters are relative to the View, so first make them relative to the block
-    // bi0 = vi0 * vstride0 + vorigin0
-    builder::dyn_arr<loop_type,N> bcoords;
-    compute_absolute_location<0>(full_coords, bcoords);
-    // then linearize with respect to the block
-    if constexpr (MultiDimPtr==true) {
-      allocator->write(val, bcoords);
+    if constexpr (N == NUnfrozen) {
+      // have to add on the frozen parameters
+      // for my own sanity
+      static_assert(N+NFrozen == NLogical_T, "Jess, your sanity failed!");
+      // add on any frozen dims    
+      builder::dyn_arr<loop_type,NLogical_T> full_coords;
+      for (builder::static_var<int> i = 0; i < NFrozen; i=i+1) {
+	full_coords[i] = frozen[i];
+      }
+      for (builder::static_var<int> i = 0; i < N; i=i+1) {
+	full_coords[i+NFrozen] = coords[i];
+      }
+      // the iters are relative to the View, so first make them relative to the block
+      // bi0 = vi0 * vstride0 + vorigin0
+      builder::dyn_arr<loop_type,NLogical_T> bcoords;
+      compute_absolute_location<0>(full_coords, bcoords);
+      // then linearize with respect to the block
+      if constexpr (MultiDimPtr==true) {
+	allocator->write(val, bcoords);
+      } else {
+	builder::dyn_var<loop_type> lidx = linearize<0,NLogical_T>(this->bextents, bcoords);
+	builder::dyn_arr<loop_type,1> arr{lidx};
+	allocator->write(val, arr);
+      }
     } else {
-      builder::dyn_var<loop_type> lidx = linearize<0,Rank>(this->bextents, bcoords);
-      builder::dyn_arr<loop_type,1> arr{lidx};
-      allocator->write(val, arr);
+      static_assert(N == NLogical_T);
+      // manually specified all the dimensions (can happen with ref writes)
+      builder::dyn_arr<loop_type,NLogical_T> bcoords;
+      compute_absolute_location<0>(coords, bcoords);
+      // then linearize with respect to the block
+      if constexpr (MultiDimPtr==true) {
+	allocator->write(val, bcoords);
+      } else {
+	builder::dyn_var<loop_type> lidx = linearize<0,NLogical_T>(this->bextents, bcoords);
+	builder::dyn_arr<loop_type,1> arr{lidx};
+	allocator->write(val, arr);
+      }
     }
   }
 }
 
-template <typename Elem, unsigned long Rank, bool MultiDimPtr, unsigned long Frozen>
+template <typename Elem, unsigned long NUnfrozen, bool MultiDimPtr, unsigned long NFrozen>
 template <typename Idx>
-auto View<Elem,Rank,MultiDimPtr,Frozen>::operator[](Idx idx) {
+auto View<Elem,NUnfrozen,MultiDimPtr,NFrozen>::operator[](Idx idx) {
   if constexpr (is_dyn_like<Idx>::value) {
     // potentially slice builder::builder to dyn_var 
     builder::dyn_var<loop_type> didx = idx;
-    // include any frozen dims here
-    auto idxs = std::tuple_cat(dyn_arr_to_tuple<Frozen,0>(frozen), std::tuple{didx});
-    return Ref<View<Elem,Rank,MultiDimPtr>,decltype(idxs)>(*this, /*std::tuple{didx}*/idxs);
+//    // include any frozen dims here 
+//    auto idxs = std::tuple_cat(dyn_arr_to_tuple<NFrozen,0>(frozen), std::tuple{didx});
+    return Ref<View<Elem,NUnfrozen,MultiDimPtr,NFrozen>,std::tuple<decltype(didx)>>(*this, std::tuple{didx});
   } else {
-    // include any frozen dims here
-    auto idxs = std::tuple_cat(dyn_arr_to_tuple<Frozen,0>(frozen), std::tuple{idx});
-    return Ref<View<Elem,Rank,MultiDimPtr>,decltype(idxs)>(*this, /*std::tuple{idx}*/idxs);
+//    // include any frozen dims here
+//    auto idxs = std::tuple_cat(dyn_arr_to_tuple<NFrozen,0>(frozen), std::tuple{idx});
+    return Ref<View<Elem,NUnfrozen,MultiDimPtr,NFrozen>,std::tuple<decltype(idx)>>(*this, std::tuple{idx});
   }
 }
 
-template <typename Elem, unsigned long Rank, bool MultiDimPtr, unsigned long Frozen>
+template <typename Elem, unsigned long NUnfrozen, bool MultiDimPtr, unsigned long NFrozen>
 template <typename LIdx>
-builder::dyn_var<Elem> View<Elem,Rank,MultiDimPtr,Frozen>::plidx(LIdx lidx) {
+builder::dyn_var<Elem> View<Elem,NUnfrozen,MultiDimPtr,NFrozen>::plidx(LIdx lidx) {
   // must delinearize relative to the view, but need to only do it for the unfrozen part
-  builder::dyn_arr<loop_type, Rank> unfrozen_extents;  
-  builder::dyn_arr<loop_type, Rank> unfrozen_coords;
-  for (builder::static_var<int> i = Frozen; i < n_logical_dims(); i=i+1) {
-    unfrozen_extents[i-Frozen] = vextents[i];
+  builder::dyn_arr<loop_type, NUnfrozen> unfrozen_extents;  
+  builder::dyn_arr<loop_type, NUnfrozen> unfrozen_coords;
+  for (builder::static_var<int> i = NFrozen; i < NLogical_T; i=i+1) {
+    unfrozen_extents[i-NFrozen] = vextents[i];
   }
-  delinearize<0,Rank>(unfrozen_coords, lidx, unfrozen_extents);
+  delinearize<0,NUnfrozen>(unfrozen_coords, lidx, unfrozen_extents);
   return this->read(unfrozen_coords);
 }
 
-template <typename Elem, unsigned long Rank, bool MultiDimPtr,unsigned long Frozen>
+template <typename Elem, unsigned long NUnfrozen, bool MultiDimPtr, unsigned long NFrozen>
 template <typename Elem2, bool MultiDimPtr2>
-View<Elem,Rank,MultiDimPtr,0> View<Elem,Rank,MultiDimPtr,Frozen>::colocate(Block<Elem2,Rank,MultiDimPtr2> &block) {
-  static_assert(Frozen==0, "Cannot do colocation on a View with frozen dimensions");
+View<Elem,NUnfrozen,MultiDimPtr,0> View<Elem,NUnfrozen,MultiDimPtr,NFrozen>::colocate(Block<Elem2,NLogical_T,MultiDimPtr2> &block) {
+  static_assert(NFrozen==0, "Cannot do colocation on a View with frozen dimensions");
   // adjust by the factors
   SLoc_T extents;
   SLoc_T origin;
-  for (builder::static_var<int> i = 0; i < Rank; i=i+1) {
+  for (builder::static_var<int> i = 0; i < NLogical_T; i=i+1) {
     extents[i] = block.bextents[i] * this->interpolation_factors[i];
     origin[i] = block.borigin[i] * this->interpolation_factors[i];
   }
@@ -834,11 +882,10 @@ View<Elem,Rank,MultiDimPtr,0> View<Elem,Rank,MultiDimPtr,Frozen>::colocate(Block
     this->allocator};
 }
 
-template <typename Elem, unsigned long Rank, bool MultiDimPtr, unsigned long Frozen>
-template <typename Elem2, bool MultiDimPtr2, unsigned long Frozen2>
-View<Elem,Rank,MultiDimPtr,0> View<Elem,Rank,MultiDimPtr,Frozen>::colocate(View<Elem2,Rank,MultiDimPtr2,Frozen2> &view) {
-  static_assert(Frozen==0, "Cannot do colocation on a View with frozen dimensions");
-  static_assert(Frozen2==0, "Cannot do colocation on a View using a View with frozen dimensions");
+template <typename Elem, unsigned long NUnfrozen, bool MultiDimPtr, unsigned long NFrozen>
+template <typename Elem2, bool MultiDimPtr2>
+View<Elem,NUnfrozen,MultiDimPtr,0> View<Elem,NUnfrozen,MultiDimPtr,NFrozen>::colocate(View<Elem2,NLogical_T,MultiDimPtr2,0> &view) {
+  static_assert(NFrozen==0, "Cannot do colocation on a View with frozen dimensions");
   // no adjustment by interpolation factors needed since you assume the interpolation factors make it 
   // so you are relative to the view param already! 
   // example: view=a macroblock and this=predication status. you have one intraprediction per macroblock,
@@ -850,14 +897,14 @@ View<Elem,Rank,MultiDimPtr,0> View<Elem,Rank,MultiDimPtr,Frozen>::colocate(View<
     this->allocator};
 } 
 
-template <typename Elem, unsigned long Rank, bool MultiDimPtr, unsigned long Frozen>
+template <typename Elem, unsigned long NUnfrozen, bool MultiDimPtr, unsigned long NFrozen>
 template <typename...Factors>
-View<Elem,Rank,MultiDimPtr,0> View<Elem,Rank,MultiDimPtr,Frozen>::logically_interpolate(Factors...factors) {
-  static_assert(Frozen==0, "Cannot do logical interpolation on a View with frozen dimensions.");
+View<Elem,NUnfrozen,MultiDimPtr,0> View<Elem,NUnfrozen,MultiDimPtr,NFrozen>::logically_interpolate(Factors...factors) {
+  static_assert(NFrozen==0, "Cannot do logical interpolation on a View with frozen dimensions.");
   SLoc_T ifactors{factors...};
   SLoc_T new_vextents;
   SLoc_T new_vorigin;
-  for (builder::static_var<int> i = 0; i < Rank; i=i+1) {
+  for (builder::static_var<int> i = 0; i < NLogical_T; i=i+1) {
     new_vextents[i] = this->vextents[i] * ifactors[i];
     new_vorigin[i] = this->vorigin[i] * ifactors[i];
     ifactors[i] = ifactors[i] * this->interpolation_factors[i];
@@ -868,12 +915,12 @@ View<Elem,Rank,MultiDimPtr,0> View<Elem,Rank,MultiDimPtr,Frozen>::logically_inte
     this->allocator};
 }
 
-template <typename Elem, unsigned long Rank, bool MultiDimPtr, unsigned long Frozen>
-View<Elem,Rank,MultiDimPtr,Frozen> View<Elem,Rank,MultiDimPtr,Frozen>::reset() {
+template <typename Elem, unsigned long NUnfrozen, bool MultiDimPtr, unsigned long NFrozen>
+View<Elem,NUnfrozen,MultiDimPtr,NFrozen> View<Elem,NUnfrozen,MultiDimPtr,NFrozen>::reset() {
   SLoc_T ones;
   SLoc_T adjusted_vextents;
   SLoc_T adjusted_vorigin;
-  for (builder::static_var<int> i = 0; i < n_logical_dims(); i=i+1) {
+  for (builder::static_var<int> i = 0; i < NLogical_T; i=i+1) {
     ones[i] = 1;
     adjusted_vextents[i] = vextents[i] / this->interpolation_factors[i];
     adjusted_vorigin[i] = vorigin[i] / this->interpolation_factors[i];
@@ -884,89 +931,108 @@ View<Elem,Rank,MultiDimPtr,Frozen> View<Elem,Rank,MultiDimPtr,Frozen>::reset() {
     this->allocator};
 }
 
-template <typename Elem, unsigned long Rank, bool MultiDimPtr, unsigned long Frozen>
+template <typename Elem, unsigned long NUnfrozen, bool MultiDimPtr, unsigned long NFrozen>
 template <typename...Slices>
-View<Elem,Rank,MultiDimPtr,Frozen> View<Elem,Rank,MultiDimPtr,Frozen>::view(Slices...slices) {
-  static_assert(sizeof...(Slices) == Rank, "Must specify slices for all ranks.");
+View<Elem,NUnfrozen,MultiDimPtr,NFrozen> View<Elem,NUnfrozen,MultiDimPtr,NFrozen>::view(Slices...slices) {
+  static_assert(sizeof...(Slices) == NUnfrozen, "Must specify slices for all unfrozen dimensions.");
   // the block parameters stay the same, but we need to update the
   // view parameters  
   // extract just the unfrozen extents
-  using Unfrozen = Loc_T<Rank>;
-  Unfrozen unfrozen_extents;
-  for (builder::static_var<int> i = 0; i < Rank; i=i+1) {
-    unfrozen_extents[i] = this->vextents[i+Frozen];
+  using Unfrozen_T = Loc_T<NUnfrozen>;
+  Unfrozen_T unfrozen_extents;
+  for (builder::static_var<int> i = 0; i < NUnfrozen; i=i+1) {
+    unfrozen_extents[i] = this->vextents[i+NFrozen];
   }
-  Unfrozen unfrozen_vstops;
-  gather_stops<0,Rank>(unfrozen_vstops, unfrozen_extents, slices...);
-  Unfrozen unfrozen_vstrides;
-  gather_strides<0,Rank>(unfrozen_vstrides, slices...);
-  Unfrozen unfrozen_vorigin;
-  gather_origin<0,Rank>(unfrozen_vorigin, slices...);
+  Unfrozen_T unfrozen_vstops;
+  gather_stops<0,NUnfrozen>(unfrozen_vstops, unfrozen_extents, slices...);
+  Unfrozen_T unfrozen_vstrides;
+  gather_strides<0,NUnfrozen>(unfrozen_vstrides, slices...);
+  Unfrozen_T unfrozen_vorigin;
+  gather_origin<0,NUnfrozen>(unfrozen_vorigin, slices...);
   // convert vstops into extents
-  Unfrozen unfrozen_vextents;
-  convert_stops_to_extents<Rank>(unfrozen_vextents, unfrozen_vorigin, 
+  Unfrozen_T unfrozen_vextents;
+  convert_stops_to_extents<NUnfrozen>(unfrozen_vextents, unfrozen_vorigin, 
 				 unfrozen_vstops, unfrozen_vstrides);
-  // stick on the frozen dimensions for everything
+  // stick on dummy frozen dimensions for everything
   SLoc_T vstrides;
   SLoc_T vorigin;
   SLoc_T vextents;
-  for (builder::static_var<int> i = 0; i < Frozen; i=i+1) {
+  for (builder::static_var<int> i = 0; i < NFrozen; i=i+1) {
     vorigin[i] = 0; // don't apply the frozen dimensions here because those carry along with this sliced out view
     vstrides[i] = 1;
     vextents[i] = 1;
   }
-  for (builder::static_var<int> i = Frozen; i < n_logical_dims(); i=i+1) {
-    vorigin[i] = unfrozen_vorigin[i-Frozen];
-    vstrides[i] = unfrozen_vstrides[i-Frozen];
-    vextents[i] = unfrozen_vextents[i-Frozen];
+  for (builder::static_var<int> i = NFrozen; i < NLogical_T; i=i+1) {
+    vorigin[i] = unfrozen_vorigin[i-NFrozen];
+    vstrides[i] = unfrozen_vstrides[i-NFrozen];
+    vextents[i] = unfrozen_vextents[i-NFrozen];
   }
   // now make everything relative to the prior view
   // new origin = old origin + vorigin * old strides
   SLoc_T origin;
   SLoc_T tmp;
-  apply<MulFunctor,Rank>(tmp, vorigin, this->vstrides);
-  apply<AddFunctor,Rank>(origin, this->vorigin, tmp);
+  apply<MulFunctor,NUnfrozen>(tmp, vorigin, this->vstrides);
+  apply<AddFunctor,NUnfrozen>(origin, this->vorigin, tmp);
   // new strides = old strides * new strides
   SLoc_T strides;
-  apply<MulFunctor,Rank>(strides, this->vstrides, vstrides);
-  return View<Elem,Rank,MultiDimPtr,Frozen>(this->bextents, this->bstrides, this->borigin,
+  apply<MulFunctor,NUnfrozen>(strides, this->vstrides, vstrides);
+  return View<Elem,NUnfrozen,MultiDimPtr,NFrozen>(this->bextents, this->bstrides, this->borigin,
 					    vextents, strides, origin,
 					    this->interpolation_factors,
 					    this->allocator,
 					    this->frozen);
 }
 
-template <typename Elem, unsigned long Rank, bool MultiDimPtr, unsigned long Frozen>
+template <typename Elem, unsigned long NUnfrozen, bool MultiDimPtr, unsigned long NFrozen>
 template <int Depth>
-void View<Elem,Rank,MultiDimPtr,Frozen>::compute_absolute_location(const builder::dyn_arr<loop_type,n_logical_dims()> &coords,
-								   builder::dyn_arr<loop_type,n_logical_dims()> &out) {
-  if constexpr (Depth == n_logical_dims()) {
+void View<Elem,NUnfrozen,MultiDimPtr,NFrozen>::compute_absolute_location(const builder::dyn_arr<loop_type,NLogical_T> &coords,
+									 builder::dyn_arr<loop_type,NLogical_T> &out) {
+  if constexpr (Depth == NLogical_T) {
   } else {
     out[Depth] = (coords[Depth] * vstrides[Depth] + vorigin[Depth]) / this->interpolation_factors[Depth];
     compute_absolute_location<Depth+1>(coords, out);
   }
 }
 
-template <typename Elem, unsigned long Rank, bool MultiDimPtr, unsigned long Frozen>
+template <typename Elem, unsigned long NUnfrozen, bool MultiDimPtr, unsigned long NFrozen>
+template <typename...Coords>
+View<Elem,NUnfrozen-sizeof...(Coords),MultiDimPtr,NFrozen+sizeof...(Coords)> View<Elem,NUnfrozen,MultiDimPtr,NFrozen>::freeze(Coords...coords) {
+  Loc_T<sizeof...(Coords)> these_frozen{coords...};
+  Loc_T<sizeof...(Coords)+NFrozen> frozen;
+  for (builder::static_var<int> i = 0; i < NFrozen; i=i+1) {
+    frozen[i] = this->frozen[i];
+  }
+  for (builder::static_var<int> i = 0; i < sizeof...(Coords); i=i+1) {
+    frozen[i+NFrozen] = these_frozen[i];
+  }
+  return {this->bextents, this->bstrides, this->borigin,
+    this->vextents, this->vstrides, this->vorigin,
+    this->interpolation_factors,
+    this->allocator,
+    frozen
+  };
+}
+
+template <typename Elem, unsigned long NUnfrozen, bool MultiDimPtr, unsigned long NFrozen>
 template <typename T>
-void View<Elem,Rank,MultiDimPtr,Frozen>::dump_data() {
+void View<Elem,NUnfrozen,MultiDimPtr,NFrozen>::dump_data() {
   // TODO format nicely with the max string length thing
-  static_assert(Rank<=3, "dump_data only supports ranks 1, 2, and 3");
-  if constexpr (Rank == 1) {
-    for (builder::dyn_var<loop_type> i = 0; i < vextents[0]; i=i+1) {
+  static_assert(NUnfrozen<=3, "dump_data only supports up to 3 unfrozen dimensions for printing.");
+  if constexpr (NUnfrozen == 1) {
+    for (builder::dyn_var<loop_type> i = 0; i < vextents[NFrozen]; i=i+1) {
       dispatch_print_elem<Elem>(cast<Elem>(this->operator()(i)));
     }
-  } else if constexpr (Rank == 2) {
-    for (builder::dyn_var<loop_type> i = 0; i < vextents[0]; i=i+1) {
-      for (builder::dyn_var<loop_type> j = 0; j < vextents[1]; j=j+1) {
+  } else if constexpr (NUnfrozen == 2) {
+    for (builder::dyn_var<loop_type> i = 0; i < vextents[NFrozen]; i=i+1) {
+      for (builder::dyn_var<loop_type> j = 0; j < vextents[NFrozen+1]; j=j+1) {
 	dispatch_print_elem<Elem>(cast<Elem>(this->operator()(i,j)));
       }
       print_newline();
     }
   } else {
-    for (builder::dyn_var<loop_type> i = 0; i < vextents[0]; i=i+1) {
-      for (builder::dyn_var<loop_type> j = 0; j < vextents[1]; j=j+1) {
-	for (builder::dyn_var<loop_type> k = 0; k < vextents[2]; k=k+1) {
+    for (builder::dyn_var<loop_type> i = 0; i < vextents[NFrozen]; i=i+1) {
+      for (builder::dyn_var<loop_type> j = 0; j < vextents[NFrozen+1]; j=j+1) {
+	for (builder::dyn_var<loop_type> k = 0; k < vextents[NFrozen+2]; k=k+1) {
 	  dispatch_print_elem<Elem>(cast<Elem>(this->operator()(i,j,k)));
 	}
 	print_newline();
@@ -977,100 +1043,100 @@ void View<Elem,Rank,MultiDimPtr,Frozen>::dump_data() {
   }
 }
 
-template <typename Elem, unsigned long Rank, bool MultiDimPtr, unsigned long Frozen>
-void View<Elem,Rank,MultiDimPtr,Frozen>::dump_loc() {
+template <typename Elem, unsigned long NUnfrozen, bool MultiDimPtr, unsigned long NFrozen>
+void View<Elem,NUnfrozen,MultiDimPtr,NFrozen>::dump_loc() {
   print("View location info");
   print_newline();
   print("  Underlying data structure: ");
-  std::string x = ElemToStr<typename decltype(ptr_wrap<Elem,Rank,MultiDimPtr>())::P>::str;
+  std::string x = ElemToStr<typename decltype(ptr_wrap<Elem,NUnfrozen,MultiDimPtr>())::P>::str;
   print(x);
   print_newline();
-  std::string rank = std::string(Rank);
-  std::string nfrozen = std::string(Frozen);
-  print("  # Unfrozen dimensions: ");
+  std::string rank = std::to_string(NUnfrozen);
+  std::string nfrozen = std::to_string(NFrozen);
+  print("  Unfrozen dimensions: ");
   print(rank);
   print_newline();
-  print("  # Frozen dimensions: ");
+  print("  NFrozen dimensions: ");
   print(nfrozen);
   print_newline();
   print("  BExtents:");
-  for (builder::static_var<int> r = 0; r < Rank; r=r+1) {
+  for (builder::static_var<int> r = 0; r < NLogical_T; r=r+1) {
     print(" ");
     dispatch_print_elem<int>(bextents[r]);    
   }
   print_newline();
   print("  BStrides:");
-  for (builder::static_var<int> r = 0; r < Rank; r=r+1) {
+  for (builder::static_var<int> r = 0; r < NLogical_T; r=r+1) {
     print(" ");
     dispatch_print_elem<int>(bstrides[r]);    
   }
   print_newline();
   print("  BOrigin:");
-  for (builder::static_var<int> r = 0; r < Rank; r=r+1) {
+  for (builder::static_var<int> r = 0; r < NLogical_T; r=r+1) {
     print(" ");
     dispatch_print_elem<int>(borigin[r]);    
   }
   print_newline();
   print("  Interpolated VExtents:");
-  for (builder::static_var<int> r = 0; r < Rank; r=r+1) {
+  for (builder::static_var<int> r = 0; r < NLogical_T; r=r+1) {
     print(" ");
     dispatch_print_elem<int>(vextents[r]);    
   }
   print_newline();
   print("  UnInterpolated VExtents:");
-  for (builder::static_var<int> r = 0; r < Rank; r=r+1) {
+  for (builder::static_var<int> r = 0; r < NLogical_T; r=r+1) {
     print(" ");
     dispatch_print_elem<int>(vextents[r] / interpolation_factors[r]);    
   }
   print_newline();
   print("  VStrides:");
-  for (builder::static_var<int> r = 0; r < Rank; r=r+1) {
+  for (builder::static_var<int> r = 0; r < NLogical_T; r=r+1) {
     print(" ");
     dispatch_print_elem<int>(vstrides[r]);    
   }
   print_newline();
   print("  VOrigin:");
-  for (builder::static_var<int> r = 0; r < Rank; r=r+1) {
+  for (builder::static_var<int> r = 0; r < NLogical_T; r=r+1) {
     print(" ");
     dispatch_print_elem<int>(vorigin[r]);    
   }  
   print_newline();
   print("  UnInterpolated VOrigin:");
-  for (builder::static_var<int> r = 0; r < Rank; r=r+1) {
+  for (builder::static_var<int> r = 0; r < NLogical_T; r=r+1) {
     print(" ");
     dispatch_print_elem<int>(vorigin[r] / interpolation_factors[r]);    
   }  
   print_newline();
   print("  Interpolation factors:");
-  for (builder::static_var<int> r = 0; r < Rank; r=r+1) {
+  for (builder::static_var<int> r = 0; r < NLogical_T; r=r+1) {
     print(" ");
     dispatch_print_elem<int>(interpolation_factors[r]);    
   }  
   print_newline();
-  print("  Frozen dimensions:");
-  for (builder::static_var<int> r = 0; r < Frozen; r=r+1) {
+  print("  NFrozen dimensions:");
+  for (builder::static_var<int> r = 0; r < NFrozen; r=r+1) {
     print(" ");
     dispatch_print_elem<int>(frozen[r]);    
   }  
   print_newline();
 }
 
-template <typename Elem, unsigned long Rank, bool MultiDimPtr, unsigned long Frozen>
+template <typename Elem, unsigned long NUnfrozen, bool MultiDimPtr, unsigned long NFrozen>
 template <typename...Coords>
-builder::dyn_var<bool> View<Elem,Rank,MultiDimPtr,Frozen>::logically_exists(Coords...coords) {
-  static_assert(sizeof...(coords) == Rank);
+builder::dyn_var<bool> View<Elem,NUnfrozen,MultiDimPtr,NFrozen>::logically_exists(Coords...coords) {
+  static_assert(sizeof...(coords) == NUnfrozen, "No default padding allowed for logically_exists");
   // stick on the frozen coordinates
-  Loc_T<Rank> unfrozen_coords{coords...};
-  Loc_T<n_logical_dims()> full_coords;
-  for (builder::static_var<int> i = 0; i < Frozen; i=i+1) {
+  Loc_T<NUnfrozen> unfrozen_coords{coords...};
+  Loc_T<NLogical_T> full_coords;
+  for (builder::static_var<int> i = 0; i < NFrozen; i=i+1) {
     full_coords[i] = frozen[i];
   }
-  for (builder::static_var<int> i = 0; i < Rank; i=i+1) {
-    full_coords[i+Frozen] = unfrozen_coords[i];
+  for (builder::static_var<int> i = 0; i < NUnfrozen; i=i+1) {
+    full_coords[i+NFrozen] = unfrozen_coords[i];
   }
-  builder::dyn_arr<int,n_logical_dims()> rel;
+  Loc_T<NLogical_T> rel;
   compute_absolute_location<0>(full_coords, rel);
-  for (builder::static_var<loop_type> i = 0; i < n_logical_dims(); i++) {
+  for (builder::static_var<loop_type> i = 0; i < NLogical_T; i++) {
     if (rel[i] < 0) {
       return false; 
     }
@@ -1126,8 +1192,16 @@ void Ref<BlockLike,Idxs>::operator=(typename BlockLike::Elem_T x) {
   this->verify_unadorned();
   this->verify_unique<0>();
   // TODO can potentially memset this whole thing
-  static_assert(std::tuple_size<Idxs>() == BlockLike::n_logical_dims());
-  realize_loop_nest(x);
+  static_assert(std::tuple_size<Idxs>() <= BlockLike::NLogical_T);
+  if constexpr (is_view<BlockLike>::value && std::tuple_size<Idxs>() < BlockLike::NLogical_T) {
+    // add frozen dimensions
+    auto tup = dyn_arr_to_tuple<BlockLike::NFrozen_T,0>(block_like.frozen);
+    auto new_idxs = std::tuple_cat(tup, this->idxs);
+    auto new_ref = Ref<BlockLike, decltype(new_idxs)>(this->block_like, new_idxs);
+    new_ref.realize_loop_nest(x);
+  } else {
+    realize_loop_nest(x);
+  }
 }
 
 template <typename BlockLike, typename Idxs>
@@ -1135,8 +1209,16 @@ template <typename Rhs>
 void Ref<BlockLike,Idxs>::operator=(Rhs rhs) {
   this->verify_unadorned();
   this->verify_unique<0>();
-  static_assert(std::tuple_size<Idxs>() == BlockLike::n_logical_dims());
-  realize_loop_nest(rhs);
+  static_assert(std::tuple_size<Idxs>() <= BlockLike::NLogical_T);
+  if constexpr (is_view<BlockLike>::value && std::tuple_size<Idxs>() < BlockLike::NLogical_T) {
+    // add frozen dimensions
+    auto tup = dyn_arr_to_tuple<BlockLike::NFrozen_T,0>(block_like.frozen);
+    auto new_idxs = std::tuple_cat(tup, this->idxs);
+    auto new_ref = Ref<BlockLike, decltype(new_idxs)>(this->block_like, new_idxs);
+    new_ref.realize_loop_nest(rhs);
+  } else {
+    realize_loop_nest(rhs);
+  }
 }
 
 template <typename BlockLike, typename Idxs>
@@ -1146,32 +1228,49 @@ void Ref<BlockLike,Idxs>::operator=(builder::builder rhs) {
   builder::dyn_var<typename BlockLike::Elem_T> rhs2 = rhs;
   this->verify_unadorned();
   this->verify_unique<0>();
-  static_assert(std::tuple_size<Idxs>() == BlockLike::n_logical_dims());
-  realize_loop_nest(rhs2);
+  static_assert(std::tuple_size<Idxs>() <= BlockLike::NLogical_T);
+  if constexpr (is_view<BlockLike>::value && std::tuple_size<Idxs>() < BlockLike::NLogical_T) {
+    // add frozen dimensions
+    auto tup = dyn_arr_to_tuple<BlockLike::NFrozen_T,0>(block_like.frozen);
+    auto new_idxs = std::tuple_cat(tup, this->idxs);
+    auto new_ref = Ref<BlockLike, decltype(new_idxs)>(this->block_like, new_idxs);
+    new_ref.realize_loop_nest(rhs2);
+  } else {
+    realize_loop_nest(rhs2);
+  }
 }
 
 template <typename BlockLike, typename Idxs>
 template <int IdxDepth, typename LhsIdxs, unsigned long N>
 void Ref<BlockLike,Idxs>::realize_each(LhsIdxs lhs, 
 				       const builder::dyn_arr<loop_type,N> &iters,
-				       builder::dyn_arr<loop_type,BlockLike::n_logical_dims()> &out) {
-  auto i = std::get<IdxDepth>(idxs); // these are the rhs indexes!
-  if constexpr (is_dyn_like<decltype(i)>::value ||
-		std::is_same<decltype(i),loop_type>()) {
-    // this is just a plain value--use it directly
-    if constexpr (IdxDepth < BlockLike::n_logical_dims() - 1) {
-      out[IdxDepth] = i;
-      realize_each<IdxDepth+1>(lhs, iters, out);
-    } else {
-      out[IdxDepth] = i;
+				       builder::dyn_arr<loop_type,BlockLike::NLogical_T> &out) {
+  if constexpr (IdxDepth == 0 && is_view<BlockLike>::value && std::tuple_size<Idxs>() < BlockLike::NLogical_T) {
+    // add frozen dimensions
+    for (builder::static_var<int> i = 0; i < BlockLike::NFrozen_T; i=i+1) {
+      out[i] = block_like.frozen[i];
     }
+    // skip ahead 
+    realize_each<BlockLike::NFrozen_T>(lhs, iters, out);
   } else {
-    auto r = i.realize(lhs, iters);
-    if constexpr (IdxDepth < BlockLike::n_logical_dims() - 1) {
-      out[IdxDepth] = r;
-      realize_each<IdxDepth+1>(lhs, iters, out);
+    auto i = std::get<IdxDepth>(idxs); // these are the rhs indexes!
+    if constexpr (is_dyn_like<decltype(i)>::value ||
+		  std::is_same<decltype(i),loop_type>()) {
+      // this is just a plain value--use it directly
+      if constexpr (IdxDepth < BlockLike::NLogical_T - 1) {
+	out[IdxDepth] = i;
+	realize_each<IdxDepth+1>(lhs, iters, out);
+      } else {
+	out[IdxDepth] = i;
+      }
     } else {
-      out[IdxDepth] = r;
+      auto r = i.realize(lhs, iters);
+      if constexpr (IdxDepth < BlockLike::NLogical_T - 1) {
+	out[IdxDepth] = r;
+	realize_each<IdxDepth+1>(lhs, iters, out);
+      } else {
+	out[IdxDepth] = r;
+      }
     }
   }
 }
@@ -1181,9 +1280,9 @@ template <typename LhsIdxs, unsigned long N>
 builder::dyn_var<typename BlockLike::Elem_T> Ref<BlockLike,Idxs>::realize(LhsIdxs lhs, 
 									  const builder::dyn_arr<loop_type,N> &iters) {
   // first realize each idx
-  // use Rank_T instead of N b/c the rhs refs may be diff
+  // use NUnfrozen_T instead of N b/c the rhs refs may be diff
   // dimensions than lhs
-  builder::dyn_arr<loop_type,BlockLike::n_logical_dims()> arr; 
+  builder::dyn_arr<loop_type,BlockLike::NLogical_T> arr; 
   realize_each<0>(lhs, iters, arr);
   // then access the thing  
   return block_like.read(arr);
@@ -1195,7 +1294,7 @@ void Ref<BlockLike,Idxs>::realize_loop_nest(Rhs rhs, Iters...iters) {
   // the lhs indices can be either an Iter or an integer.
   // Iter -> loop over whole extent
   // integer -> single iteration loop
-  constexpr int rank = BlockLike::n_logical_dims();
+  constexpr int rank = BlockLike::NLogical_T;
   constexpr int depth = sizeof...(Iters);
   if constexpr (depth < rank) {
     auto dummy = std::get<depth>(idxs);
@@ -1237,7 +1336,7 @@ void Ref<BlockLike,Idxs>::verify_unadorned() {
   static_assert(std::is_integral<T>() || 
 		is_dyn_like<T>::value ||
 		is_iter<T>::value, "LHS indices for inline write must be unadorned.");
-  if constexpr (Depth < BlockLike::n_logical_dims() - 1) {
+  if constexpr (Depth < std::tuple_size<Idxs>() - 1) {
     verify_unadorned<Depth+1>();
   }
 }  
@@ -1250,11 +1349,11 @@ void Ref<BlockLike,Idxs>::verify_unique() {
   using T = decltype(i);
   if constexpr (is_iter<T>::value) {
     static_assert(VerifyUnique<T::Ident_T, Seen...>()(), "LHS indices for inline write must be unique.");
-    if constexpr (Depth < BlockLike::n_logical_dims() - 1) {
+    if constexpr (Depth < std::tuple_size<Idxs>() - 1) {
       verify_unique<Depth+1, Seen..., T::Ident_T>();
     }
   } else {
-    if constexpr (Depth < BlockLike::n_logical_dims() - 1) {
+    if constexpr (Depth < std::tuple_size<Idxs>()- 1) {
       verify_unique<Depth+1, Seen...>();
     }
   }

@@ -40,6 +40,7 @@ static void staged() {
   ASSERT(intra_pred(0,1) == 12);
   ASSERT(intra_pred_interp(0,16) == 12);
   ASSERT(intra_at_mblk(-32,0) == 12);
+
 }
 
 int main() {
