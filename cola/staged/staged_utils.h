@@ -339,4 +339,17 @@ struct ElemToStr<T[Sz]> {
   static constexpr bool isArr = true;
 };
 
+///
+/// Copy N dyn_arr elements to a tuple
+template <int N, int Depth, unsigned long Sz, typename Elem>
+auto dyn_arr_to_tuple(const builder::dyn_arr<Elem,Sz> &arr) {
+  if constexpr (Depth == N - 1) {
+    return std::tuple{arr[Depth]};
+  } else if constexpr (Depth < N - 1) {
+    return std::tuple_cat(std::tuple{arr[Depth]}, dyn_arr_to_tuple<N,Depth+1,Sz,Elem>(arr));
+  } else {
+    return std::tuple{};
+  }
+}
+
 }

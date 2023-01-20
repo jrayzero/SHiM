@@ -14,7 +14,7 @@ namespace cola {
 // Block-like things
 template <typename Elem, unsigned long Rank, bool MultiDimPtr>
 struct Block;
-template <typename Elem, unsigned long Rank, bool MultiDimPtr>
+template <typename Elem, unsigned long Rank, bool MultiDimPtr, unsigned long Frozen>
 struct View;
 template <typename BlockLike, typename Idxs> 
 struct Ref;
