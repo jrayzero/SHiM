@@ -15,7 +15,7 @@ namespace cola {
 ///
 /// Unspecialized template to determine the core type of a compound expression
 template <typename T>
-struct GetCoreT { using Core_T = void; };
+struct GetCoreT { using Core_T = T; };
 
 ///
 /// Core type is bool
@@ -89,8 +89,8 @@ struct GetCoreT<Ref<Block<Elem,Rank,MultiDimPtr>,Idxs>> { using Core_T = Elem; }
 
 ///
 /// Core type is Elem
-template <typename Elem, unsigned long Rank, bool MultiDimPtr, typename Idxs>
-struct GetCoreT<Ref<View<Elem,Rank,MultiDimPtr>,Idxs>> { using Core_T = Elem; };
+template <typename Elem, unsigned long Rank, bool MultiDimPtr, unsigned long Frozen, typename Idxs>
+struct GetCoreT<Ref<View<Elem,Rank,MultiDimPtr,Frozen>,Idxs>> { using Core_T = Elem; };
 
 ///
 /// Core type is the core type of Binary

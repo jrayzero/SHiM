@@ -30,10 +30,11 @@ builder::dyn_var<bool> compare_arrays(const builder::dyn_arr<T,N> &arr1, const b
 
 template <typename Func>
 void test_stage(Func func, std::string file) {
+  CompileOptions::isCPP = true;
   std::stringstream f;
   std::string f2 = std::filesystem::path(file).stem();
   f << f2 << "_generated";
-  stage(func, true, "staged", f.str(), "", "");
+  stage(func, "staged", f.str(), "", "");
 }
 
 }

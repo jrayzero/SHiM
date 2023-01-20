@@ -21,7 +21,7 @@ public:
   static std::vector<std::string> generate_code(block::block::Ptr ast, std::ostream &oss, int indent = 0) {
     hmda_cpp_code_generator generator;
     generator.curr_indent = indent;
-    // first generate all the struct definitions
+/*    // first generate all the struct definitions
     std::stringstream structs;
     for (auto kv : builder::StructInfo::structs) {
       structs << "struct " << kv.first << " {" << std::endl;
@@ -30,7 +30,7 @@ public:
       }
       structs << "};" << std::endl;
     }
-    oss << structs.str();
+    oss << structs.str();*/
     // then back to the usual
     ast->accept(&generator);
     oss << generator.last;
@@ -136,14 +136,18 @@ private:
   
 };
 
+struct CompileOptions {
+  static inline bool isCPP = true;
+};
+
 // isCPP just dictates whether or not the functions are wrapped with extern in the c code
 template <typename Func, typename...Args>
-void stage(Func func, bool isCPP, std::string name, std::string fn_prefix, std::string pre_hdr, std::string pre_src, Args...args) {
+void stage(Func func, std::string name, std::string fn_prefix, std::string pre_hdr, std::string pre_src, Args...args) {
   std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
   std::ofstream src;
   std::ofstream hdr;
   std::string header = fn_prefix + ".h";  
-  std::string source = isCPP ? fn_prefix + ".cpp" : fn_prefix + ".c";
+  std::string source = CompileOptions::isCPP ? fn_prefix + ".cpp" : fn_prefix + ".c";
   hdr.open(header);
   src.open(source);
   if (name.empty()) name = "__my_staged_func";
@@ -152,16 +156,34 @@ void stage(Func func, bool isCPP, std::string name, std::string fn_prefix, std::
   hdr << "#pragma once" << std::endl;
   hdr << pre_hdr;
   src << pre_src;
-  if (!isCPP) {
+  if (!CompileOptions::isCPP) {
     src << "#include <stdio.h>" << std::endl;
     src << "#include <math.h>" << std::endl;
     src << "#include <stdbool.h>" << std::endl;
     src << "#include <stdlib.h>" << std::endl;
     hdr << "#include <stdbool.h>" << std::endl;
-  }
+  } else {
+    src << "#include <cstdio>" << std::endl;
+  } 
   // Plain C does not support the HeapArray and things like that!
-  if (isCPP)
+  if (CompileOptions::isCPP)
     src << "#include \"runtime/runtime.h\"" << std::endl;
+  if (!CompileOptions::isCPP) {
+    src << "#define lshift(a,b) ((a) << (b))" << std::endl;
+    src << "#define rshift(a,b) ((a) >> (b))" << std::endl;
+  }
+  src << "#define COLA_CAST_UINT8_T(x) (uint8_t)(x)" << std::endl;
+  src << "#define COLA_CAST_UINT16_T(x) (uint16_t)(x)" << std::endl;
+  src << "#define COLA_CAST_UINT32_T(x) (uint32_t)(x)" << std::endl;
+  src << "#define COLA_CAST_UINT64_T(x) (uint64_t)(x)" << std::endl;
+  src << "#define COLA_CAST_INT8_T(x) (int8_t)(x)" << std::endl;
+  src << "#define COLA_CAST_INT16_T(x) (int16_t)(x)" << std::endl;
+  src << "#define COLA_CAST_INT32_T(x) (int32_t)(x)" << std::endl;
+  src << "#define COLA_CAST_INT64_T(x) (int64_t)(x)" << std::endl;
+  src << "#define COLA_CAST_CHAR(x) (char)(x)" << std::endl;
+  src << "#define COLA_CAST_FLOAT(x) (float)(x)" << std::endl;
+  src << "#define COLA_CAST_DOUBLE(x) (double)(x)" << std::endl;
+  src << "void print_newline() { printf(\"\\n\"); }" << std::endl;
   std::stringstream src2;
   std::vector<std::string> sigs = hmda_cpp_code_generator::generate_code(ast, src2, 0);
   for (auto sig : sigs) {

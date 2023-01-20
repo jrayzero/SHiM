@@ -98,26 +98,26 @@ void apply(Loc_T<Rank> &arr,
   }
 }
 
-#define DISPATCH_PRINT_ELEM(dtype)				\
+#define DISPATCH_PRINT_ELEM(dtype, formatter)				\
   template <>							\
   struct DispatchPrintElem<dtype> {				\
     template <typename Val>					\
-    void operator()(Val val) { print_elem_##dtype(val); }	\
+    void operator()(Val val) { print(formatter, val); }	\
   }
 
 template <typename T>
 struct DispatchPrintElem { };
-DISPATCH_PRINT_ELEM(uint8_t);
-DISPATCH_PRINT_ELEM(uint16_t);
-DISPATCH_PRINT_ELEM(uint32_t);
-DISPATCH_PRINT_ELEM(uint64_t);
-DISPATCH_PRINT_ELEM(char);
-DISPATCH_PRINT_ELEM(int8_t);
-DISPATCH_PRINT_ELEM(int16_t);
-DISPATCH_PRINT_ELEM(int32_t);
-DISPATCH_PRINT_ELEM(int64_t);
-DISPATCH_PRINT_ELEM(float);
-DISPATCH_PRINT_ELEM(double);
+DISPATCH_PRINT_ELEM(uint8_t, "%u ");
+DISPATCH_PRINT_ELEM(uint16_t, "%u ");
+DISPATCH_PRINT_ELEM(uint32_t, "%u ");
+DISPATCH_PRINT_ELEM(uint64_t, "%u ");
+DISPATCH_PRINT_ELEM(char, "%c ");
+DISPATCH_PRINT_ELEM(int8_t, "%d ");
+DISPATCH_PRINT_ELEM(int16_t, "%d ");
+DISPATCH_PRINT_ELEM(int32_t, "%d ");
+DISPATCH_PRINT_ELEM(int64_t, "%d ");
+DISPATCH_PRINT_ELEM(float, "%f ");
+DISPATCH_PRINT_ELEM(double, "%f ");
 
 ///
 /// Call the appropriate print_elem function based on Elem
@@ -127,7 +127,7 @@ void dispatch_print_elem(Val val) {
 }
 
 ///
-/// Create the type that resultsing from concatenting Idx to tuple<Idxs...>
+/// Create the type that resulting from concatenting Idx to tuple<Idxs...>
 template <typename A, typename B>
 struct TupleTypeCat { };
 
@@ -199,11 +199,156 @@ constexpr int peel() {
   return Peel<Elem>()();
 }
 
-template <typename Item, typename...Items>
-void print_many(Item item, Items...items) {
-  print(item);
-  if constexpr (sizeof...(Items) > 0) {
-    print_many(items...);
+template <typename Elem>
+constexpr bool is_ptr() {
+  return peel<Elem>() > 0;
+}
+
+///
+/// Unspecialized template to determine the core type of a compound expression
+template <typename T>
+struct ElemToStr { };
+
+///
+/// Core type is a builder name
+template <const char* Name>
+struct ElemToStr<builder::name<Name>> { 
+  inline static std::string str = Name; 
+  static constexpr bool isArr = false;
+};
+
+///
+/// Core type is bool
+template <>
+struct ElemToStr<bool> { 
+  inline static std::string str = "bool"; 
+  static constexpr bool isArr = false;
+};
+
+///
+/// Core type is uint8_t
+template <>
+struct ElemToStr<uint8_t> { 
+  inline static std::string str = "uint8_t"; 
+  static constexpr bool isArr = false;
+};
+
+///
+/// Core type is uint16_t
+template <>
+struct ElemToStr<uint16_t> { 
+  inline static std::string str = "uint16_t"; 
+  static constexpr bool isArr = false;
+};
+
+///
+/// Core type is uint32_t
+template <>
+struct ElemToStr<uint32_t> { 
+  inline static std::string str = "uint32_t"; 
+  static constexpr bool isArr = false;
+};
+
+///
+/// Core type is uint64_t
+template <>
+struct ElemToStr<uint64_t> { 
+  inline static std::string str = "uint64_t"; 
+  static constexpr bool isArr = false;
+};
+
+///
+/// Core type is char
+template <>
+struct ElemToStr<char> { 
+  inline static std::string str = "char"; 
+  static constexpr bool isArr = false;
+};
+
+///
+/// Core type is int8_t (signed char)
+template <>
+struct ElemToStr<int8_t> { 
+  inline static std::string str = "int8_t"; 
+  static constexpr bool isArr = false;
+};
+
+///
+/// Core type is int16_t
+template <>
+struct ElemToStr<int16_t> { 
+  inline static std::string str = "int16_t"; 
+  static constexpr bool isArr = false;
+};
+
+///
+/// Core type is int32_t
+template <>
+struct ElemToStr<int32_t> { 
+  inline static std::string str = "int32_t"; 
+  static constexpr bool isArr = false;
+};
+
+///
+/// Core type is int64_t
+template <>
+struct ElemToStr<int64_t> { 
+  inline static std::string str = "int64_t"; 
+  static constexpr bool isArr = false;
+};
+
+///
+/// Core type is float
+template <>
+struct ElemToStr<float> { 
+  inline static std::string str = "float"; 
+  static constexpr bool isArr = false;
+};
+
+///
+/// Core type is double
+template <>
+struct ElemToStr<double> { 
+  inline static std::string str = "double"; 
+  static constexpr bool isArr = false;
+};
+
+///
+/// Core type is core type of T
+template <typename T>
+struct ElemToStr<T*> { 
+  inline static std::string str = ElemToStr<T>::str + "*";  
+  static constexpr bool isArr = false;
+};
+
+///
+/// Core type is core type of T
+template <typename T>
+struct ElemToStr<T[]> { 
+  inline static std::string str = ElemToStr<T>::str; 
+  inline static std::string sz = "";
+  static constexpr bool isArr = true;
+};
+
+///
+/// Core type is core type of T
+template <typename T, int Sz>
+struct ElemToStr<T[Sz]> { 
+  inline static std::string str = ElemToStr<T>::str;
+  inline static std::string sz = std::to_string(Sz);
+  static constexpr bool isArr = true;
+};
+
+///
+/// Copy N dyn_arr elements to a tuple
+template <int N, int Depth, unsigned long Sz, typename Elem>
+auto dyn_arr_to_tuple(const builder::dyn_arr<Elem,Sz> &arr) {
+  if constexpr (Depth == N - 1) {
+    return std::tuple{arr[Depth]};
+  } else if constexpr (Depth < N - 1) {
+    return std::tuple_cat(std::tuple{arr[Depth]}, dyn_arr_to_tuple<N,Depth+1,Sz,Elem>(arr));
+  } else {
+    return std::tuple{};
   }
 }
 

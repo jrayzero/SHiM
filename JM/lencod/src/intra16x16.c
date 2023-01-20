@@ -19,6 +19,10 @@
 #include "transform.h"
 #include "memalloc.h"
 
+#if USE_COLA==1
+#include "CoLaJM_generated.h"
+#endif
+
 /*!
  ************************************************************************
  * \brief
@@ -62,12 +66,15 @@ static inline void get_i16x16_horizontal(imgpel **cur_pred, imgpel *PredPel)
  */
 static inline void get_i16x16_dc(imgpel **cur_pred, imgpel *PredPel, int left_available, int up_available)
 {
+  // JESS: there was a bug here: they weren't adding 16 and 8 to the summed value
+  // JESS: I replaced rshift_rnd_sf with plain shift operators
   int i, j, s0 = 0, s1 = 0, s2 = 0;
 
   if (up_available)
   {
-    for (i = 1; i < MB_BLOCK_SIZE + 1; ++i)
+    for (i = 1; i < MB_BLOCK_SIZE + 1; ++i) {
       s1 += PredPel[i];
+    }
   }
 
   if (left_available)
@@ -79,13 +86,13 @@ static inline void get_i16x16_dc(imgpel **cur_pred, imgpel *PredPel, int left_av
   if (up_available)
   {
     s0 = left_available
-      ? rshift_rnd_sf((s1 + s2),(MB_BLOCK_SHIFT + 1)) // no edge
-      : rshift_rnd_sf(s1, MB_BLOCK_SHIFT);          // left edge
+      ? (rshift_rnd_sf((s1 + s2 + 16),(MB_BLOCK_SHIFT + 1))) // no edge
+      : (rshift_rnd_sf((s1+8), MB_BLOCK_SHIFT));          // left edge
   }
   else
-  {
+    {
     s0 = left_available
-      ? rshift_rnd_sf(s2, MB_BLOCK_SHIFT)           // upper edge
+      ? rshift_rnd_sf((s2+8), MB_BLOCK_SHIFT)           // upper edge
       : PredPel[1];                              // top left corner, nothing to predict from
   }
 
@@ -117,8 +124,8 @@ static inline void get_i16x16_plane(imgpel **cur_pred, imgpel *PredPel, int max_
     ih += i*(*(u_pred + i) - *(u_pred - i));
     iv += i*(*t_pred++ - *b_pred--);
   }
-  ih += 8 * (*(u_pred + 8) - PredPel[0]);
-  iv += 8 * (*t_pred++ - PredPel[0]);
+  ih += 8*(*(u_pred + 8) - PredPel[0]);
+  iv += 8*(*t_pred++ - PredPel[0]);
 
   ib = (5 * ih + 32) >> 6;
   ic = (5 * iv + 32) >> 6;
@@ -129,7 +136,8 @@ static inline void get_i16x16_plane(imgpel **cur_pred, imgpel *PredPel, int max_
   {
     for (i=0;i< MB_BLOCK_SIZE;++i)
     {
-      cur_pred[j][i]= (imgpel) iClip1( max_imgpel_value, rshift_rnd_sf((iaa + (i - 7) * ib + (j - 7) * ic), 5));// store plane prediction
+      // JESS added the + 16 here
+      cur_pred[j][i]= (imgpel) iClip1( max_imgpel_value, ((iaa + (i - 7) * ib + (j - 7) * ic + 16) >> 5));// store plane prediction
     }
   }
 }
@@ -187,7 +195,6 @@ void set_intrapred_16x16(Macroblock *currMB, ColorPlane pl, int *left_available,
     for (i = 1; i < 17; ++i)
       PredPel[i] = (imgpel) p_Vid->dc_pred_value;
   }
-
   if (*left_available)
   {
     int pos_y = pix_a.pos_y;
@@ -408,7 +415,7 @@ distblk distI16x16_sad(Macroblock *currMB, imgpel **img_org, imgpel **pred_img, 
   imgpel *cur_img, *prd_img;
   int i32Cost = 0;
   int i, j; 
-  int imin_cost = dist_down(min_cost);
+//  int imin_cost = dist_down(min_cost);
 
   for (j = 0; j < MB_BLOCK_SIZE; j++)
   {
@@ -416,13 +423,13 @@ distblk distI16x16_sad(Macroblock *currMB, imgpel **img_org, imgpel **pred_img, 
     prd_img = pred_img[j];
     for (i = 0; i < MB_BLOCK_SIZE; i++)
     {
-      i32Cost += iabs( *cur_img++ - *prd_img++ );
+      i32Cost += abs( *cur_img++ - *prd_img++ );
     }
 
-    if (i32Cost > imin_cost)
-      return (min_cost);
+    // JESS disabled b/c the equivalent in cola breaks something with buildit
+//    if (i32Cost > imin_cost)
+//      return (min_cost);
   }
-
   return (dist_scale((distblk) i32Cost));
 }
 
@@ -462,6 +469,9 @@ distblk distI16x16_sse(Macroblock *currMB, imgpel **img_org, imgpel **pred_img, 
  ************************************************************************/
 distblk find_sad_16x16_JM(Macroblock *currMB)
 {
+#if USE_COLA==1
+  return find_sad_16x16_CoLa(currMB);
+#else
   Slice *currSlice = currMB->p_Slice;
   VideoParameters *p_Vid = currMB->p_Vid;
   InputParameters *p_Inp = currMB->p_Inp;
@@ -511,7 +521,8 @@ distblk find_sad_16x16_JM(Macroblock *currMB)
       }
     }    
   }
-
+  printf("Best mode and cost = (%d,%d)\n", currMB->i16mode, best_intra_sad2);
   return best_intra_sad2;
+#endif
 }
 
