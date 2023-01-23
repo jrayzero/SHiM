@@ -51,7 +51,9 @@ staged_jpeg(2)
 
 function (CoLaJM)
  set(name CoLaJM)
- add_executable(${name}_generator ${CMAKE_SOURCE_DIR}/apps/JM/${name}.cpp)
+ add_executable(${name}_generator 
+	        ${CMAKE_SOURCE_DIR}/apps/JM/${name}.cpp
+                ${CMAKE_SOURCE_DIR}/apps/JM/utils.cpp)
  target_link_libraries(${name}_generator buildit)
  target_include_directories(${name}_generator PUBLIC ${CMAKE_SOURCE_DIR}/JM/lencod/inc ${CMAKE_SOURCE_DIR}/JM/lcommon/inc)
  

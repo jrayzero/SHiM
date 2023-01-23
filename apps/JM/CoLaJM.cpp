@@ -3,9 +3,13 @@
 #include <sstream>
 #include <chrono>
 
+// BuildIt
 #include "builder/dyn_var.h"
 #include "builder/array.h"
+// CoLa
 #include "staged/staged.h"
+// CoLa JM
+#include "utils.h"
 #include "containers.h"
 // within JM
 #include "defines.h"
@@ -17,43 +21,22 @@ using builder::static_var;
 using builder::dyn_var;
 using builder::dyn_arr;
 
-using sint = static_var<int>;
-using dint = dyn_var<int>;
-using dshort = dyn_var<short>;
-using dbool = dyn_var<bool>;
-
-static Iter<'y'> y;
 static Iter<'x'> x;
-
-#define PD(item) print(#item " = %d\\n", item)
-#define PB(item) print(#item " = %d\\n", item)
+static Iter<'y'> y;
 
 // Notes on JM:
 // - mblk->intra_block is linear array where [i] is the i^th mblk in raster order (calloc'd in lencode.c)
 // - availability depends on whether neighboring mblks are in the same slice, but I don't see any checks for
 // that happening in JM...
 
-#define RSHIFT_RND(x,a) ((a) > 0) ? (crshift((((x) + (clshift(1, ((a)-1) ))), (a)))) : (clshift((x), (-(a))))
-#define RSHIFT_RND_SF(x,a) crshift(((x) + clshift(1, ((a)-1))), (a))
-
-static dint clip1Y(dint x) {
-  if (x < 0) {
-    return 0;
-  } else if (x > 128) {
-    return 128;
-  } else {
-    return x;
-  }
-}
-
 template <typename Pred, typename Ref>
 static void get_16x16_vertical(Pred &pred, Ref &ref) {
-  pred[(int)VERT_PRED_16][y][x] = ref[-1][x];
+  pred[y][x] = ref[-1][x];
 }
 
 template <typename Pred, typename Ref>
 static void get_16x16_horizontal(Pred &pred, Ref &ref) {
-  pred[(int)HOR_PRED_16][y][x] = ref[y][-1];
+  pred[y][x] = ref[y][-1];
 }
 
 template <typename Pred, typename Ref>
@@ -79,7 +62,7 @@ static void get_16x16_dc(Pred &pred, Ref &ref,
   } else {
     s = 128;
   }
-  pred[(int)DC_PRED_16][y][x] = s;
+  pred[y][x] = s;
 }
 
 template <typename Pred, typename Ref>
@@ -96,7 +79,7 @@ static void get_16x16_plane(Pred &pred, Ref &ref) {
   dint c = crshift((dint)(5 * V + 32), 6);
   for (dint y = 0; y < 16; y=y+1) {
     for (dint x = 0; x < 16; x=x+1) {
-      pred[(int)PLANE_16][y][x] = clip1Y(crshift((dint)(a+b*(x-7)+c*(y-7)+16),5));
+      pred[y][x] = clip1Y(crshift((dint)(a+b*(x-7)+c*(y-7)+16),5));
     }
   }
 }
@@ -126,11 +109,11 @@ static void set_intrapred_16x16(View<T,2,M> &mblk_recons,
 }
 
 template <typename Pred, typename Orig>
-static dint sad_16x16(Pred &pred, Orig &orig_mblk, dint cur_mode, dint min_cost) {
+static dint sad_16x16(Pred &pred, Orig &orig_mblk, dint min_cost) {
   dint i32_cost = 0;
   for (dint i = 0; i < 16; i=i+1) {
     for (dint j = 0; j < 16; j=j+1) {
-      i32_cost += cabs(orig_mblk(i,j) - pred(cur_mode,i,j));
+      i32_cost += cabs(orig_mblk(i,j) - pred(i,j));
     }
   }
   return clshift(i32_cost, LAMBDA_ACCURACY_BITS);
@@ -140,7 +123,7 @@ template <typename Pred, typename Orig>
 static void select_best(dint &best_cost, dint &best_mode, 
 			Pred &pred, Orig &&orig_mblk,
 			const dint &cur_mode) {
-  dyn_var<int32_t> cur_cost = sad_16x16(pred, orig_mblk, cur_mode, best_cost);
+  dyn_var<int32_t> cur_cost = sad_16x16(pred, orig_mblk, best_cost);
   if (cur_cost < best_cost) {
     best_cost = cur_cost;
     best_mode = cur_mode;
@@ -200,18 +183,22 @@ static dyn_var<int> find_sad_16x16_CoLa(Macroblock macroblock) {
       // TODO use partial views here to do pred.partial(mode) so then users can access 
       // pred as a 2d structure
       if (mode == VERT_PRED_16 && up_available) {	
-	get_16x16_vertical(pred, mblk_recons);
-	select_best(best_cost, best_mode, pred, img_orig.colocate(mblk_recons), mode);
+	auto p = pred.freeze(VERT_PRED_16);
+	get_16x16_vertical(p, mblk_recons);
+	select_best(best_cost, best_mode, p, img_orig.colocate(mblk_recons), mode);
       } else if (mode == HOR_PRED_16 && left_available) {
-	get_16x16_horizontal(pred, mblk_recons);
-	select_best(best_cost, best_mode, pred, img_orig.colocate(mblk_recons), mode);
+	auto p = pred.freeze(HOR_PRED_16);
+	get_16x16_horizontal(p, mblk_recons);
+	select_best(best_cost, best_mode, p, img_orig.colocate(mblk_recons), mode);
       } else if (mode == PLANE_16 && all_available) {
-	get_16x16_plane(pred, mblk_recons);
-	select_best(best_cost, best_mode, pred, img_orig.colocate(mblk_recons), mode);
+	auto p = pred.freeze(PLANE_16);
+	get_16x16_plane(p, mblk_recons);
+	select_best(best_cost, best_mode, p, img_orig.colocate(mblk_recons), mode);
       } else if (mode == DC_PRED_16) {
 	// DC mode
-	get_16x16_dc(pred, mblk_recons, left_available, up_available);
-	select_best(best_cost, best_mode, pred, img_orig.colocate(mblk_recons), mode);
+	auto p = pred.freeze(DC_PRED_16);
+	get_16x16_dc(p, mblk_recons, left_available, up_available);
+	select_best(best_cost, best_mode, p, img_orig.colocate(mblk_recons), mode);
       }
     }
   }
