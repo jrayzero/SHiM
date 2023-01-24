@@ -143,7 +143,7 @@ void huffman_encode_block(View<int,3> obj, dint last_val,
 #endif*/
 
 void dct(View<int,3> obj) { 
-#define descale(x,n) rshift((x + (lshift(1, (n-1)))), n)
+#define descale(x,n) ((x + ((1 << (n-1)))) >> n)
   sint FIX_0_298631336 = 2446;
   sint FIX_0_390180644 = 3196;
   sint FIX_0_541196100 = 4433;
@@ -171,8 +171,8 @@ void dct(View<int,3> obj) {
     dint tmp13 = tmp0 - tmp3;
     dint tmp11 = tmp1 + tmp2;
     dint tmp12 = tmp1 - tmp2;
-    row[0][0][0] = lshift(tmp10 + tmp11, 2);
-    row[0][0][4] = lshift(tmp10 - tmp11, 2);
+    row[0][0][0] = (tmp10 + tmp11) << 2;
+    row[0][0][4] = (tmp10 - tmp11) << 2;
     dint z1 = (tmp12 + tmp13) * FIX_0_541196100;
     row[0][0][2] = descale(z1 + tmp13 * FIX_0_765366865, 11);
     row[0][0][6] = descale(z1 + tmp12 * -FIX_1_847759065, 11);
@@ -244,7 +244,7 @@ void quant(View<int,3> obj, Block<int,2> quant) {
       dint q = quant(i,j) * 8;
       dint mult = v < 0 ? -1 : 1;
       v = v * mult;
-      v = v + rshift(q, 1);
+      v = v + (q >> 1);
       if (v >= q) {
 	v = v / q;
 	v = v * mult;

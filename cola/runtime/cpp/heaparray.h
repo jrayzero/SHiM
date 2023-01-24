@@ -1,3 +1,5 @@
+// -*-c++-*-
+
 #pragma once
 
 #include <iostream>

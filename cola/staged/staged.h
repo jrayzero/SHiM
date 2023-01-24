@@ -1,3 +1,5 @@
+// -*-c++-*-
+
 #pragma once
 
 // for user to include

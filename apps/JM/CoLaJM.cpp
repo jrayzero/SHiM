@@ -75,11 +75,11 @@ static void get_16x16_plane(Pred &pred, Ref &ref) {
     V += (q+1)*(p(8+q,-1) - p(6-q,-1));
   }
   dint a = 16 * (p(15,-1) + p(-1,15));
-  dint b = crshift((dint)(5 * H + 32), 6);
-  dint c = crshift((dint)(5 * V + 32), 6);
+  dint b = ((dint)(5 * H + 32) >> 6);
+  dint c = ((dint)(5 * V + 32) >> 6);
   for (dint y = 0; y < 16; y=y+1) {
     for (dint x = 0; x < 16; x=x+1) {
-      pred[y][x] = clip1Y(crshift((dint)(a+b*(x-7)+c*(y-7)+16),5));
+      pred[y][x] = clip1Y(((dint)(a+b*(x-7)+c*(y-7)+16) >> 5));
     }
   }
 }
@@ -116,7 +116,7 @@ static dint sad_16x16(Pred &pred, Orig &orig_mblk, dint min_cost) {
       i32_cost += cabs(orig_mblk(i,j) - pred(i,j));
     }
   }
-  return clshift(i32_cost, LAMBDA_ACCURACY_BITS);
+  return (i32_cost << LAMBDA_ACCURACY_BITS);
 }
 
 template <typename Pred, typename Orig>
@@ -212,6 +212,8 @@ int main(int argc, char **argv) {
   stringstream includes;
   includes << "#include \"global.h\"" << endl;
   includes << "#include \"mbuffer.h\"" << endl;
+  // 16x16
   stage(find_sad_16x16_CoLa, "find_sad_16x16_CoLa", basename(__FILE__, "_generated"), 
 	includes.str(), includes.str());
+  // 4x4
 }

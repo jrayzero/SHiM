@@ -14,24 +14,16 @@ namespace cola {
 
 builder::dyn_var<void(int)> hexit = builder::as_global("exit");
 builder::dyn_var<loop_type(loop_type)> hfloor = builder::as_global("floor");
-//builder::dyn_var<void(void)> print_newline_cpp = builder::as_global("cola::print_newline");
 builder::dyn_var<void(void)> print_newline = builder::as_global("print_newline");
-//builder::dyn_var<void(void*)> print_cpp = builder::as_global("cola::print");
 builder::dyn_var<void(void*)> print = builder::as_global("printf");
-/*builder::dyn_var<void(void)> print_newline = builder::as_global("cola::print_newline");
-builder::dyn_var<void(char*)> print_string = builder::as_global("cola::print_string");
-builder::dyn_var<void(void*)> print = builder::as_global("cola::print");
-builder::dyn_var<void(void*)> cprint = builder::as_global("printf");
-builder::dyn_var<void(void*)> printn = builder::as_global("cola::printn");
-builder::dyn_var<void*(void*,void*)> scat_items = builder::as_global("cola::scat_items");*/
-builder::dyn_var<int(int,int)> lshift = builder::as_global("cola::lshift");
+/*builder::dyn_var<int(int,int)> lshift = builder::as_global("cola::lshift");
 builder::dyn_var<int(int,int)> rshift = builder::as_global("cola::rshift");
 builder::dyn_var<int(int,int)> clshift = builder::as_global("lshift");
 builder::dyn_var<int(int,int)> crshift = builder::as_global("rshift");
 builder::dyn_var<int(int,int)> bor = builder::as_global("cola::bor");
-builder::dyn_var<int(int,int)> band = builder::as_global("cola::band");
-builder::dyn_var<int(int,int)> pow = builder::as_global("cola::pow");
-builder::dyn_var<int(int)> ceil = builder::as_global("cola::ceil");
+builder::dyn_var<int(int,int)> band = builder::as_global("cola::band");*/
+builder::dyn_var<int(int,int)> pow = builder::as_global("pow");
+builder::dyn_var<int(int)> ceil = builder::as_global("ceil");
 builder::dyn_var<int(int)> cabs = builder::as_global("abs");
 builder::dyn_var<void(bool,char*)> hassert = builder::as_global("cola::cola_assert");
 
@@ -96,14 +88,5 @@ builder::dyn_var<void(int32_t)> print_elem_int32_t = builder::as_global("cola::p
 builder::dyn_var<void(int64_t)> print_elem_int64_t = builder::as_global("cola::print_elem<int64_t>");
 builder::dyn_var<void(float)> print_elem_float = builder::as_global("cola::print_elem<float>");
 builder::dyn_var<void(double)> print_elem_double = builder::as_global("cola::print_elem<double>");
-
-template <typename Arg0, typename...Args>
-builder::dyn_var<void*> scat(Arg0 arg0, Args...args) {
-  if constexpr (sizeof...(Args) == 0) {
-    return arg0;
-  } else {
-    return scat_items(arg0, scat(args...));
-  }
-}
 
 }
