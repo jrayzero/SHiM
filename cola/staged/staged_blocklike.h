@@ -13,6 +13,9 @@
 #include "staged_utils.h"
 #include "staged_allocators.h"
 #include "object.h"
+#ifdef UNSTAGED
+#include "runtime/cpp/heaparray.h"
+#endif
 
 namespace cola {
 
@@ -416,11 +419,11 @@ dvar<Elem> Block<Elem,Rank,MultiDimPtr>::read(darr<loop_type,N> &coords) {
       darr<loop_type,1> arr{lidx};
       return allocator->read(arr);
     }
-  }
 #else
   dvar<loop_type> lidx = linearize<0,Rank>(this->bextents, coords);
   return allocator[lidx];
 #endif
+  }
 }
 
 template <int Depth, unsigned long N, typename Coord, typename...Coords>
@@ -846,7 +849,7 @@ dvar<Elem> View<Elem,NUnfrozen,MultiDimPtr,NFrozen>::read(darr<loop_type,N> &coo
 	return allocator->read(arr);
       }
 #else
-      dvar<loop_type> lidx = linearize<0,NLogical_T>(this->bextents, sd::move(bcoords));
+      dvar<loop_type> lidx = linearize<0,NLogical_T>(this->bextents, bcoords);
       return allocator[lidx];
 #endif
     } else {
@@ -866,7 +869,7 @@ dvar<Elem> View<Elem,NUnfrozen,MultiDimPtr,NFrozen>::read(darr<loop_type,N> &coo
 	return allocator->read(arr);
       }
 #else
-      dvar<loop_type> lidx = linearize<0,NLogical_T>(this->bextents, std::move(bcoords));
+      dvar<loop_type> lidx = linearize<0,NLogical_T>(this->bextents, bcoords);
       return allocator[lidx];
 #endif
     }
@@ -916,7 +919,7 @@ void View<Elem,NUnfrozen,MultiDimPtr,NFrozen>::write(ScalarElem val, darr<loop_t
       darr<loop_type,NLogical_T> bcoords;
       compute_absolute_location<0>(full_coords, bcoords);
       // then linearize with respect to the block
-#ifndef UNDEF
+#ifndef UNSTAGED
       if constexpr (MultiDimPtr==true) {
 	allocator->write(val, bcoords);
       } else {
@@ -925,7 +928,7 @@ void View<Elem,NUnfrozen,MultiDimPtr,NFrozen>::write(ScalarElem val, darr<loop_t
 	allocator->write(val, arr);
       }
 #else
-      dvar<loop_type> lidx = linearize<0,NLogical_T>(this->bextents, std::move(bcoords));
+      dvar<loop_type> lidx = linearize<0,NLogical_T>(this->bextents, bcoords);
       allocator.write(lidx, val);
 #endif
     } else {
@@ -934,7 +937,7 @@ void View<Elem,NUnfrozen,MultiDimPtr,NFrozen>::write(ScalarElem val, darr<loop_t
       darr<loop_type,NLogical_T> bcoords;
       compute_absolute_location<0>(coords, bcoords);
       // then linearize with respect to the block
-#ifndef UNDEF
+#ifndef UNSTAGED
       if constexpr (MultiDimPtr==true) {
 	allocator->write(val, bcoords);
       } else {
@@ -943,7 +946,7 @@ void View<Elem,NUnfrozen,MultiDimPtr,NFrozen>::write(ScalarElem val, darr<loop_t
 	allocator->write(val, arr);
       }
 #else
-      dvar<loop_type> lidx = linearize<0,NLogical_T>(this->bextents, std::move(bcoords));
+      dvar<loop_type> lidx = linearize<0,NLogical_T>(this->bextents, bcoords);
       allocator.write(lidx, val);
 #endif
     }

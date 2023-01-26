@@ -153,8 +153,13 @@ void convert_stops_to_extents(Loc_T<Rank> &arr,
 			      const Loc_T<Rank> &starts, 
 			      const Loc_T<Rank> &stops, 
 			      const Loc_T<Rank> &strides) {
+#ifndef UNSTAGED
   dvar<loop_type> extent = hfloor((stops[Depth] - starts[Depth] - (loop_type)1) / 
-					      strides[Depth]) + (loop_type)1;
+				  strides[Depth]) + (loop_type)1;
+#else
+  dvar<loop_type> extent = floor((stops[Depth] - starts[Depth] - (loop_type)1) / 
+				 strides[Depth]) + (loop_type)1;
+#endif
   arr[Depth] = extent;
   if constexpr (Depth < Rank - 1) {
     convert_stops_to_extents<Depth+1,Rank>(arr, starts, stops, strides);

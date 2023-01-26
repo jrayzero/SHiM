@@ -9,6 +9,7 @@
 #include "fwrappers.h"
 #include "fwddecls.h"
 #include "traits.h"
+#include "defs.h"
 
 namespace cola {
 
@@ -245,7 +246,7 @@ struct Iter : public Expr<Iter<Ident>> {
   ///
   /// Realize the value of the current loop iteration
   template <typename LhsIdxs, unsigned long N>
-  dvar<loop_type> realize(const LhsIdxs &lhs_idxs, const builder::dyn_arr<loop_type,N> &iters) {
+  dvar<loop_type> realize(const LhsIdxs &lhs_idxs, const darr<loop_type,N> &iters) {
     // figure out the index of Ident within lhs_idxs so I can get the correct
     // iter
     constexpr int idx = find_iter_idx<LhsIdxs>();
@@ -277,7 +278,7 @@ struct TemplateCast : public Expr<TemplateCast<To,CompoundExpr>> {
   ///
   /// Realize the operation on the compound expression
   template <typename LhsIdxs, unsigned long N>
-  dvar<To> realize(const LhsIdxs &lhs_idxs, const builder::dyn_arr<loop_type,N> &iters);
+  dvar<To> realize(const LhsIdxs &lhs_idxs, const darr<loop_type,N> &iters);
 
 private:
 
@@ -306,7 +307,7 @@ struct Binary : public Expr<Binary<Functor, CompoundExpr0, CompoundExpr1>> {
   /// Realize the operation on the compound expression.
   /// Utilized with inline expressions that utilize blocks, views, and refs.
   template <typename LhsIdxs, unsigned long N>
-  dvar<Core_T> realize(const LhsIdxs &lhs_idxs, const builder::dyn_arr<loop_type,N> &iters);
+  dvar<Core_T> realize(const LhsIdxs &lhs_idxs, const darr<loop_type,N> &iters);
 
   ///
   /// Realize the operation on the compound expression.
@@ -568,7 +569,7 @@ Binary<BitwiseOrFunctor,Lhs,Rhs> operator|(const Lhs &lhs, const Rhs &rhs) {
 /// Unwind an Expr by realizing the subexpressions, or just return the value if not
 /// an Expr.
 template <typename T, typename LhsIdxs, unsigned long N>
-dvar<typename GetCoreT<T>::Core_T> dispatch_realize(T to_realize, const LhsIdxs &lhs_idxs, const builder::dyn_arr<loop_type,N> &iters) {
+dvar<typename GetCoreT<T>::Core_T> dispatch_realize(T to_realize, const LhsIdxs &lhs_idxs, const darr<loop_type,N> &iters) {
   if constexpr (is_expr<T>::value) {
     return to_realize.realize(lhs_idxs, iters);
   } else {
@@ -579,7 +580,8 @@ dvar<typename GetCoreT<T>::Core_T> dispatch_realize(T to_realize, const LhsIdxs 
 
 template <typename Functor, typename CompoundExpr0, typename CompoundExpr1>
 template <typename LhsIdxs, unsigned long N>
-dvar<typename GetCoreT<CompoundExpr0>::Core_T> Binary<Functor,CompoundExpr0,CompoundExpr1>::realize(const LhsIdxs &lhs_idxs, const builder::dyn_arr<loop_type,N> &iters) {
+dvar<typename GetCoreT<CompoundExpr0>::Core_T> Binary<Functor,CompoundExpr0,CompoundExpr1>::realize(const LhsIdxs &lhs_idxs, 
+												    const darr<loop_type,N> &iters) {
   if constexpr (std::is_fundamental<CompoundExpr0>::value && std::is_fundamental<CompoundExpr1>::value) {
     return Functor()(compound_expr0, compound_expr1);
   } else if constexpr (std::is_fundamental<CompoundExpr0>::value) {
@@ -677,7 +679,7 @@ auto cast(From val) {
 
 template <typename To, typename CompoundExpr>
 template <typename LhsIdxs, unsigned long N>
-dvar<To> TemplateCast<To,CompoundExpr>::realize(const LhsIdxs &lhs_idxs, const builder::dyn_arr<loop_type,N> &iters) {
+dvar<To> TemplateCast<To,CompoundExpr>::realize(const LhsIdxs &lhs_idxs, const darr<loop_type,N> &iters) {
   if constexpr (std::is_fundamental<CompoundExpr>::value) {
     dvar<To> casted = cast<To>(compound_expr);
     return casted;

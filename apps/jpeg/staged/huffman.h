@@ -1,8 +1,10 @@
 #pragma once
 
 #include "bits.h"
+#include "runtime/cpp/heaparray.h"
 
 using namespace std;
+using namespace cola;
 
 extern int luma_DC_huffbits[17];
 extern int luma_DC_huffvals[12];
@@ -21,6 +23,9 @@ struct HuffmanCodes {
 };
 
 HuffmanCodes generate_codes(int *DC_bits, int *DC_vals, int *AC_bits, int *AC_vals);
+// NOTE: change back when not comparing to staged jpeg
+void huffman_encode_block_proxy(HeapArray<int> obj, int color_idx, int last_val, Bits &bits, 
+				int *zigzag, const HuffmanCodes &codes);
 void huffman_encode_block(int *obj, int color_idx, int last_val, Bits &bits, 
 			  int *zigzag, const HuffmanCodes &codes);
 #if VERSION==2

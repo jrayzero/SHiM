@@ -14,30 +14,26 @@
 namespace cola {
 
 #ifndef UNSTAGED
-#define dvar  builder::dyn_var
-#define svar builder::static_var
-#define darr builder::dyn_arr
-/*template <typename T>
+//#define dvar  builder::dyn_var
+//#define svar builder::static_var
+//#define darr builder::dyn_arr
+template <typename T>
 using dvar = builder::dyn_var<T>;
 
 template <typename T>
 using svar = builder::static_var<T>;
 
 template <typename T, int Rank>
-using darr = builder::dyn_arr<T,Rank>;*/
+using darr = builder::dyn_arr<T,Rank>;
 #else
-/*template <typename T>
+template <typename T>
 using dvar = T;
 
 template <typename T>
 using svar = T;
 
 template <typename T, int Rank>
-using darr = std::arr<T,Rank>;*/
+using darr = std::array<T,Rank>;
 #endif
-
-//using dloop = dvar<loop_type>;
-//using dint = dvar<int>;
-//using sint = svar<int>;
 
 }

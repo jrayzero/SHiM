@@ -10,7 +10,7 @@
 using builder::dyn_var;
 using builder::dyn_arr;
 using namespace cola;
-using darr = dyn_arr<int,2>;
+using darr2 = dyn_arr<int,2>;
 
 static void staged() {
   Iter<'i'> i;

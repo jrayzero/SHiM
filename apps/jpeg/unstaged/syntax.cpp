@@ -131,8 +131,8 @@ void syntax_scan_header(Bits &bits) {
   bits.pack(0, 4);
 }
 
-void syntax_quant_table(Bits &bits, const Block<int,2> &quant, 
-			const Block<int,2> &zigzag, bool is_luma) {
+void syntax_quant_table(Bits &bits, int *quant, 
+			int *zigzag, bool is_luma) {
   int Lq = 67;
   int Pq = 0;
   bits.pack(DQT, 16);
@@ -141,7 +141,7 @@ void syntax_quant_table(Bits &bits, const Block<int,2> &quant,
   bits.pack(is_luma ? 0 : 1, 4);
   for (int i = 0; i < 8; i++) {
     for (int j = 0; j < 8; j++) {
-      int q = quant(zigzag(i,j));
+      int q = quant[zigzag[i*8+j]];
       bits.pack(q, 8);
     }
   }
