@@ -6,6 +6,7 @@
 #include "common/loop_type.h"
 #include "fwddecls.h"
 
+#ifndef UNSTAGED
 // These are the wrappers for various functions that we want to generate calls for in the generated code.
 
 // I think these need to be generated outside the staging itself, so I don't really know what a better way
@@ -90,3 +91,4 @@ builder::dyn_var<void(float)> print_elem_float = builder::as_global("cola::print
 builder::dyn_var<void(double)> print_elem_double = builder::as_global("cola::print_elem<double>");
 
 }
+#endif

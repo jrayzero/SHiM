@@ -16,6 +16,16 @@
 
 namespace cola {
 
+
+#ifndef UNSTAGED
+template <typename Elem, int PhysicalRank>
+using Allocation_T = std::shared_ptr<Allocation<Elem,PhysicalRank>>;
+#else
+template <typename Elem, int PhysicalRank>
+using Allocation_T = HeapArray<Elem>;
+#endif
+ 
+
 // Notes:
 // 1. don't use operator() with Iter objects (it won't compile). use operator[] instead.
 // so block[i][j] = other[i][j] => good
@@ -60,25 +70,31 @@ struct Block {
 
   ///
   /// Create an internally-managed heap Block
-  Block(SLoc_T bextents, SLoc_T bstrides, SLoc_T borigin, bool memset_data=false);
+  Block(SLoc_T bextents, SLoc_T bstrides, SLoc_T borigin);
 
   ///
   /// Create an internally-managed heap Block
-  Block(SLoc_T bextents, bool memset_data=false);
+  Block(SLoc_T bextents);
 
   ///
   /// Create an internally-managed heap Block
   static Block<Elem,Rank,MultiDimPtr> heap(SLoc_T bextents);
 
+#ifndef UNSTAGED
   ///
   /// Create an internally-managed stack Block
   template <loop_type...Extents>
   static Block<Elem,Rank,MultiDimPtr> stack();
+#endif
 
   ///
   /// Create a user-managed allocation
+#ifndef UNSTAGED
   static Block<Elem,Rank,MultiDimPtr> user(SLoc_T bextents, 
 					   dvar<typename decltype(ptr_wrap<Elem,Rank,MultiDimPtr>())::P> user);
+#else
+  static Block<Elem,Rank,MultiDimPtr> user(SLoc_T bextents, dvar<Elem*> user);
+#endif
 
   ///
   /// Read a single element at the specified coordinate
@@ -144,16 +160,16 @@ struct Block {
   /// print out the location info
   void dump_loc();
 
-  std::shared_ptr<Allocation<Elem,physical<Rank,MultiDimPtr>()>> allocator;
+  Allocation_T<Elem,physical<Rank,MultiDimPtr>()> allocator;
   SLoc_T bextents;
   SLoc_T bstrides;
   SLoc_T borigin;
 
 private:
- 
+
   ///
   /// Create a Block with the specifed Allocation
-  Block(SLoc_T bextents, std::shared_ptr<Allocation<Elem,physical<Rank,MultiDimPtr>()>> allocator, bool memset_data=false);
+  Block(SLoc_T bextents, Allocation_T<Elem,physical<Rank,MultiDimPtr>()> allocator);
 
 };
 
@@ -181,32 +197,28 @@ struct View {
   View(SLoc_T bextents, SLoc_T bstrides, SLoc_T borigin,
        SLoc_T vextents, SLoc_T vstrides, SLoc_T vorigin,
        SLoc_T interpolation_factors,
-       std::shared_ptr<Allocation<Elem,physical<NLogical_T,MultiDimPtr>()>> allocator) :
-    bextents(bextents), bstrides(bstrides), borigin(borigin),
-    vextents(vextents), vstrides(vstrides), vorigin(vorigin), 
-    interpolation_factors(interpolation_factors),
-    allocator(allocator) { }
-
-
+       Allocation_T<Elem,physical<NLogical_T,MultiDimPtr>()> allocator) :
+    bextents(std::move(bextents)), bstrides(std::move(bstrides)), borigin(std::move(borigin)),
+    vextents(std::move(vextents)), vstrides(std::move(vstrides)), vorigin(std::move(vorigin)), 
+    interpolation_factors(std::move(interpolation_factors)),
+    allocator(std::move(allocator)) { }
+    
   /// 
   /// Create a View from the specified location information
   View(SLoc_T bextents, SLoc_T bstrides, SLoc_T borigin,
        SLoc_T vextents, SLoc_T vstrides, SLoc_T vorigin,
        SLoc_T interpolation_factors,
-       std::shared_ptr<Allocation<Elem,physical<NLogical_T,MultiDimPtr>()>> allocator,
+       Allocation_T<Elem,physical<NLogical_T,MultiDimPtr>()> allocator,
        Loc_T<NFrozen> frozen) :
-    bextents(bextents), bstrides(bstrides), borigin(borigin),
-    vextents(vextents), vstrides(vstrides), vorigin(vorigin), 
-    interpolation_factors(interpolation_factors),
-    allocator(allocator), frozen(frozen) { }
-
+    bextents(std::move(bextents)), bstrides(std::move(bstrides)), borigin(std::move(borigin)),
+    vextents(std::move(vextents)), vstrides(std::move(vstrides)), vorigin(std::move(vorigin)), 
+    interpolation_factors(std::move(interpolation_factors)),
+    allocator(std::move(allocator)), frozen(std::move(frozen)) { }
+  
   ///
   /// Read a single element at the specified coordinate
   template <unsigned long N>
   dvar<Elem> read(darr<loop_type,N> &coords);
-
-//  template <unsigned long N>
-//  void compute_coords(darr<loop_type,N> &coords, darr<loop_type,N> &out);
 
   ///
   /// Read a single element at the specified coordinate
@@ -273,7 +285,7 @@ struct View {
   template <typename...Coords>
   dvar<bool> logically_exists(Coords...coords);
     
-  std::shared_ptr<Allocation<Elem,physical<NLogical_T,MultiDimPtr>()>> allocator;
+  Allocation_T<Elem,physical<NLogical_T,MultiDimPtr>()> allocator;
   SLoc_T bextents;
   SLoc_T bstrides;
   SLoc_T borigin;
@@ -353,7 +365,7 @@ private:
   /// Realize the value represented by this Ref
   template <typename LhsIdxs, unsigned long N>
   dvar<typename BlockLike::Elem_T> realize(LhsIdxs lhs, 
-						       const darr<loop_type,N> &iters);
+					   const darr<loop_type,N> &iters);
 
   ///
   /// Helper method for realizing values for the Idxs of this ref
@@ -396,6 +408,7 @@ dvar<Elem> Block<Elem,Rank,MultiDimPtr>::read(darr<loop_type,N> &coords) {
     }
     return this->read(arr);
   } else {
+#ifndef UNSTAGED
     if constexpr (MultiDimPtr==true) {
       return allocator->read(coords);
     } else {
@@ -404,6 +417,10 @@ dvar<Elem> Block<Elem,Rank,MultiDimPtr>::read(darr<loop_type,N> &coords) {
       return allocator->read(arr);
     }
   }
+#else
+  dvar<loop_type> lidx = linearize<0,Rank>(this->bextents, coords);
+  return allocator[lidx];
+#endif
 }
 
 template <int Depth, unsigned long N, typename Coord, typename...Coords>
@@ -449,6 +466,7 @@ void Block<Elem,Rank,MultiDimPtr>::write(ScalarElem val, darr<loop_type,N> &coor
     }
     this->write(val, arr);
   } else {
+#ifndef UNSTAGED
     if constexpr (MultiDimPtr==true) {
       allocator->write(val, coords);
     } else {
@@ -456,6 +474,10 @@ void Block<Elem,Rank,MultiDimPtr>::write(ScalarElem val, darr<loop_type,N> &coor
       darr<loop_type,1> arr{lidx};
       allocator->write(val, arr);
     }
+#else
+    dvar<loop_type> lidx = linearize<0,Rank>(this->bextents, coords);
+    allocator.write(lidx, val);
+#endif
   }
 }
 
@@ -475,6 +497,7 @@ Ref<Block<Elem,Rank,MultiDimPtr>,std::tuple<typename RefIdxType<Idx>::type>> Blo
 template <typename Elem, unsigned long Rank, bool MultiDimPtr>
 template <typename LIdx>
 dvar<Elem> Block<Elem,Rank,MultiDimPtr>::plidx(LIdx lidx) {
+#ifndef UNSTAGED
   if constexpr (MultiDimPtr == true) {
     SLoc_T idxs;
     delinearize<0,Rank>(idxs, lidx, this->bextents);
@@ -483,6 +506,9 @@ dvar<Elem> Block<Elem,Rank,MultiDimPtr>::plidx(LIdx lidx) {
     darr<loop_type,physical<Rank,MultiDimPtr>()> idxs{lidx};
     return allocator->read(idxs);
   }
+#else
+  return allocator[lidx];
+#endif
 }
 
 template <typename Elem, unsigned long Rank, bool MultiDimPtr>
@@ -518,7 +544,7 @@ View<Elem,Rank,MultiDimPtr,0> Block<Elem,Rank,MultiDimPtr>::logically_interpolat
     vorigin[i] = this->borigin[i] * ifactors[i];
   }
   return {this->bextents, this->bstrides, this->borigin,
-    vextents, this->bstrides, vorigin,
+    std::move(vextents), this->bstrides, std::move(vorigin),
     ifactors,
     this->allocator};
 }
@@ -557,8 +583,8 @@ View<Elem,Rank,MultiDimPtr,0> Block<Elem,Rank,MultiDimPtr>::view(Slices...slices
     interpolation_factors[i] = 1;
   }
   return {this->bextents, this->bstrides, this->borigin,
-    vextents, strides, vorigin,
-    interpolation_factors,
+    std::move(vextents), std::move(strides), std::move(vorigin),
+    std::move(interpolation_factors),
     this->allocator};  
 }
 
@@ -572,9 +598,9 @@ View<Elem,Rank-sizeof...(Coords),MultiDimPtr,sizeof...(Coords)> Block<Elem,Rank,
   }
   return {this->bextents, this->bstrides, this->borigin,
     this->bextents, this->bstrides, this->borigin,
-    interpolation_factors,
+    std::move(interpolation_factors),
     this->allocator,
-    frozen};  
+    std::move(frozen)};  
 }
 
 template <typename Elem, unsigned long Rank, bool MultiDimPtr>
@@ -584,105 +610,160 @@ void Block<Elem,Rank,MultiDimPtr>::dump_data() {
   static_assert(Rank<=3, "dump_data only supports ranks 1, 2, and 3");
   if constexpr (Rank == 1) {
     for (dvar<loop_type> i = 0; i < bextents[0]; i=i+1) {
+#ifndef UNSTAGED
       dispatch_print_elem<Elem>(cast<Elem>(this->operator()(i)));
+#else
+      std::cout << (Elem)(this->operator()(i)) << " ";
+#endif
     }
   } else if constexpr (Rank == 2) {
     for (dvar<loop_type> i = 0; i < bextents[0]; i=i+1) {
       for (dvar<loop_type> j = 0; j < bextents[1]; j=j+1) {
+#ifndef UNSTAGED
 	dispatch_print_elem<Elem>(cast<Elem>(this->operator()(i,j)));
+#else
+	std::cout << (Elem)(this->operator()(i,j)) << " ";
+#endif
       }
+#ifndef UNSTAGED
       print_newline();
+#else
+      std::cout << std::endl;
+#endif
     }
   } else {
     for (dvar<loop_type> i = 0; i < bextents[0]; i=i+1) {
       for (dvar<loop_type> j = 0; j < bextents[1]; j=j+1) {
 	for (dvar<loop_type> k = 0; k < bextents[2]; k=k+1) {
+#ifndef UNSTAGED
 	  dispatch_print_elem<Elem>(cast<Elem>(this->operator()(i,j,k)));
+#else
+	  std::cout << (Elem)(this->operator()(i,j,k)) << " ";
+#endif
 	}
+#ifndef UNSTAGED
 	print_newline();
+#else
+	std::cout << std::endl;
+#endif
       }
+#ifndef UNSTAGED
       print_newline();
       print_newline();
+#else
+      std::cout << std::endl;
+      std::cout << std::endl;
+#endif
     }
   }
 }
 
 template <typename Elem, unsigned long Rank, bool MultiDimPtr>
 void Block<Elem,Rank,MultiDimPtr>::dump_loc() {
+#ifndef UNSTAGED
   print("Block location info");
   print_newline();
   print("  Underlying data structure: ");
   print(ElemToStr<typename decltype(ptr_wrap<Elem,Rank,MultiDimPtr>())::P>::str);
+#else
+  std::cout << ("Block location info") << std::endl;
+  std::cout << ("  Underlying data structure: ");
+  std::cout << (ElemToStr<Elem*>::str);
+#endif
+#ifndef UNSTAGED
   print_newline();
   print("  BExtents:");
+#else
+  std::cout << std::endl << "  BExtents:";
+#endif
   for (svar<int> r = 0; r < Rank; r=r+1) {
+#ifndef UNSTAGED
     print(" ");
     dispatch_print_elem<int>(bextents[r]);    
+#else
+    std::cout << " " << (int)(bextents[r]);
+#endif
   }
+#ifndef UNSTAGED
   print_newline();
   print("  BStrides:");
+#else
+  std::cout << std::endl << "  BStrides:";
+#endif
   for (svar<int> r = 0; r < Rank; r=r+1) {
+#ifndef UNSTAGED
     print(" ");
     dispatch_print_elem<int>(bstrides[r]);    
+#else
+    std::cout << " " << (int)(bstrides[r]);
+#endif
   }
+#ifndef UNSTAGED
   print_newline();
   print("  BOrigin:");
+#else
+  std::cout << std::endl << "  BOrigin:";
+#endif
   for (svar<int> r = 0; r < Rank; r=r+1) {
+#ifndef UNSTAGED
     print(" ");
     dispatch_print_elem<int>(borigin[r]);    
+#else
+    std::cout << " " << (int)(borigin[r]);
+#endif
   }
+#ifndef UNSTAGED
   print_newline();
+#else
+  std::cout << std::endl;
+#endif
 }
 
 template <typename Elem, unsigned long Rank, bool MultiDimPtr>
-Block<Elem,Rank,MultiDimPtr>::Block(SLoc_T bextents, SLoc_T bstrides, SLoc_T borigin, bool memset_data) :
-  bextents(deepcopy(bextents)), bstrides(deepcopy(bstrides)), borigin(deepcopy(borigin)) {
+Block<Elem,Rank,MultiDimPtr>::Block(SLoc_T bextents, SLoc_T bstrides, SLoc_T borigin) :
+  bextents(std::move(bextents)), bstrides(std::move(bstrides)), borigin(std::move(borigin)) {
   static_assert(!MultiDimPtr);
-  this->allocator = std::make_shared<HeapAllocation<Elem>>(reduce<MulFunctor>(bextents));
-  if (memset_data) {
-    int elem_size = sizeof(Elem);
-    dvar<loop_type> sz(reduce<MulFunctor>(bextents) * elem_size);
-    allocator->memset(sz);
-  }
+#ifndef UNSTAGED
+    this->allocator = std::make_shared<HeapAllocation<Elem>>(reduce<MulFunctor>(bextents));
+#else
+  this->allocator = HeapArray<Elem>(reduce<MulFunctor>(bextents));
+#endif
 }
 
 template <typename Elem, unsigned long Rank, bool MultiDimPtr>
-Block<Elem,Rank,MultiDimPtr>::Block(SLoc_T bextents, bool memset_data) :
+Block<Elem,Rank,MultiDimPtr>::Block(SLoc_T bextents) :
   bextents(std::move(bextents)) {
   static_assert(!MultiDimPtr);
   for (svar<int> i = 0; i < Rank; i=i+1) {
     bstrides[i] = 1;
     borigin[i] = 0;
   }
+#ifndef UNSTAGED
   this->allocator = std::make_shared<HeapAllocation<Elem>>(reduce<MulFunctor>(bextents));
-  if (memset_data) {
-    int elem_size = sizeof(Elem);
-    dvar<loop_type> sz(reduce<MulFunctor>(bextents) * elem_size);
-    allocator->memset(sz);
-  }
+#else
+  this->allocator = HeapArray<Elem>(reduce<MulFunctor>(std::move(bextents)));
+#endif
 }
 
 template <typename Elem, unsigned long Rank, bool MultiDimPtr>
 Block<Elem,Rank,MultiDimPtr>::Block(SLoc_T bextents, 
-				    std::shared_ptr<Allocation<Elem,physical<Rank,MultiDimPtr>()>> allocator, 
-				    bool memset_data) :
-  bextents(std::move(bextents)), allocator(allocator) {
+				    Allocation_T<Elem,physical<Rank,MultiDimPtr>()> allocator) :
+  bextents(std::move(bextents)), allocator(std::move(allocator)) {
   for (svar<int> i = 0; i < Rank; i=i+1) {
     bstrides[i] = 1;
     borigin[i] = 0;
-  }
-  if (memset_data) {
-    int elem_size = sizeof(Elem);
-    dvar<int> sz(reduce<MulFunctor>(bextents) * elem_size);
-    allocator->memset(sz);
   }
 }
 
 template <typename Elem, unsigned long Rank, bool MultiDimPtr>
 Block<Elem,Rank,MultiDimPtr> Block<Elem,Rank,MultiDimPtr>::heap(SLoc_T bextents) {
-  return Block<Elem,Rank,MultiDimPtr>(bextents, false);
+#ifdef UNSTAGED
+  static_assert(!MultiDimPtr);
+#endif
+  return Block<Elem,Rank,MultiDimPtr>(std::move(bextents));
 }    
 
+#ifndef UNSTAGED
 template <typename Elem, unsigned long Rank, bool MultiDimPtr>
 template <loop_type...Extents>
 Block<Elem,Rank,MultiDimPtr> Block<Elem,Rank,MultiDimPtr>::stack() {
@@ -691,20 +772,38 @@ Block<Elem,Rank,MultiDimPtr> Block<Elem,Rank,MultiDimPtr>::stack() {
   SLoc_T bextents{Extents...};// = to_Loc_T<Extents...>();
   return Block<Elem,Rank,MultiDimPtr>(bextents, allocator);
 }
+#endif
 
 template <typename Elem, unsigned long Rank, bool MultiDimPtr>
+#ifndef UNSTAGED
 Block<Elem,Rank,MultiDimPtr> Block<Elem,Rank,MultiDimPtr>::user(SLoc_T bextents, 
 								dvar<typename decltype(ptr_wrap<Elem,Rank,MultiDimPtr>())::P> user) {  
+#else
+Block<Elem,Rank,MultiDimPtr> Block<Elem,Rank,MultiDimPtr>::user(SLoc_T bextents, 
+								dvar<Elem*> user) {  
+#endif
+#ifdef UNSTAGED
+  static_assert(!MultiDimPtr);
+#else
   // make sure that the dyn_var passed in matches the actual storage type (seems like it's not caught otherwise?)
   static_assert((MultiDimPtr && peel<typename decltype(ptr_wrap<Elem,Rank,MultiDimPtr>())::P>() == Rank) || 
 		(!MultiDimPtr && peel<typename decltype(ptr_wrap<Elem,Rank,MultiDimPtr>())::P>() == 1));
+#endif
+#ifndef UNSTAGED
   if constexpr (MultiDimPtr) {
     auto allocator = std::make_shared<UserAllocation<Elem,typename decltype(ptr_wrap<Elem,Rank,MultiDimPtr>())::P,Rank>>(user);
-    return Block<Elem,Rank,MultiDimPtr>(bextents, allocator);
+    return Block<Elem,Rank,MultiDimPtr>(std::move(bextents), allocator);
   } else {
+#endif
+#ifndef UNSTAGED
     auto allocator = std::make_shared<UserAllocation<Elem,Elem*,1>>(user);
-    return Block<Elem,Rank,MultiDimPtr>(bextents, allocator);
+#else
+    auto allocator = HeapArray<Elem>(user);
+#endif
+    return Block<Elem,Rank,MultiDimPtr>(std::move(bextents), std::move(allocator));
+#ifndef UNSTAGED
   }
+#endif
 }
 
 template <typename Elem, unsigned long NUnfrozen, bool MultiDimPtr, unsigned long NFrozen>
@@ -738,6 +837,7 @@ dvar<Elem> View<Elem,NUnfrozen,MultiDimPtr,NFrozen>::read(darr<loop_type,N> &coo
       darr<loop_type,NLogical_T> bcoords;
       compute_absolute_location<0>(full_coords, bcoords);
       // then linearize with respect to the block
+#ifndef UNSTAGED
       if constexpr (MultiDimPtr==true) {
 	return allocator->read(bcoords);
       } else {
@@ -745,6 +845,10 @@ dvar<Elem> View<Elem,NUnfrozen,MultiDimPtr,NFrozen>::read(darr<loop_type,N> &coo
 	darr<loop_type,1> arr{lidx};
 	return allocator->read(arr);
       }
+#else
+      dvar<loop_type> lidx = linearize<0,NLogical_T>(this->bextents, sd::move(bcoords));
+      return allocator[lidx];
+#endif
     } else {
       static_assert(N == NLogical_T);
       // manually specified all the dimensions (can happen with ref reads)
@@ -753,6 +857,7 @@ dvar<Elem> View<Elem,NUnfrozen,MultiDimPtr,NFrozen>::read(darr<loop_type,N> &coo
       darr<loop_type,NLogical_T> bcoords;
       compute_absolute_location<0>(coords, bcoords);
       // then linearize with respect to the block
+#ifndef UNSTAGED
       if constexpr (MultiDimPtr==true) {
 	return allocator->read(bcoords);
       } else {
@@ -760,30 +865,13 @@ dvar<Elem> View<Elem,NUnfrozen,MultiDimPtr,NFrozen>::read(darr<loop_type,N> &coo
 	darr<loop_type,1> arr{lidx};
 	return allocator->read(arr);
       }
+#else
+      dvar<loop_type> lidx = linearize<0,NLogical_T>(this->bextents, std::move(bcoords));
+      return allocator[lidx];
+#endif
     }
   }
 }
-
-/*template <typename Elem, unsigned long Rank, bool MultiDimPtr>
-template <unsigned long N>
-void View<Elem,Rank,MultiDimPtr>::compute_coords(darr<loop_type,N> &coords,
-						 darr<loop_type,N> &out) {
-  static_assert(N <= Rank);
-  if constexpr (N < Rank) {
-    // we need padding at the front
-    constexpr int pad_amt = Rank-N;
-    darr<loop_type,Rank> arr;
-    for (svar<int> i = 0; i < pad_amt; i=i+1) {
-      arr[i] = 0;
-    }
-    for (svar<int> i = 0; i < N; i=i+1) {
-      arr[i+pad_amt] = coords[i];
-    }
-    this->compute_coords(arr);
-  } else {
-    compute_absolute_location<0>(coords, out);
-  }
-}*/
 
 template <typename Elem, unsigned long NUnfrozen, bool MultiDimPtr, unsigned long NFrozen>
 template <typename...Coords>
@@ -809,7 +897,7 @@ void View<Elem,NUnfrozen,MultiDimPtr,NFrozen>::write(ScalarElem val, darr<loop_t
     for (svar<int> i = 0; i < N; i=i+1) {
       arr[i+pad_amt] = coords[i];
     }
-    this->write(val, arr);
+    this->write(val, std::move(arr));
   } else {
     if constexpr (N == NUnfrozen) {
       // have to add on the frozen parameters
@@ -828,6 +916,7 @@ void View<Elem,NUnfrozen,MultiDimPtr,NFrozen>::write(ScalarElem val, darr<loop_t
       darr<loop_type,NLogical_T> bcoords;
       compute_absolute_location<0>(full_coords, bcoords);
       // then linearize with respect to the block
+#ifndef UNDEF
       if constexpr (MultiDimPtr==true) {
 	allocator->write(val, bcoords);
       } else {
@@ -835,12 +924,17 @@ void View<Elem,NUnfrozen,MultiDimPtr,NFrozen>::write(ScalarElem val, darr<loop_t
 	darr<loop_type,1> arr{lidx};
 	allocator->write(val, arr);
       }
+#else
+      dvar<loop_type> lidx = linearize<0,NLogical_T>(this->bextents, std::move(bcoords));
+      allocator.write(lidx, val);
+#endif
     } else {
       static_assert(N == NLogical_T);
       // manually specified all the dimensions (can happen with ref writes)
       darr<loop_type,NLogical_T> bcoords;
       compute_absolute_location<0>(coords, bcoords);
       // then linearize with respect to the block
+#ifndef UNDEF
       if constexpr (MultiDimPtr==true) {
 	allocator->write(val, bcoords);
       } else {
@@ -848,6 +942,10 @@ void View<Elem,NUnfrozen,MultiDimPtr,NFrozen>::write(ScalarElem val, darr<loop_t
 	darr<loop_type,1> arr{lidx};
 	allocator->write(val, arr);
       }
+#else
+      dvar<loop_type> lidx = linearize<0,NLogical_T>(this->bextents, std::move(bcoords));
+      allocator.write(lidx, val);
+#endif
     }
   }
 }
@@ -858,12 +956,10 @@ auto View<Elem,NUnfrozen,MultiDimPtr,NFrozen>::operator[](Idx idx) {
   if constexpr (is_dyn_like<Idx>::value) {
     // potentially slice builder::builder to dyn_var 
     dvar<loop_type> didx = idx;
-//    // include any frozen dims here 
-//    auto idxs = std::tuple_cat(dyn_arr_to_tuple<NFrozen,0>(frozen), std::tuple{didx});
+    // include any frozen dims here 
     return Ref<View<Elem,NUnfrozen,MultiDimPtr,NFrozen>,std::tuple<decltype(didx)>>(*this, std::tuple{didx});
   } else {
-//    // include any frozen dims here
-//    auto idxs = std::tuple_cat(dyn_arr_to_tuple<NFrozen,0>(frozen), std::tuple{idx});
+    // include any frozen dims here
     return Ref<View<Elem,NUnfrozen,MultiDimPtr,NFrozen>,std::tuple<decltype(idx)>>(*this, std::tuple{idx});
   }
 }
@@ -877,7 +973,7 @@ dvar<Elem> View<Elem,NUnfrozen,MultiDimPtr,NFrozen>::plidx(LIdx lidx) {
   for (svar<int> i = NFrozen; i < NLogical_T; i=i+1) {
     unfrozen_extents[i-NFrozen] = vextents[i];
   }
-  delinearize<0,NUnfrozen>(unfrozen_coords, lidx, unfrozen_extents);
+  delinearize<0,NUnfrozen>(unfrozen_coords, lidx, std::move(unfrozen_extents));
   return this->read(unfrozen_coords);
 }
 
@@ -893,7 +989,7 @@ View<Elem,NUnfrozen,MultiDimPtr,0> View<Elem,NUnfrozen,MultiDimPtr,NFrozen>::col
     origin[i] = block.borigin[i] * this->interpolation_factors[i];
   }
   return {this->bextents, this->bstrides, this->borigin, 
-    extents, block.bstrides, origin, 
+    std::move(extents), block.bstrides, std::move(origin), 
     this->interpolation_factors, 
     this->allocator};
 }
@@ -942,8 +1038,8 @@ View<Elem,NUnfrozen,MultiDimPtr,NFrozen> View<Elem,NUnfrozen,MultiDimPtr,NFrozen
     adjusted_vorigin[i] = vorigin[i] / this->interpolation_factors[i];
   }
   return {this->bextents, this->bstrides, this->borigin,
-    adjusted_vextents, this->vstrides, adjusted_vorigin,
-    ones,
+    std::move(adjusted_vextents), this->vstrides, std::move(adjusted_vorigin),
+    std::move(ones),
     this->allocator};
 }
 
@@ -993,7 +1089,7 @@ View<Elem,NUnfrozen,MultiDimPtr,NFrozen> View<Elem,NUnfrozen,MultiDimPtr,NFrozen
   SLoc_T strides;
   apply<MulFunctor,NUnfrozen>(strides, this->vstrides, vstrides);
   return View<Elem,NUnfrozen,MultiDimPtr,NFrozen>(this->bextents, this->bstrides, this->borigin,
-					    vextents, strides, origin,
+					    std::move(vextents), std::move(strides), std::move(origin),
 					    this->interpolation_factors,
 					    this->allocator,
 					    this->frozen);
@@ -1025,7 +1121,7 @@ View<Elem,NUnfrozen-sizeof...(Coords),MultiDimPtr,NFrozen+sizeof...(Coords)> Vie
     this->vextents, this->vstrides, this->vorigin,
     this->interpolation_factors,
     this->allocator,
-    frozen
+    std::move(frozen)
   };
 }
 
@@ -1036,39 +1132,71 @@ void View<Elem,NUnfrozen,MultiDimPtr,NFrozen>::dump_data() {
   static_assert(NUnfrozen<=3, "dump_data only supports up to 3 unfrozen dimensions for printing.");
   if constexpr (NUnfrozen == 1) {
     for (dvar<loop_type> i = 0; i < vextents[NFrozen]; i=i+1) {
+#ifndef UNSTAGED
       dispatch_print_elem<Elem>(cast<Elem>(this->operator()(i)));
+#else
+      std::cout << (Elem)(this->operator()(i)) << " ";
+#endif
     }
   } else if constexpr (NUnfrozen == 2) {
     for (dvar<loop_type> i = 0; i < vextents[NFrozen]; i=i+1) {
       for (dvar<loop_type> j = 0; j < vextents[NFrozen+1]; j=j+1) {
+#ifndef UNSTAGED
 	dispatch_print_elem<Elem>(cast<Elem>(this->operator()(i,j)));
+#else
+	std::cout << (Elem)(this->operator()(i,j)) << " ";
+#endif
       }
+#ifndef UNSTAGED
       print_newline();
+#else
+      std::cout << std::endl;
+#endif
     }
   } else {
     for (dvar<loop_type> i = 0; i < vextents[NFrozen]; i=i+1) {
       for (dvar<loop_type> j = 0; j < vextents[NFrozen+1]; j=j+1) {
 	for (dvar<loop_type> k = 0; k < vextents[NFrozen+2]; k=k+1) {
+#ifndef UNSTAGED
 	  dispatch_print_elem<Elem>(cast<Elem>(this->operator()(i,j,k)));
+#else
+	std::cout << (Elem)(this->operator()(i,j,k)) << " ";
+#endif
 	}
+#ifndef UNSTAGED
 	print_newline();
+#else
+	std::cout << std::endl;
+#endif
       }
+#ifndef UNSTAGED
       print_newline();
       print_newline();
+#else
+      std::cout << std::endl << std::endl;
+#endif
     }
   }
 }
 
 template <typename Elem, unsigned long NUnfrozen, bool MultiDimPtr, unsigned long NFrozen>
 void View<Elem,NUnfrozen,MultiDimPtr,NFrozen>::dump_loc() {
+#ifndef UNSTAGED
   print("View location info");
   print_newline();
   print("  Underlying data structure: ");
   std::string x = ElemToStr<typename decltype(ptr_wrap<Elem,NUnfrozen,MultiDimPtr>())::P>::str;
   print(x);
   print_newline();
+#else
+  std::cout << ("View location info") << std::endl;
+  std::cout << ("  Underlying data structure: ");
+  std::string x = ElemToStr<Elem*>::str;
+  std::cout << x << std::endl;
+#endif
   std::string rank = std::to_string(NUnfrozen);
   std::string nfrozen = std::to_string(NFrozen);
+#ifndef UNSTAGED
   print("  Unfrozen dimensions: ");
   print(rank);
   print_newline();
@@ -1076,30 +1204,69 @@ void View<Elem,NUnfrozen,MultiDimPtr,NFrozen>::dump_loc() {
   print(nfrozen);
   print_newline();
   print("  BExtents:");
+#else
+  std::cout << "  Unfrozen dimensions: " << rank << std::endl;
+  std::cout << "  NFrozen dimensions: " << nfrozen << std::endl;
+  std::cout << "  BExtents";
+#endif
   for (svar<int> r = 0; r < NLogical_T; r=r+1) {
+#ifndef UNSTAGED
     print(" ");
     dispatch_print_elem<int>(bextents[r]);    
+#else
+    std::cout << "  " << (int)(bextents[r]);
+#endif
   }
+#ifndef UNSTAGED
   print_newline();
   print("  BStrides:");
+#else
+  std::cout << "  BStrides:";
+#endif
   for (svar<int> r = 0; r < NLogical_T; r=r+1) {
+#ifndef UNSTAGED
     print(" ");
     dispatch_print_elem<int>(bstrides[r]);    
+#else
+    std::cout << "  " << (int)(bstrides[r]);
+#endif
   }
+#ifndef UNSTAGED
   print_newline();
   print("  BOrigin:");
+#else
+  std::cout << std::endl << "  BOrigin:";
+#endif
   for (svar<int> r = 0; r < NLogical_T; r=r+1) {
+#ifndef UNSTAGED
     print(" ");
     dispatch_print_elem<int>(borigin[r]);    
+#else
+    std::cout << " " << (int)(borigin[r]);
+#endif
   }
+#ifndef UNSTAGED
   print_newline();
   print("  Interpolated VExtents:");
+#else
+  std::cout << std::endl << "  Interpolated VExtents:";
+#endif
   for (svar<int> r = 0; r < NLogical_T; r=r+1) {
+#ifndef UNSTAGED
     print(" ");
     dispatch_print_elem<int>(vextents[r]);    
+#else
+    std::cout << " " << (int)(vextents[r]);
+#endif
   }
+#ifndef UNSTAGED
   print_newline();
   print("  UnInterpolated VExtents:");
+#else
+  std::cout << std::endl << "  UnInterpolated VExtents:";
+#endif
+// TODO do the rest of this. I'm lazy right now
+#ifndef UNSTAGED
   for (svar<int> r = 0; r < NLogical_T; r=r+1) {
     print(" ");
     dispatch_print_elem<int>(vextents[r] / interpolation_factors[r]);    
@@ -1135,6 +1302,7 @@ void View<Elem,NUnfrozen,MultiDimPtr,NFrozen>::dump_loc() {
     dispatch_print_elem<int>(frozen[r]);    
   }  
   print_newline();
+#endif
 }
 
 template <typename Elem, unsigned long NUnfrozen, bool MultiDimPtr, unsigned long NFrozen>
@@ -1188,10 +1356,10 @@ Ref<BlockLike,typename TupleTypeCat<typename RefIdxType<Idx>::type,Idxs>::type> 
     dvar<loop_type> didx = idx;
     using DIdx = decltype(didx);
     typename TupleTypeCat<DIdx,Idxs>::type args = std::tuple_cat(idxs, std::tuple{didx});
-    return Ref<BlockLike,decltype(args)>(block_like, args);
+    return Ref<BlockLike,decltype(args)>(block_like, std::move(args));
   } else {
     typename TupleTypeCat<Idx,Idxs>::type args = std::tuple_cat(idxs, std::tuple{idx});
-    return Ref<BlockLike,decltype(args)>(block_like, args);
+    return Ref<BlockLike,decltype(args)>(block_like, std::move(args));
   }
 }
 
@@ -1217,21 +1385,10 @@ void Ref<BlockLike,Idxs>::internal_assign(Rhs rhs) {
     }
     // now combine everything
     static_assert(BlockLike::NFrozen_T + pad_amt + std::tuple_size<Idxs>() == BlockLike::NLogical_T); // sanity check
-    auto new_idxs = std::tuple_cat(frozen, dyn_arr_to_tuple<pad_amt,0>(padded), this->idxs);
-    auto new_ref = Ref<BlockLike, decltype(new_idxs)>(this->block_like, new_idxs);
+    auto new_idxs = std::tuple_cat(frozen, dyn_arr_to_tuple<pad_amt,0>(std::move(padded)), this->idxs);
+    auto new_ref = Ref<BlockLike, decltype(new_idxs)>(this->block_like, std::move(new_idxs));
     new_ref.realize_loop_nest(rhs);
-  }/* else if (std::tuple_size<Idxs>() < BlockLike::NLogical_T) {
-    // just need padding
-    constexpr int pad_amt = BlockLike::NLogical_T - std::tuple_size<Idxs>();
-    darr<loop_type,pad_amt> padded;
-    for (svar<int> i = 0; i < pad_amt; i=i+1) {
-      padded[i] = 0;
-    }
-    // now combine everything
-    auto new_idxs = std::tuple_cat(dyn_arr_to_tuple<pad_amt,0>(padded), this->idxs);
-    auto new_ref = Ref<BlockLike, decltype(new_idxs)>(this->block_like, new_idxs);
-    new_ref.realize_loop_nest(rhs);
-  }*/ else {
+  } else {
     // no padding or unfreezing needed (you may have frozen dimensions, but they would be overridden in this case)
     realize_loop_nest(rhs);
   }
