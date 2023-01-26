@@ -146,7 +146,7 @@ void stage(Func func, std::string name, std::string fn_prefix, std::string pre_h
   std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
   std::ofstream src;
   std::ofstream hdr;
-  std::string header = fn_prefix + ".h";  
+  std::string header = fn_prefix + (CompileOptions::isCPP ? ".hpp" : ".h");  
   std::string source = CompileOptions::isCPP ? fn_prefix + ".cpp" : fn_prefix + ".c";
   hdr.open(header);
   src.open(source);
