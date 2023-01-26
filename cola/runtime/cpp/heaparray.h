@@ -33,10 +33,16 @@ struct BaseHeapArray : public RefCounted {
 template <typename Elem>
 struct HeapArray {
 
-  HeapArray(loop_type sz) : base(new BaseHeapArray<Elem>()), sz(sz) {
+  HeapArray(loop_type sz) : base(new BaseHeapArray<Elem>()) {
     base->data = new Elem[sz];
     memset(base->data, 0, sizeof(Elem) * sz);
     base->incr();
+  }
+
+  HeapArray(Elem *data) : base(new BaseHeapArray<Elem>()) {
+    base->data = data;
+    base->incr(); 
+    base->incr(); // increment twice so that it is never actually deleted by us. The user made it, so they must delete it.
   }
 
   ~HeapArray() {
@@ -49,7 +55,7 @@ struct HeapArray {
   }
 
   // Copy constructor
-  HeapArray(const HeapArray<Elem> &other) : base(other.base), sz(other.sz) { base->incr(); }
+  HeapArray(const HeapArray<Elem> &other) : base(other.base) { base->incr(); }
 
   // Copy assignment
   HeapArray<Elem> &operator=(const HeapArray<Elem> &other) {
@@ -57,34 +63,20 @@ struct HeapArray {
       return *this;
     }
     base = other.base;
-    sz = other.sz;
     return *this;
   }
 
   // Move constructors don't update the reference count, so don't need to manually specify them
 
   Elem &operator[](loop_type lidx) const {
-#ifdef BOUNDS_CHECK
-    if (lidx >= sz) {
-      std::cerr << "Out of bounds! Got " << lidx << " but data size is " << sz << std::endl;
-      exit(-1);
-    }
-#endif
     return base->operator[](lidx);
   }
 
   void write(loop_type lidx, Elem e) {
-#ifdef BOUNDS_CHECK
-    if (lidx >= sz) {
-      std::cerr << "Out of bounds! Got " << lidx << " but data size is " << sz << std::endl;
-      exit(-1);
-    }
-#endif
     base->write(lidx, e);
   }
   
   BaseHeapArray<Elem> *base;
-  loop_type sz;
 
 };
 

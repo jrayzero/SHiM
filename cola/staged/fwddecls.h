@@ -3,6 +3,7 @@
 #pragma once
 
 #include "builder/array.h"
+#include "defs.h"
 
 // forward declarations for a bunch of things I need
 // also includes some general type definitions
@@ -42,7 +43,7 @@ template <bool B>
 struct Slice;
 
 ///// Types
-
+#ifndef UNSTAGED
 // Definitions for the HeapArray type
 constexpr char uint8_t_name[] = "cola::HeapArray<uint8_t>";
 constexpr char uint16_t_name[] = "cola::HeapArray<uint16_t>";
@@ -88,9 +89,10 @@ constexpr auto build_heap_name() {
 // Register the name of HeapArray<Elem> in buildit
 template <typename Elem>
 using HEAP_T = typename builder::name<build_heap_name<Elem>()>;
-
+#endif
 /// The type for location information in blocks and views
+
 template <unsigned long Rank>
-using Loc_T = builder::dyn_arr<loop_type,Rank>;
+using Loc_T = darr<loop_type,Rank>;
 
 }

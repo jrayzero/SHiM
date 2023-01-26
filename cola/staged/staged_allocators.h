@@ -5,10 +5,12 @@
 #include "builder/dyn_var.h"
 #include "builder/array.h"
 #include "staged_utils.h"
+#include "defs.h"
 #include "fwddecls.h"
 
 using namespace cola;
 
+#ifndef UNSTAGED
 namespace builder {
 
 // These allow us to insert HeapArray<Elem> datatypes into the generated code
@@ -297,3 +299,4 @@ void UserAllocation<Elem,Storage,PhysicalRank>::memset(builder::dyn_var<loop_typ
 }
 
 }
+#endif

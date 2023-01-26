@@ -2,11 +2,10 @@
 
 #pragma once
 
-#include "builder/dyn_var.h"
-#include "builder/array.h"
 #include "common/loop_type.h"
 #include "fwddecls.h"
 #include "fwrappers.h"
+#include "defs.h"
 
 namespace cola {
 
@@ -18,13 +17,13 @@ struct Def { };
 template <bool Stop> // if Stop = true, then need to infer this value as the extent when use
 struct Slice {
 
-  Slice(builder::dyn_var<loop_type> start, 
-	builder::dyn_var<loop_type> stop, 
-	builder::dyn_var<loop_type> stride) : params({start,stop,stride}) { }
+  Slice(dvar<loop_type> start, 
+	dvar<loop_type> stop, 
+	dvar<loop_type> stride) : params({start,stop,stride}) { }
 
-  builder::dyn_var<loop_type> operator[](loop_type idx) { return params[idx]; }
+  dvar<loop_type> operator[](loop_type idx) { return params[idx]; }
 
-  builder::dyn_arr<loop_type,3> params;
+  darr<loop_type,3> params;
 
 };
 
@@ -154,8 +153,13 @@ void convert_stops_to_extents(Loc_T<Rank> &arr,
 			      const Loc_T<Rank> &starts, 
 			      const Loc_T<Rank> &stops, 
 			      const Loc_T<Rank> &strides) {
-  builder::dyn_var<loop_type> extent = hfloor((stops[Depth] - starts[Depth] - (loop_type)1) / 
-					      strides[Depth]) + (loop_type)1;
+#ifndef UNSTAGED
+  dvar<loop_type> extent = hfloor((stops[Depth] - starts[Depth] - (loop_type)1) / 
+				  strides[Depth]) + (loop_type)1;
+#else
+  dvar<loop_type> extent = floor((stops[Depth] - starts[Depth] - (loop_type)1) / 
+				 strides[Depth]) + (loop_type)1;
+#endif
   arr[Depth] = extent;
   if constexpr (Depth < Rank - 1) {
     convert_stops_to_extents<Depth+1,Rank>(arr, starts, stops, strides);

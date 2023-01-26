@@ -1,4 +1,4 @@
-#include "test2_generated.h"
+#include "test2_generated.hpp"
 
 int main() {
   int arr[200];

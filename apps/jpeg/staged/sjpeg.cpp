@@ -78,6 +78,7 @@ void color(RGB_T &RGB, YCbCr_T &YCbCr) {
 // the external things to call for doing huffman
 // these are completely the wrong types but w/e
 //#if VERSION==1
+dyn_var<void(HEAP_T<int>,int,int,void*,void*,void*)> huffman_encode_block_proxy = builder::as_global("huffman_encode_block_proxy");
 dyn_var<void(HEAP_T<int>,int,int,void*,void*,void*)> huffman_encode_block = builder::as_global("huffman_encode_block");
 /*#else 
 // TODO I screwed this up somewhere
@@ -256,7 +257,6 @@ void quant(View<int,3> obj, Block<int,2> quant) {
   }
 }
 
-#if VERSION==1
 void jpeg_staged(dyn_var<uint8_t*> input, dyn_var<int> H, dyn_var<int> W, 
 		 dyn_var<int*> luma_quant_arr, 
 		 dyn_var<int*> chroma_quant_arr,
@@ -275,7 +275,11 @@ void jpeg_staged(dyn_var<uint8_t*> input, dyn_var<int> H, dyn_var<int> W,
   dint last_Cb = 0;
   dint last_Cr = 0;
 
-  auto YCbCr = Block<int,3>::stack<3,8,8>();
+  // NOTE: for comparing to unstaged, use the heap allocation (unstaged manually allocates the array)
+  //  auto YCbCr = Block<int,3>::stack<3,8,8>();
+  auto YCbCr = Block<int,3>::heap({3,8,8});
+  //	auto padded = Block<uint8_t,3>::stack<8,8,3>();
+  auto padded = Block<uint8_t,3>::heap({8,8,3});
   
   for (dint r = 0; r < H; r = r + 8) {
     for (dint c = 0; c < W; c = c + 8) {
@@ -289,7 +293,6 @@ void jpeg_staged(dyn_var<uint8_t*> input, dyn_var<int> H, dyn_var<int> W,
 	if (c+8>W)
 	  col_pad = 8 - (W%8);
 	// col major still
-	auto padded = Block<uint8_t,3>::stack<8,8,3>();
 	dint last_valid_row = 8 - row_pad;
 	dint last_valid_col = 8 - col_pad;
 	// copy over original
@@ -317,121 +320,19 @@ void jpeg_staged(dyn_var<uint8_t*> input, dyn_var<int> H, dyn_var<int> W,
       quant(Cb, chroma_quant);
       quant(Cr, chroma_quant);
       // get the base lidx for each
-      huffman_encode_block(Y.allocator->stack<3*8*8>(), 0, last_Y, bits, zigzag, luma_codes);
-      huffman_encode_block(Cb.allocator->stack<3*8*8>(), 1, last_Cb, bits, zigzag, chroma_codes);
-      huffman_encode_block(Cr.allocator->stack<3*8*8>(), 2, last_Cr, bits, zigzag, chroma_codes);
+//      huffman_encode_block(Y.allocator->stack<3*8*8>(), 0, last_Y, bits, zigzag, luma_codes);
+//      huffman_encode_block(Cb.allocator->stack<3*8*8>(), 1, last_Cb, bits, zigzag, chroma_codes);
+//      huffman_encode_block(Cr.allocator->stack<3*8*8>(), 2, last_Cr, bits, zigzag, chroma_codes);      
+
+      huffman_encode_block_proxy(Y.allocator->heap(), 0, last_Y, bits, zigzag, luma_codes);
+      huffman_encode_block_proxy(Cb.allocator->heap(), 1, last_Cb, bits, zigzag, chroma_codes);
+      huffman_encode_block_proxy(Cr.allocator->heap(), 2, last_Cr, bits, zigzag, chroma_codes);
       last_Y = Y(0,0,0);
       last_Cb = Cb(0,0,0);
       last_Cr = Cr(0,0,0);
     }
   }
 }
-#elif VERSION == 2
-// This parallelizes on the color component
-void jpeg_staged(dyn_var<uint8_t*> input,
-		 dyn_var<int> H, dyn_var<int> W, 
-		 dyn_var<int*> luma_quant_arr, 
-		 dyn_var<int*> chroma_quant_arr,
-		 dyn_var<int*> zigzag, 
-		 dyn_var<HuffmanCodes> luma_codes, 
-		 dyn_var<HuffmanCodes> chroma_codes,
-		 dyn_var<Bits> bits) {
-
-  // Tables (these are already scaled)
-  auto luma_quant = Block<int,2>::user({8,8}, luma_quant_arr);
-  auto chroma_quant = Block<int,2>::user({8,8}, chroma_quant_arr);
-  auto zigzag_b = Block<int,2>::user({8,8}, zigzag);  
-    
-  // start it up
-  auto RGB = Block<uint8_t,3>::user({H, W, 3}, input);
-  dint last_Y = 0;
-  dint last_Cb = 0;
-  dint last_Cr = 0;
-
-  // figure out how much padding needed
-  dint HP = H%8;
-  dint WP = W%8;
-  if (HP != 0) {
-    HP = H + 8-HP;
-  } else {
-    HP = H;
-  }
-  if (WP != 0) {
-    WP = W + 8-WP;
-  } else {
-    WP = W;
-  }
-  // will hold everthing before huffman
-  auto processed = Block<int,3>::heap({3,HP,WP});
-  Parallel::apply();
-  for (dint r = 0; r < H; r = r + 8) {
-    for (dint c = 0; c < W; c = c + 8) {
-      // pad and color convert the whole thing in one operation without parallel
-      auto mcu = RGB.view(slice(r,r+8,1),slice(c,c+8,1),slice(0,3,1));
-      auto YCbCr = Block<int,3>::stack<3,8,8>();      
-      if (r+8>H || c+8>W) {
-	// need padding
-	dint row_pad = 0;
-	dint col_pad = 0;
-	if (r+8>H)
-	  row_pad = 8 - (H%8);
-	if (c+8>W)
-	  col_pad = 8 - (W%8);
-	// col major still
-	auto padded = Block<uint8_t,3>::stack<8,8,3>();
-	dint last_valid_row = 8 - row_pad;
-	dint last_valid_col = 8 - col_pad;
-	// copy over original
-	auto orig_padded = padded.view(slice(0,last_valid_row,1),slice(0,last_valid_col,1),slice(0,3,1));
-	orig_padded[i][j][k] = RGB[i+r][j+c][k];
-	// pad
-	auto row_padding_area = padded.view(slice(last_valid_row,last_valid_row+row_pad,1),slice(0,8,1),slice(0,3,1));
-	auto col_padding_area = padded.view(slice(0,8,1), slice(last_valid_col,last_valid_col+col_pad,1), slice(0,3,1));
-	row_padding_area[i][j][k] = padded[(last_valid_row-1)][j][k];
-	col_padding_area[i][j][k] = padded[i][(last_valid_col-1)][k];	
-	color(padded, YCbCr);
-      } else {
-	// no padding needed
-	color(mcu, YCbCr);
-      }
-      YCbCr[i][j][k] = YCbCr[i][j][k] - 128;
-      auto Y = YCbCr.view(slice(0,1,1),slice(0,8,1),slice(0,8,1));
-      auto Cb = YCbCr.view(slice(1,2,1),slice(0,8,1),slice(0,8,1));
-      auto Cr = YCbCr.view(slice(2,3,1),slice(0,8,1),slice(0,8,1));
-      dct(Y);      
-      dct(Cb);
-      dct(Cr);
-      quant(Y, luma_quant);
-      quant(Cb, chroma_quant);
-      quant(Cr, chroma_quant);
-      // write it back
-      auto write_back = processed.view(slice(0,3,1),slice(r,r+8,1),slice(c,c+8,1));
-      // TODO vectorize this
-      write_back[i][j][k] = YCbCr[i][j][k];
-    }
-  }
-  // this has to be sequential
-  for (dint r = 0; r < H; r = r + 8) {
-    for (dint c = 0; c < W; c = c + 8) {
-      auto read_back = processed.view(slice(0,3,1),slice(r,r+8,1),slice(c,c+8,1));      
-      auto YCbCr = Block<int,3>::stack<3,8,8>();
-      YCbCr[i][j][k] = read_back[i][j][k];
-      auto Y = YCbCr.view(slice(0,1,1),slice(0,8,1),slice(0,8,1));
-      auto Cb = YCbCr.view(slice(1,2,1),slice(0,8,1),slice(0,8,1));
-      auto Cr = YCbCr.view(slice(2,3,1),slice(0,8,1),slice(0,8,1));
-      // TODO make this be 3,8,8 and then multiply together in the API
-      huffman_encode_block(Y.allocator->stack<3*8*8>(), 0, last_Y, bits, zigzag, luma_codes);
-      huffman_encode_block(Cb.allocator->stack<3*8*8>(), 1, last_Cb, bits, zigzag, chroma_codes);
-      huffman_encode_block(Cr.allocator->stack<3*8*8>(), 2, last_Cr, bits, zigzag, chroma_codes);
-      last_Y = YCbCr(0,0,0);
-      last_Cb = YCbCr(1,0,0);
-      last_Cr = YCbCr(2,0,0);
-    }
-  }
-}
-#else
-static_assert(false, "Must specify VERSION=1||2");
-#endif
 
 int main(int argc, char **argv) {
   if (argc != 2) {

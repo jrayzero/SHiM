@@ -21,3 +21,11 @@ scratch
 **/*jpg
 cola_save
 examples.old
+apps/h264.old
+JM/cola
+JM/orig
+**/*.log
+JM/cola.sh
+JM/orig.sh
+**/*.jpg
+**/*.yuv

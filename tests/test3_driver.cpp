@@ -1,4 +1,4 @@
-#include "test3_generated.h"
+#include "test3_generated.hpp"
 
 int main() {
   int **arr = new int*[10];

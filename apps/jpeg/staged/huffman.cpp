@@ -89,6 +89,11 @@ HuffmanCodes generate_codes(int *DC_bits, int *DC_vals, int *AC_bits, int *AC_va
   return codes;
 }
 
+void huffman_encode_block_proxy(HeapArray<int> obj, int color_idx, int last_val,
+				Bits &bits, int *zigzag, const HuffmanCodes &codes) {
+  huffman_encode_block(obj.base->data, color_idx, last_val, bits, zigzag, codes);
+}
+
 void huffman_encode_block(int *obj, int color_idx, int last_val,
 			  Bits &bits, int *zigzag, const HuffmanCodes &codes) {
   // DC
