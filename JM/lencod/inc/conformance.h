@@ -15,16 +15,24 @@
 #ifndef _CONFORMANCE_H_
 #define _CONFORMANCE_H_
 
+#if USE_CPP==1
+extern bool is_valid_level       (unsigned int profileIdc, unsigned int levelIdc);
+#else
 extern Boolean is_valid_level       (unsigned int profileIdc, unsigned int levelIdc);
+#endif
 extern int     get_level_index      (unsigned int profile_idc, unsigned int level_idc, unsigned int constrained_set3_flag);
 extern void    profile_check        (InputParameters *p_Inp);
 extern void    level_check          (VideoParameters *p_Vid, InputParameters *p_Inp);
 extern void    update_mv_limits     (VideoParameters *p_Vid, byte is_field);
 extern void    clip_mv_range        (VideoParameters *p_Vid, int search_range, MotionVector *mv, int res);
 extern int     out_of_bounds_mvs    (VideoParameters *p_Vid, const MotionVector *mv);
+#if USE_CPP==1
+extern void    test_clip_mvs        (VideoParameters *p_Vid, MotionVector *mv, bool write_mb);
+extern bool CheckPredictionParams(Macroblock  *currMB, Block8x8Info *b8x8info, int mode);
+#else
 extern void    test_clip_mvs        (VideoParameters *p_Vid, MotionVector *mv, Boolean write_mb);
 extern Boolean CheckPredictionParams(Macroblock  *currMB, Block8x8Info *b8x8info, int mode);
-
+#endif
 extern unsigned int getMaxMBPS(unsigned int profile_idc, unsigned int level_idc, unsigned int constrained_set3_flag);
 extern unsigned int getMinCR  (unsigned int profile_idc, unsigned int level_idc, unsigned int constrained_set3_flag);
 extern unsigned int getMaxBR  (unsigned int profile_idc, unsigned int level_idc, unsigned int constrained_set3_flag);

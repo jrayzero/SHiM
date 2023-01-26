@@ -202,13 +202,13 @@ static dyn_var<int> find_sad_16x16_CoLa(Macroblock macroblock) {
       }
     }
   }
-  print("Best mode and cost = (%d,%d)\\n", best_mode, best_cost);
+//  print("Best mode and cost = (%d,%d)\\n", best_mode, best_cost);
   macroblock->i16_mode = best_mode;
   return best_cost;
 }
 
 int main(int argc, char **argv) {
-  CompileOptions::isCPP = false;
+  CompileOptions::isCPP = IS_CPP == 1;
   stringstream includes;
   includes << "#include \"global.h\"" << endl;
   includes << "#include \"mbuffer.h\"" << endl;

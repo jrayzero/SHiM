@@ -117,7 +117,7 @@ int start_sequence(VideoParameters *p_Vid, InputParameters *p_Inp)
     FreeNALU (nalu);
   }
   else
-  {
+  {   
     p_Vid->p_Stats->bit_ctr_parametersets_n_v[1] = 0;
   }
 #endif
@@ -154,7 +154,11 @@ int end_of_stream(VideoParameters *p_Vid)
   nalu = AllocNALU(MAXNALUSIZE);
   nalu->startcodeprefix_len = 4;
   nalu->forbidden_bit       = 0;  
+#if USE_CPP==1
+  nalu->nal_reference_idc   = NALU_PRIORITY_DISPOSABLE;
+#else
   nalu->nal_reference_idc   = 0;
+#endif
   nalu->nal_unit_type       = NALU_TYPE_EOSTREAM;
   nalu->len = 0;
   bits = p_Vid->WriteNALU (p_Vid, nalu, p_Vid->f_out);

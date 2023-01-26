@@ -96,8 +96,11 @@ static int FmoGenerateMapUnitToSliceGroupMap (VideoParameters * p_Vid, pic_param
   // allocate memory for p_Vid->MapUnitToSliceGroupMap 
   if (p_Vid->MapUnitToSliceGroupMap)
     free (p_Vid->MapUnitToSliceGroupMap);
-
+#if USE_CPP==1
+  if ((p_Vid->MapUnitToSliceGroupMap = (byte*)malloc ((p_Vid->PicSizeInMapUnits) * sizeof (byte))) == NULL)
+#else
   if ((p_Vid->MapUnitToSliceGroupMap = malloc ((p_Vid->PicSizeInMapUnits) * sizeof (byte))) == NULL)
+#endif
   {
     printf ("cannot allocated %d bytes for p_Vid->MapUnitToSliceGroupMap , exit\n", (int) ( p_Vid->PicSizeInMapUnits * sizeof (byte)));
     exit (-1);
@@ -160,8 +163,11 @@ static int FmoGenerateMBAmap (VideoParameters * p_Vid, seq_parameter_set_rbsp_t*
   if (p_Vid->MBAmap)
     free (p_Vid->MBAmap);
 
-
+#if USE_CPP==1
+  if ((p_Vid->MBAmap = (byte*)malloc ((p_Vid->PicSizeInMbs) * sizeof (byte))) == NULL)
+#else
   if ((p_Vid->MBAmap = malloc ((p_Vid->PicSizeInMbs) * sizeof (byte))) == NULL)
+#endif
   {
     printf ("cannot allocated %d bytes for p_Vid->MBAmap, exit\n", (int) ((p_Vid->PicSizeInMbs) * sizeof (byte)));
     exit (-1);

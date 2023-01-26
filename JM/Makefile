@@ -17,19 +17,29 @@ STC?= 0
 OPENMP?= 0
 
 USE_COLA?=0
+USE_CPP?=0
 VERBOSE?=0
-CFLAGS+=-DUSE_COLA=$(USE_COLA)
+CFLAGS+=-DUSE_COLA=$(USE_COLA) -DUSE_CPP=$(USE_CPP)
+CXX?= $(shell which clang++)
 CC?= $(shell which clang)
 ifeq ($(VERBOSE),1)
 CC+="-v"
+CXX+="-v"
 endif
 
 #check for LLVM and silence warnings accordingly
+ifeq ($(USE_CPP),1)
+LLVM = $(shell $(CXX) --version | grep clang)
+else	
 LLVM = $(shell $(CC) --version | grep clang)
+endif
 ifneq ($(LLVM),)
 	CFLAGS+=-Qunused-arguments
 else
 	CFLAGS+=-Wno-unused-but-set-variable
+endif
+ifeq ($(USE_CPP),1)
+	CFLAGS+=-Wno-deprecated -Wno-writable-strings
 endif
 
 export DBG

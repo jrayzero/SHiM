@@ -32,8 +32,11 @@
 void init_gop_structure(VideoParameters *p_Vid, InputParameters *p_Inp)
 {
   int max_gopsize = p_Inp->NumberBFrames;
-
+#if USE_CPP==1
+  p_Vid->gop_structure = (GOP_DATA*)calloc(imax(10,max_gopsize), sizeof (GOP_DATA)); // +1 for reordering
+#else
   p_Vid->gop_structure = calloc(imax(10,max_gopsize), sizeof (GOP_DATA)); // +1 for reordering
+#endif
   if (NULL==p_Vid->gop_structure)
     no_mem_exit("init_gop_structure: gop_structure");
 }

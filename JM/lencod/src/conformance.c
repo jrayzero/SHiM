@@ -66,7 +66,11 @@ const int LEVELHMVLIMIT[2][6] =
    {-8192, 8191, -16384, 16383, -32768, 32767}   // 6.0 and above: unconstrained
 };
 
+#if USE_CPP==1
+bool is_valid_level(unsigned int profileIdc, unsigned int levelIdc)
+#else
 Boolean is_valid_level(unsigned int profileIdc, unsigned int levelIdc)
+#endif
 {
   // level 1b is indicated by value 9 in FRExt and (value 11 + constraint_set3_flag) in base spec profiles
   switch (levelIdc)
@@ -651,7 +655,11 @@ void clip_mv_range(VideoParameters *p_Vid, int search_range, MotionVector *mv, i
  *    Clip motion vector range given encoding level
  ***********************************************************************
  */
+#if USE_CPP==1
+void test_clip_mvs(VideoParameters *p_Vid, MotionVector *mv, bool write_mb)
+#else
 void test_clip_mvs(VideoParameters *p_Vid, MotionVector *mv, Boolean write_mb)
+#endif
 {
   if ((mv->mv_x < p_Vid->MaxHmvR[4]) || (mv->mv_x > p_Vid->MaxHmvR[5]) || (mv->mv_y < p_Vid->MaxVmvR[4]) || (mv->mv_y > p_Vid->MaxVmvR[5]))
   {
@@ -762,7 +770,11 @@ int InvalidMotionVectors(VideoParameters *p_Vid, Slice *currSlice, Block8x8Info*
   return invalid_mode;
 }
 
+#if USE_CPP==1
+bool CheckPredictionParams(Macroblock  *currMB, Block8x8Info *b8x8info, int mode)
+#else
 Boolean CheckPredictionParams(Macroblock  *currMB, Block8x8Info *b8x8info, int mode)
+#endif
 {
   Slice *currSlice = currMB->p_Slice;
   // check if all sub-macroblock partitions can be used with 8x8 transform

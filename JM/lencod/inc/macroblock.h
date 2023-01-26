@@ -68,9 +68,14 @@ static const short block_size[8][2] =
 };
 
 extern void  next_macroblock  (Macroblock* currMB);
+#if USE_CPP==1
+extern void  start_macroblock (Slice *currSlice, Macroblock** currMB, int mb_addr, bool mb_field);
+extern void  end_macroblock   (Macroblock* currMB, bool *end_of_slice, bool *recode_macroblock);
+#else
 extern void  start_macroblock (Slice *currSlice, Macroblock** currMB, int mb_addr, Boolean mb_field);
-extern void  reset_macroblock (Macroblock *currMB);
 extern void  end_macroblock   (Macroblock* currMB, Boolean *end_of_slice, Boolean *recode_macroblock);
+#endif
+extern void  reset_macroblock (Macroblock *currMB);
 extern void  write_macroblock (Macroblock* currMB, int eos_bit);
 
 

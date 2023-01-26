@@ -41,10 +41,17 @@ void RandomIntraInit(VideoParameters *p_Vid, int xsize, int ysize, int refresh)
 
   if (refresh != 0)
   {
+#if USE_CPP==1
+    p_Vid->RefreshPattern = (int*)malloc (sizeof (int) * p_Vid->NumberOfMBs);
+#else
     p_Vid->RefreshPattern = malloc (sizeof (int) * p_Vid->NumberOfMBs);
+#endif
     if (p_Vid->RefreshPattern == NULL) no_mem_exit("RandomIntraInit: p_Vid->RefreshPattern");
-
+#if USE_CPP==1
+    p_Vid->IntraMBs = (int*)malloc (sizeof (int) * refresh);
+#else
     p_Vid->IntraMBs = malloc (sizeof (int) * refresh);
+#endif
     if (p_Vid->IntraMBs == NULL) no_mem_exit("RandomIntraInit: p_Vid->IntraMBs");
 
     for (i= 0; i<p_Vid->NumberOfMBs; i++)

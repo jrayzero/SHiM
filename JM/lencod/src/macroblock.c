@@ -339,7 +339,11 @@ void reset_macroblock(Macroblock *currMB)
  *    true for field macroblock coding
  ************************************************************************
  */
-void start_macroblock(Slice *currSlice, Macroblock **currMB, int mb_addr, Boolean mb_field)
+#if USE_CPP==1
+void start_macroblock(Slice *currSlice, Macroblock **currMB, int mb_addr, bool mb_field)
+#else
+  void start_macroblock(Slice *currSlice, Macroblock **currMB, int mb_addr, Boolean mb_field)
+#endif
 {
   VideoParameters *p_Vid = currSlice->p_Vid;
   InputParameters *p_Inp = currSlice->p_Inp;
@@ -509,10 +513,17 @@ void start_macroblock(Slice *currSlice, Macroblock **currMB, int mb_addr, Boolea
  *    on the chosen slice mode
  ************************************************************************
  */
+#if USE_CPP==1
+void end_macroblock(Macroblock *currMB,         //!< Current Macroblock
+                    bool *end_of_slice,      //!< returns true for last macroblock of a slice, otherwise false
+                    bool *recode_macroblock  //!< returns true if max. slice size is exceeded an macroblock must be recoded in next slice
+                    )
+#else
 void end_macroblock(Macroblock *currMB,         //!< Current Macroblock
                     Boolean *end_of_slice,      //!< returns true for last macroblock of a slice, otherwise false
                     Boolean *recode_macroblock  //!< returns true if max. slice size is exceeded an macroblock must be recoded in next slice
                     )
+#endif
 {
   Slice *currSlice = currMB->p_Slice;
   VideoParameters *p_Vid = currMB->p_Vid;
@@ -543,17 +554,26 @@ void end_macroblock(Macroblock *currMB,         //!< Current Macroblock
       *end_of_slice = TRUE;
 
     // if it's end of current slice group, slice ends too
+#if USE_CPP==1
+    *end_of_slice =  (*end_of_slice | (currMB->mbAddrX == FmoGetLastCodedMBOfSliceGroup (p_Vid, FmoMB2SliceGroup (p_Vid, currMB->mbAddrX))));
+#else
     *end_of_slice = (Boolean) (*end_of_slice | (currMB->mbAddrX == FmoGetLastCodedMBOfSliceGroup (p_Vid, FmoMB2SliceGroup (p_Vid, currMB->mbAddrX))));
-
+#endif
     break;
   case FIXED_MB:
     // For slice mode one, check if a new slice boundary follows
     ++currSlice->num_mb;
     *recode_macroblock = FALSE;
     //! Check end-of-slice group condition first
+#if USE_CPP==1
+    *end_of_slice =  (currMB->mbAddrX == FmoGetLastCodedMBOfSliceGroup (p_Vid, FmoMB2SliceGroup (p_Vid, currMB->mbAddrX)));
+    //! Now check maximum # of MBs in slice
+    *end_of_slice =  (*end_of_slice | (currSlice->num_mb >= p_Inp->slice_argument));
+#else
     *end_of_slice = (Boolean) (currMB->mbAddrX == FmoGetLastCodedMBOfSliceGroup (p_Vid, FmoMB2SliceGroup (p_Vid, currMB->mbAddrX)));
     //! Now check maximum # of MBs in slice
     *end_of_slice = (Boolean) (*end_of_slice | (currSlice->num_mb >= p_Inp->slice_argument));
+#endif
 
     break;
 
