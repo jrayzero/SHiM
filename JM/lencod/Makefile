@@ -42,7 +42,12 @@ STATIC=
 endif
 
 LIBS=   -lm $(STATIC)
-CFLAGS+= -std=gnu99  -pedantic -fno-strict-aliasing -fsigned-char $(STATIC)
+ifeq ($(USE_CPP),1)
+CFLAGS+= -std=c++17
+else
+CFLAGS+= -std=gnu99 
+endif
+CFLAGS+= -pedantic -fno-strict-aliasing -fsigned-char $(STATIC)
 FLAGS=  $(CFLAGS) -Wall -I$(INCDIR) -I$(ADDINCDIR) -D __USE_LARGEFILE64 -D _FILE_OFFSET_BITS=64
 ifeq ($(USE_COLA),1)
 LIBS+= -L/Users/jray/CLionProjects/HMDA-BuildIt/build/ -lCoLaJM
@@ -73,6 +78,11 @@ SRC=    $(wildcard $(SRCDIR)/*.c)
 ADDSRC= $(wildcard $(ADDSRCDIR)/*.c)
 OBJ=    $(SRC:$(SRCDIR)/%.c=$(OBJDIR)/%.o$(SUFFIX)) $(ADDSRC:$(ADDSRCDIR)/%.c=$(OBJDIR)/%.o$(SUFFIX)) 
 BIN=    $(BINDIR)/$(NAME)$(SUFFIX).exe
+ifeq ($(USE_CPP),1)
+COMPILER=$(CXX)
+else
+COMPILER=$(CC)
+endif
 
 .PHONY: default distclean clean tags depend
 
@@ -108,25 +118,25 @@ tags:
 bin:    $(OBJ)
 	@echo
 	@echo 'creating binary "$(BIN)"'
-	@$(CC) $(FLAGS) -o $(BIN) $(OBJ) $(LIBS)
+	@$(COMPILER) $(FLAGS) -o $(BIN) $(OBJ) $(LIBS)
 	@echo '... done'
 	@echo
 
 depend:
 	@echo
 	@echo 'checking dependencies'
-	@$(SHELL) -ec '$(CC) $(FLAGS) -MM $(CFLAGS) -I$(INCDIR) -I$(ADDINCDIR) $(SRC) $(ADDSRC)                  \
+	@$(SHELL) -ec '$(COMPILER) $(FLAGS) -MM $(CFLAGS) -I$(INCDIR) -I$(ADDINCDIR) $(SRC) $(ADDSRC)                  \
          | sed '\''s@\(.*\)\.o[ :]@$(OBJDIR)/\1.o$(SUFFIX):@g'\''               \
          >$(DEPEND)'
 	@echo
 
 $(OBJDIR)/%.o$(SUFFIX): $(SRCDIR)/%.c
 	@echo 'compiling object file "$@" ...'
-	@$(CC) -c -o $@ $(FLAGS) $<
+	@$(COMPILER) -c -o $@ $(FLAGS) $<
 
 $(OBJDIR)/%.o$(SUFFIX): $(ADDSRCDIR)/%.c
 	@echo 'compiling object file "$@" ...'
-	@$(CC) -c -o $@ $(FLAGS) $<
+	@$(COMPILER) -c -o $@ $(FLAGS) $<
 
 objdir_mk:
 	@echo 'Creating $(OBJDIR) ...'

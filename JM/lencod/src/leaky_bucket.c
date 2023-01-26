@@ -221,16 +221,32 @@ void calc_buffer(VideoParameters *p_Vid, InputParameters *p_Inp)
   }
   printf(" Total Frames:  %ld \n", p_Vid->total_frame_buffer);
   NumberLeakyBuckets = (unsigned long) p_Inp->NumberLeakyBuckets;
+#if USE_CPP==1
+  buffer_frame = (long*)calloc(p_Vid->total_frame_buffer + 1, sizeof(long));
+#else
   buffer_frame = calloc(p_Vid->total_frame_buffer + 1, sizeof(long));
+#endif
   if(!buffer_frame)
     no_mem_exit("init_buffer: buffer_frame");
+#if USE_CPP==1
+  Rmin = (unsigned long *)calloc(NumberLeakyBuckets, sizeof(unsigned long));
+#else
   Rmin = calloc(NumberLeakyBuckets, sizeof(unsigned long));
+#endif
   if(!Rmin)
     no_mem_exit("init_buffer: Rmin");
+#if USE_CPP==1
+  Bmin = (unsigned long*)calloc(NumberLeakyBuckets, sizeof(unsigned long));
+#else
   Bmin = calloc(NumberLeakyBuckets, sizeof(unsigned long));
+#endif
   if(!Bmin)
     no_mem_exit("init_buffer: Bmin");
+#if USE_CPP==1
+  Fmin = (unsigned long *)calloc(NumberLeakyBuckets, sizeof(unsigned long));
+#else
   Fmin = calloc(NumberLeakyBuckets, sizeof(unsigned long));
+#endif
   if(!Fmin)
     no_mem_exit("init_buffer: Fmin");
 

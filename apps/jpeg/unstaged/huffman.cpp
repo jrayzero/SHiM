@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <iostream>
 #include "huffman.h"
 
 int luma_DC_huffbits[] = {0,0,1,5,1,1,1,1,1,1,0,0,0,0,0,0,0};
@@ -88,10 +89,11 @@ HuffmanCodes generate_codes(int *DC_bits, int *DC_vals, int *AC_bits, int *AC_va
   return codes;
 }
 
-void huffman_encode_block(View<int,3> &obj, int last_val,
-			  Bits &bits, const Block<int,2> &zigzag, const HuffmanCodes &codes) {
+void huffman_encode_block(int *obj, int color_idx, int last_val,
+			  Bits &bits, int *zigzag, const HuffmanCodes &codes) {
   // DC
-  int dc = obj(0);
+  int base_lidx = color_idx * 8 * 8;
+  int dc = obj[base_lidx];
   int temp = dc - last_val;
   int temp2 = temp;
   if (temp < 0) {
@@ -110,7 +112,7 @@ void huffman_encode_block(View<int,3> &obj, int last_val,
   // AC
   int run = 0;  
   for (int e = 1; e < 64; e++) {
-    temp = obj.plidx(zigzag.plidx(e));
+    temp = obj[base_lidx+zigzag[e]];
     if (temp == 0)
       run++;
     else {
@@ -137,4 +139,16 @@ void huffman_encode_block(View<int,3> &obj, int last_val,
   }
   if (run > 0)
     bits.pack_and_stuff(codes.ac_ehufco[0], codes.ac_ehufsz[0], 0xFF, 0);
+}
+
+void pack_DC(Bits &bits, int idx, const HuffmanCodes &codes) {
+  bits.pack_and_stuff(codes.dc_ehufco[idx], codes.dc_ehufsz[idx], 0xFF, 0);  
+}
+
+void pack_AC(Bits &bits, int idx, const HuffmanCodes &codes) {
+  bits.pack_and_stuff(codes.ac_ehufco[idx], codes.ac_ehufsz[idx], 0xFF, 0);
+}
+
+void pack_and_stuff(Bits &bits, int val, int nbits) {
+  bits.pack_and_stuff(val, nbits, 0xFF, 0);
 }

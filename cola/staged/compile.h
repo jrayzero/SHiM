@@ -146,7 +146,7 @@ void stage(Func func, std::string name, std::string fn_prefix, std::string pre_h
   std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
   std::ofstream src;
   std::ofstream hdr;
-  std::string header = fn_prefix + ".h";  
+  std::string header = fn_prefix + (CompileOptions::isCPP ? ".hpp" : ".h");  
   std::string source = CompileOptions::isCPP ? fn_prefix + ".cpp" : fn_prefix + ".c";
   hdr.open(header);
   src.open(source);
@@ -167,7 +167,7 @@ void stage(Func func, std::string name, std::string fn_prefix, std::string pre_h
   } 
   // Plain C does not support the HeapArray and things like that!
   if (CompileOptions::isCPP)
-    src << "#include \"runtime/runtime.h\"" << std::endl;
+    src << "#include \"runtime/cpp/runtime.h\"" << std::endl;
   if (!CompileOptions::isCPP) {
     src << "#define lshift(a,b) ((a) << (b))" << std::endl;
     src << "#define rshift(a,b) ((a) >> (b))" << std::endl;

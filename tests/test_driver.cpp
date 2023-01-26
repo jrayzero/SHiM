@@ -4,7 +4,7 @@
 #define XSTR(x) #x
 #define STR(x) XSTR(x)
 #define PROXY(x,y) STR(IDENT(x)IDENT(y))
-#include PROXY(WHICH_TEST, _generated.h)
+#include PROXY(WHICH_TEST, _generated.hpp)
 
 int main() {
   staged();

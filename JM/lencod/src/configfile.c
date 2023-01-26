@@ -409,8 +409,11 @@ void Configure (VideoParameters *p_Vid, InputParameters *p_Inp, int ac, char *av
           ContentLen += (int) strlen (av[NumberParams++]);        // Space for all the strings
         ContentLen += 1000;                     // Additional 1000 bytes for spaces and \0s
 
-
+#if USE_CPP==1
+        if ((content = (char*)malloc (ContentLen))==NULL) no_mem_exit("Configure: content");;
+#else
         if ((content = malloc (ContentLen))==NULL) no_mem_exit("Configure: content");;
+#endif
         content[0] = '\0';
 
         // concatenate all parameters identified before

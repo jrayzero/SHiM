@@ -10,7 +10,7 @@
 using builder::dyn_var;
 using builder::dyn_arr;
 using namespace cola;
-using darr = dyn_arr<int,2>;
+using darr2 = dyn_arr<int,2>;
 
 static void staged() {
   auto block = Block<int,2>::stack<10,20>();
@@ -22,12 +22,12 @@ static void staged() {
   block2[i][j] = 0;
   auto block2_coloc = block2.colocate(block2_view);
   block2_coloc[i][j] = 9;
-  ASSERT(compare_arrays(block2_view.bextents, darr{4,4}));
-  ASSERT(compare_arrays(block2_view.bstrides, darr{1,1}));
-  ASSERT(compare_arrays(block2_view.borigin, darr{0,0}));
-  ASSERT(compare_arrays(block2_view.vextents, darr{3,2}));
-  ASSERT(compare_arrays(block2_view.vstrides, darr{1,2}));
-  ASSERT(compare_arrays(block2_view.vorigin, darr{1,0}));
+  ASSERT(compare_arrays(block2_view.bextents, darr2{4,4}));
+  ASSERT(compare_arrays(block2_view.bstrides, darr2{1,1}));
+  ASSERT(compare_arrays(block2_view.borigin, darr2{0,0}));
+  ASSERT(compare_arrays(block2_view.vextents, darr2{3,2}));
+  ASSERT(compare_arrays(block2_view.vstrides, darr2{1,2}));
+  ASSERT(compare_arrays(block2_view.vorigin, darr2{1,0}));
   block.colocate(block2_view)[i][j] = 16;
   ASSERT(block2(1,0) == 9);
   ASSERT(block2(2,0) == 9);

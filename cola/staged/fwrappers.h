@@ -14,29 +14,16 @@ namespace cola {
 
 builder::dyn_var<void(int)> hexit = builder::as_global("exit");
 builder::dyn_var<loop_type(loop_type)> hfloor = builder::as_global("floor");
-//builder::dyn_var<void(void)> print_newline_cpp = builder::as_global("cola::print_newline");
 builder::dyn_var<void(void)> print_newline = builder::as_global("print_newline");
-//builder::dyn_var<void(void*)> print_cpp = builder::as_global("cola::print");
 builder::dyn_var<void(void*)> print = builder::as_global("printf");
-/*builder::dyn_var<void(void)> print_newline = builder::as_global("cola::print_newline");
-builder::dyn_var<void(char*)> print_string = builder::as_global("cola::print_string");
-builder::dyn_var<void(void*)> print = builder::as_global("cola::print");
-builder::dyn_var<void(void*)> cprint = builder::as_global("printf");
-builder::dyn_var<void(void*)> printn = builder::as_global("cola::printn");
-builder::dyn_var<void*(void*,void*)> scat_items = builder::as_global("cola::scat_items");*/
-builder::dyn_var<int(int,int)> lshift = builder::as_global("cola::lshift");
-builder::dyn_var<int(int,int)> rshift = builder::as_global("cola::rshift");
-builder::dyn_var<int(int,int)> clshift = builder::as_global("lshift");
-builder::dyn_var<int(int,int)> crshift = builder::as_global("rshift");
-builder::dyn_var<int(int,int)> bor = builder::as_global("cola::bor");
-builder::dyn_var<int(int,int)> band = builder::as_global("cola::band");
-builder::dyn_var<int(int,int)> pow = builder::as_global("cola::pow");
-builder::dyn_var<int(int)> ceil = builder::as_global("cola::ceil");
+builder::dyn_var<int(int,int)> pow = builder::as_global("pow");
+builder::dyn_var<int(int)> ceil = builder::as_global("ceil");
 builder::dyn_var<int(int)> cabs = builder::as_global("abs");
 builder::dyn_var<void(bool,char*)> hassert = builder::as_global("cola::cola_assert");
 
 // Note: the arg tyoe for these casts isn't right, but I don't want to write every combination
 // of dyn_var<to(from)>, and buildit doesn't seem to care.
+#ifndef UNSTAGED
 builder::dyn_var<uint8_t(uint8_t)> cast_uint8_t = builder::as_global("COLA_CAST_UINT8_T");
 builder::dyn_var<uint16_t(uint16_t)> cast_uint16_t = builder::as_global("COLA_CAST_UINT16_T");
 builder::dyn_var<uint32_t(uint32_t)> cast_uint32_t = builder::as_global("COLA_CAST_UINT32_T");
@@ -48,6 +35,30 @@ builder::dyn_var<int32_t(int32_t)> cast_int32_t = builder::as_global("COLA_CAST_
 builder::dyn_var<int64_t(int64_t)> cast_int64_t = builder::as_global("COLA_CAST_INT64_T");
 builder::dyn_var<float(float)> cast_float = builder::as_global("COLA_CAST_FLOAT");
 builder::dyn_var<double(double)> cast_double = builder::as_global("COLA_CAST_DOUBLE");
+#else
+
+template <typename T>
+uint8_t cast_uint8_t(T x) { return (uint8_t)x; }
+template <typename T>
+uint16_t cast_uint16_t(T x) { return (uint16_t)x; }
+template <typename T>
+uint32_t cast_uint32_t(T x) { return (uint32_t)x; }
+template <typename T>
+uint64_t cast_uint64_t(T x) { return (uint64_t)x; }
+template <typename T>
+int8_t cast_int8_t(T x) { return (int8_t)x; }
+template <typename T>
+int16_t cast_int16_t(T x) { return (int16_t)x; }
+template <typename T>
+int32_t cast_int32_t(T x) { return (int32_t)x; }
+template <typename T>
+int64_t cast_int64_t(T x) { return (int64_t)x; }
+template <typename T>
+float cast_float(T x) { return (float)x; }
+template <typename T>
+double cast_double(T x) { return (double)x; }
+
+#endif
 
 builder::dyn_var<void(uint8_t*,uint8_t,loop_type)> memset_uint8_t = builder::as_global("cola::hmemset<uint8_t>");
 builder::dyn_var<void(uint16_t*,uint16_t,loop_type)> memset_uint16_t = builder::as_global("cola::hmemset<uint16_t>");
@@ -61,6 +72,7 @@ builder::dyn_var<void(int64_t*,int64_t,loop_type)> memset_int64_t = builder::as_
 builder::dyn_var<void(float*,float,loop_type)> memset_float = builder::as_global("cola::hmemset<float>");
 builder::dyn_var<void(double*,double,loop_type)> memset_double = builder::as_global("cola::hmemset<double>");
 
+#ifndef UNSTAGED
 builder::dyn_var<void(HEAP_T<uint8_t>,uint8_t,loop_type)> memset_heaparr_uint8_t = builder::as_global("cola::hmemset<uint8_t>");
 builder::dyn_var<void(HEAP_T<uint16_t>,uint16_t,loop_type)> memset_heaparr_uint16_t = builder::as_global("cola::hmemset<uint16_t>");
 builder::dyn_var<void(HEAP_T<uint32_t>,uint32_t,loop_type)> memset_heaparr_uint32_t = builder::as_global("cola::hmemset<uint32_t>");
@@ -83,6 +95,7 @@ builder::dyn_var<HEAP_T<int32_t>(loop_type)> build_heaparr_int32_t = builder::as
 builder::dyn_var<HEAP_T<int64_t>(loop_type)> build_heaparr_int64_t = builder::as_global("cola::build_heaparr<int64_t>");
 builder::dyn_var<HEAP_T<float>(loop_type)> build_heaparr_float = builder::as_global("cola::build_heaparr<float>");
 builder::dyn_var<HEAP_T<double>(loop_type)> build_heaparr_double = builder::as_global("cola::build_heaparr<double>");
+#endif
 
 builder::dyn_var<void(uint8_t)> print_elem_uint8_t = builder::as_global("cola::print_elem<uint8_t>");
 builder::dyn_var<void(uint16_t)> print_elem_uint16_t = builder::as_global("cola::print_elem<uint16_t>");
@@ -96,14 +109,5 @@ builder::dyn_var<void(int32_t)> print_elem_int32_t = builder::as_global("cola::p
 builder::dyn_var<void(int64_t)> print_elem_int64_t = builder::as_global("cola::print_elem<int64_t>");
 builder::dyn_var<void(float)> print_elem_float = builder::as_global("cola::print_elem<float>");
 builder::dyn_var<void(double)> print_elem_double = builder::as_global("cola::print_elem<double>");
-
-template <typename Arg0, typename...Args>
-builder::dyn_var<void*> scat(Arg0 arg0, Args...args) {
-  if constexpr (sizeof...(Args) == 0) {
-    return arg0;
-  } else {
-    return scat_items(arg0, scat(args...));
-  }
-}
 
 }

@@ -521,7 +521,7 @@ distblk find_sad_16x16_JM(Macroblock *currMB)
       }
     }    
   }
-  printf("Best mode and cost = (%d,%d)\n", currMB->i16mode, best_intra_sad2);
+//  printf("Best mode and cost = (%d,%d)\n", currMB->i16mode, best_intra_sad2);
   return best_intra_sad2;
 #endif
 }

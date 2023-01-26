@@ -152,7 +152,7 @@ void init_dstats (DistortionParams *p_Dist)
  ***********************************************************************
  */
 static void alloc_video_params( VideoParameters **p_Vid)
-{
+{  
   if ((*p_Vid = (VideoParameters *) calloc(1, sizeof(VideoParameters)))==NULL) 
     no_mem_exit("alloc_video_params: p_Vid");
   if ((((*p_Vid)->p_Dist)  = (DistortionParams *) calloc(1, sizeof(DistortionParams)))==NULL) 
@@ -253,6 +253,13 @@ static void free_encoder (EncoderParams *p_Enc)
  */
 int main(int argc, char **argv)
 {
+
+#if USE_COLA==1
+  printf("Utilizing CoLa kernels.\n");
+#else
+  printf("Utilizing BuiltIn kernels.\n");
+#endif
+  
   init_time();
 #if MEMORY_DEBUG
   _CrtSetDbgFlag ( _CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF );
@@ -1520,7 +1527,7 @@ static void free_params (InputParameters *p_Inp)
 Picture *malloc_picture()
 {
   Picture *pic;
-  if ((pic = calloc (1, sizeof (Picture))) == NULL) no_mem_exit ("malloc_picture: Picture structure");
+  if ((pic = (Picture*)calloc (1, sizeof (Picture))) == NULL) no_mem_exit ("malloc_picture: Picture structure");
   //! Note: slice structures are allocated as needed in code_a_picture
   return pic;
 }
@@ -1722,7 +1729,7 @@ static int init_global_buffers(VideoParameters *p_Vid, InputParameters *p_Inp)
 
 
   //memory_size += get_mem2Dshort(&PicPos, p_Vid->FrameSizeInMbs + 1, 2);
-  p_Vid->PicPos = calloc(p_Vid->FrameSizeInMbs + 1, sizeof(BlockPos));
+  p_Vid->PicPos = (BlockPos*)calloc(p_Vid->FrameSizeInMbs + 1, sizeof(BlockPos));
 
   for (j = 0; j < (int) p_Vid->FrameSizeInMbs + 1; j++)
   {

@@ -2,9 +2,6 @@
 
 #pragma once
 
-#include "builder/dyn_var.h"
-#include "builder/array.h"
-#include "builder/static_var.h"
 #include "common/loop_type.h"
 #include "fwrappers.h"
 #include "fwddecls.h"
@@ -15,8 +12,8 @@ namespace cola {
 ///
 /// Convert a coordinate to a linear index 
 template <int Depth, unsigned long Rank>
-builder::dyn_var<loop_type> linearize(const Loc_T<Rank> &extents, builder::dyn_arr<loop_type,Rank> &coord) {
-  builder::dyn_var<loop_type> c = coord[Rank-1-Depth];
+dvar<loop_type> linearize(const Loc_T<Rank> &extents, darr<loop_type,Rank> &coord) {
+  dvar<loop_type> c = coord[Rank-1-Depth];
   if constexpr (Depth == Rank - 1) {
     return c;
   } else {
@@ -29,7 +26,7 @@ builder::dyn_var<loop_type> linearize(const Loc_T<Rank> &extents, builder::dyn_a
 template <typename Functor, int Begin, int End, int Depth, typename Obj>
 auto reduce_region_inner(Obj &obj) {
   if constexpr (Depth >= Begin && Depth < End) {
-    builder::dyn_var<loop_type> item = obj[Depth];
+    dvar<loop_type> item = obj[Depth];
     if constexpr (Depth < End - 1) {
       return Functor()(item, reduce_region_inner<Functor,Begin,End,Depth+1>(obj));
     } else {
@@ -52,9 +49,9 @@ auto reduce_region(Obj &obj) {
 ///
 /// Perform a reduction across a dyn_var<T[]>
 template <typename Functor, unsigned long Rank, typename T>
-builder::dyn_var<T> reduce(builder::dyn_arr<T,Rank> &arr) {
-  builder::dyn_var<T> acc = arr[0];
-  for (builder::static_var<T> i = 1; i < Rank; i=i+1) {
+dvar<T> reduce(darr<T,Rank> &arr) {
+  dvar<T> acc = arr[0];
+  for (svar<T> i = 1; i < Rank; i=i+1) {
     acc = Functor()(acc, arr[i]);
   }
   return acc;
@@ -78,8 +75,8 @@ void delinearize(Loc_T<Rank> &out, LIdx lidx, const Loc_T<Rank> &extents) {
   if constexpr (Depth+1 == Rank) {
     out[Depth] = lidx;
   } else {
-    builder::dyn_var<loop_type> m = reduce_region<MulFunctor, Depth+1, Rank, Rank>(extents);
-    builder::dyn_var<loop_type> c = lidx / m;
+    dvar<loop_type> m = reduce_region<MulFunctor, Depth+1, Rank, Rank>(extents);
+    dvar<loop_type> c = lidx / m;
     out[Depth] = c;
     delinearize<Depth+1, Rank>(out, lidx % m, extents);    
   }
@@ -144,12 +141,12 @@ struct RefIdxType {
 
 template <>
 struct RefIdxType<builder::builder> {
-  using type = builder::dyn_var<loop_type>;
+  using type = dvar<loop_type>;
 };
 
 template <>
-struct RefIdxType<builder::dyn_var<loop_type>> {
-  using type = builder::dyn_var<loop_type>;
+struct RefIdxType<dvar<loop_type>> {
+  using type = dvar<loop_type>;
 };
 
 ///
@@ -342,7 +339,7 @@ struct ElemToStr<T[Sz]> {
 ///
 /// Copy N dyn_arr elements to a tuple
 template <int N, int Depth, unsigned long Sz, typename Elem>
-auto dyn_arr_to_tuple(const builder::dyn_arr<Elem,Sz> &arr) {
+auto dyn_arr_to_tuple(const darr<Elem,Sz> &arr) {
   if constexpr (Depth == N - 1) {
     return std::tuple{arr[Depth]};
   } else if constexpr (Depth < N - 1) {
