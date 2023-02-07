@@ -576,11 +576,16 @@ View<Elem,Rank,MultiDimPtr,0> Block<Elem,Rank,MultiDimPtr>::view(Slices...slices
   SLoc_T vorigin;
   gather_origin<0,Rank>(vorigin, slices...);
   // convert vstops into extents
+  // just use the raw values from the slice parameters
   SLoc_T vextents;
   convert_stops_to_extents<Rank>(vextents, vorigin, vstops, vstrides);
+  // now we need to update the strides and origin based on the block's parameters
   // new strides = old strides * new strides
   SLoc_T strides;
   apply<MulFunctor,Rank>(strides, this->bstrides, vstrides);
+  for (svar<int> i = 0; i < Rank; i=i+1) {
+    vorigin[i] = vorigin[i] * this->bstrides[i] + this->borigin[i];
+  }
   SLoc_T interpolation_factors;
   for (svar<int> i = 0; i < Rank; i=i+1) {
     interpolation_factors[i] = 1;
@@ -839,6 +844,10 @@ dvar<Elem> View<Elem,NUnfrozen,MultiDimPtr,NFrozen>::read(darr<loop_type,N> &coo
       // bi0 = vi0 * vstride0 + vorigin0
       darr<loop_type,NLogical_T> bcoords;
       compute_absolute_location<0>(full_coords, bcoords);
+      // now adjust to make it relative to the block
+      for (svar<int> i = 0; i < N; i=i+1) {
+	bcoords[i] = (bcoords[i] - borigin[i]) / bstrides[i];
+      }
       // then linearize with respect to the block
 #ifndef UNSTAGED
       if constexpr (MultiDimPtr==true) {
@@ -859,6 +868,10 @@ dvar<Elem> View<Elem,NUnfrozen,MultiDimPtr,NFrozen>::read(darr<loop_type,N> &coo
       // bi0 = vi0 * vstride0 + vorigin0
       darr<loop_type,NLogical_T> bcoords;
       compute_absolute_location<0>(coords, bcoords);
+      // now adjust to make it relative to the block
+      for (svar<int> i = 0; i < N; i=i+1) {
+	bcoords[i] = (bcoords[i] - borigin[i]) / bstrides[i];
+      }
       // then linearize with respect to the block
 #ifndef UNSTAGED
       if constexpr (MultiDimPtr==true) {
@@ -918,6 +931,10 @@ void View<Elem,NUnfrozen,MultiDimPtr,NFrozen>::write(ScalarElem val, darr<loop_t
       // bi0 = vi0 * vstride0 + vorigin0
       darr<loop_type,NLogical_T> bcoords;
       compute_absolute_location<0>(full_coords, bcoords);
+      // now adjust to make it relative to the block
+      for (svar<int> i = 0; i < N; i=i+1) {
+	bcoords[i] = (bcoords[i] - borigin[i]) / bstrides[i];
+      }
       // then linearize with respect to the block
 #ifndef UNSTAGED
       if constexpr (MultiDimPtr==true) {
@@ -936,6 +953,10 @@ void View<Elem,NUnfrozen,MultiDimPtr,NFrozen>::write(ScalarElem val, darr<loop_t
       // manually specified all the dimensions (can happen with ref writes)
       darr<loop_type,NLogical_T> bcoords;
       compute_absolute_location<0>(coords, bcoords);
+      // now adjust to make it relative to the block
+      for (svar<int> i = 0; i < N; i=i+1) {
+	bcoords[i] = (bcoords[i] - borigin[i]) / bstrides[i];
+      }
       // then linearize with respect to the block
 #ifndef UNSTAGED
       if constexpr (MultiDimPtr==true) {

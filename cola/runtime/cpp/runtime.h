@@ -3,7 +3,7 @@
 #pragma once
 
 #include <cmath> // for floor
-#include <cstring> // for memset
+#include <iostream>
 #include "common/loop_type.h"
 #include "heaparray.h"
 #include "impls.h"

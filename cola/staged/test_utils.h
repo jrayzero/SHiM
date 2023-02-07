@@ -11,11 +11,11 @@
 
 namespace cola {
 
-#define ASSERT(cond) cola_assert(cond, #cond)
+#define ASSERT(cond) hassert(cond, #cond)
 
-void cola_assert(builder::dyn_var<bool> condition, const char *msg="") {
-  hassert(condition, msg);
-}
+//void cola_assert(builder::dyn_var<bool> condition, const char *msg="") {
+//  hassert(condition, msg);
+//}
  
 template <typename T, unsigned long N>
 builder::dyn_var<bool> compare_arrays(const builder::dyn_arr<T,N> &arr1, const builder::dyn_arr<T,N> &arr2) {
