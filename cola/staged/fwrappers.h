@@ -19,7 +19,7 @@ builder::dyn_var<void(void*)> print = builder::as_global("printf");
 builder::dyn_var<int(int,int)> pow = builder::as_global("pow");
 builder::dyn_var<int(int)> ceil = builder::as_global("ceil");
 builder::dyn_var<int(int)> cabs = builder::as_global("abs");
-builder::dyn_var<void(bool,char*)> hassert = builder::as_global("cola::cola_assert");
+builder::dyn_var<void(bool,char*)> hassert = builder::as_global("COLA_ASSERT");
 
 // Note: the arg tyoe for these casts isn't right, but I don't want to write every combination
 // of dyn_var<to(from)>, and buildit doesn't seem to care.
