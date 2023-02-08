@@ -8,7 +8,7 @@
 // forward declarations for a bunch of things I need
 // also includes some general type definitions
 
-namespace cola {
+namespace shim {
 
 ///// Forward declarations
 
@@ -45,17 +45,17 @@ struct Slice;
 ///// Types
 #ifndef UNSTAGED
 // Definitions for the HeapArray type
-constexpr char uint8_t_name[] = "cola::HeapArray<uint8_t>";
-constexpr char uint16_t_name[] = "cola::HeapArray<uint16_t>";
-constexpr char uint32_t_name[] = "cola::HeapArray<uint32_t>";
-constexpr char uint64_t_name[] = "cola::HeapArray<uint64_t>";
-constexpr char char_name[] = "cola::HeapArray<char>";
-constexpr char int8_t_name[] = "cola::HeapArray<int8_t>";
-constexpr char int16_t_name[] = "cola::HeapArray<int16_t>";
-constexpr char int32_t_name[] = "cola::HeapArray<int32_t>";
-constexpr char int64_t_name[] = "cola::HeapArray<int64_t>";
-constexpr char float_name[] = "cola::HeapArray<float>";
-constexpr char double_name[] = "cola::HeapArray<double>";
+constexpr char uint8_t_name[] = "shim::HeapArray<uint8_t>";
+constexpr char uint16_t_name[] = "shim::HeapArray<uint16_t>";
+constexpr char uint32_t_name[] = "shim::HeapArray<uint32_t>";
+constexpr char uint64_t_name[] = "shim::HeapArray<uint64_t>";
+constexpr char char_name[] = "shim::HeapArray<char>";
+constexpr char int8_t_name[] = "shim::HeapArray<int8_t>";
+constexpr char int16_t_name[] = "shim::HeapArray<int16_t>";
+constexpr char int32_t_name[] = "shim::HeapArray<int32_t>";
+constexpr char int64_t_name[] = "shim::HeapArray<int64_t>";
+constexpr char float_name[] = "shim::HeapArray<float>";
+constexpr char double_name[] = "shim::HeapArray<double>";
 
 #define CONSTEXPR_HEAP_NAME(dtype)		\
   template <>					\

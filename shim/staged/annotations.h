@@ -7,7 +7,7 @@
 #include "builder/builder.h"
 #include "defs.h"
 
-namespace cola {
+namespace shim {
 
 enum OptType {
   LOOP_PARALLEL
@@ -37,7 +37,7 @@ struct Parallel : Optimization {
 
   inline static std::string repr = "parloop";
 
-  // number of threads. -1 means use omp default
+  // number of threads. 0 means use omp default
   int nworkers;
 
   static void apply(int nworkers=0) {

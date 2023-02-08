@@ -10,7 +10,7 @@
 #include "staged/staged.h"
 
 using namespace std;
-using namespace cola;
+using namespace shim;
 using builder::dyn_var;
 using builder::static_var;
 using builder::dyn_arr;

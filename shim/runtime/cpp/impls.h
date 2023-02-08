@@ -7,13 +7,13 @@
 #include <cmath>
 #include "heaparray.h"
 
-#define COLA_ASSERT(cond, msg)						\
+#define SHIM_ASSERT(cond, msg)						\
   if (!(cond)) {							\
     std::cerr << "Condition failed (" << (msg) << ")" << std::endl;	\
     exit(-1);								\
   }
 
-namespace cola {
+namespace shim {
 
 template <typename Elem>
 HeapArray<Elem> build_heaparr(loop_type sz) {
@@ -31,7 +31,7 @@ void hmemset(HeapArray<Elem> &data, Elem val, loop_type sz) {
 }
 
 /*template <bool dummy=false>
-void cola_assert(bool cond, std::string msg) {
+void shim_assert(bool cond, std::string msg) {
   if (!cond) {
     std::cerr << "Condition failed (" << msg << ")" << std::endl;
     exit(-1);

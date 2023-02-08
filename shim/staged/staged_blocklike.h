@@ -17,7 +17,7 @@
 #include "runtime/cpp/heaparray.h"
 #endif
 
-namespace cola {
+namespace shim {
 
 
 #ifndef UNSTAGED

@@ -19,8 +19,8 @@
 #include "transform.h"
 #include "memalloc.h"
 
-#if USE_COLA==1
-#include "CoLaJM_generated.h"
+#if USE_SHIM==1
+#include "ShimJM_generated.hpp"
 #endif
 
 /*!
@@ -426,7 +426,7 @@ distblk distI16x16_sad(Macroblock *currMB, imgpel **img_org, imgpel **pred_img, 
       i32Cost += abs( *cur_img++ - *prd_img++ );
     }
 
-    // JESS disabled b/c the equivalent in cola breaks something with buildit
+    // JESS disabled b/c the equivalent in shim breaks something with buildit
 //    if (i32Cost > imin_cost)
 //      return (min_cost);
   }
@@ -469,8 +469,8 @@ distblk distI16x16_sse(Macroblock *currMB, imgpel **img_org, imgpel **pred_img, 
  ************************************************************************/
 distblk find_sad_16x16_JM(Macroblock *currMB)
 {
-#if USE_COLA==1
-  return find_sad_16x16_CoLa(currMB);
+#if USE_SHIM==1
+  return find_sad_16x16_Shim(currMB);
 #else
   Slice *currSlice = currMB->p_Slice;
   VideoParameters *p_Vid = currMB->p_Vid;

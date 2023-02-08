@@ -2,7 +2,7 @@
 
 #pragma once
 
-namespace cola {
+namespace shim {
 
 // These functors are completely generic so they can work with fundamentals, exprs, and dyn_vars
 

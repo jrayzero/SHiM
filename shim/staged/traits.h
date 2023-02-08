@@ -5,7 +5,7 @@
 #include "builder/dyn_var.h"
 #include "fwddecls.h"
 
-namespace cola {
+namespace shim {
 
 template <typename T>
 struct is_view {

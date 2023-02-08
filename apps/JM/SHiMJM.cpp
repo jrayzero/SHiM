@@ -6,9 +6,9 @@
 // BuildIt
 #include "builder/dyn_var.h"
 #include "builder/array.h"
-// CoLa
+// Shim
 #include "staged/staged.h"
-// CoLa JM
+// Shim JM
 #include "utils.h"
 #include "containers.h"
 // within JM
@@ -16,7 +16,7 @@
 #include "typedefs.h"
 
 using namespace std;
-using namespace cola;
+using namespace shim;
 using builder::static_var;
 using builder::dyn_var;
 using builder::dyn_arr;
@@ -131,7 +131,7 @@ static void select_best(dint &best_cost, dint &best_mode,
 }
 
 // TODO support distblk in buildit (int64 in the current case I'm working on) because it fails. Using int32 instead
-static dyn_var<int> find_sad_16x16_CoLa(Macroblock macroblock) {
+static dyn_var<int> find_sad_16x16_Shim(Macroblock macroblock) {
   // set up our HMDAs
   auto pixelH = macroblock->p_inp->source.height[0];
   auto pixelW = macroblock->p_inp->source.width[0];
@@ -213,7 +213,7 @@ int main(int argc, char **argv) {
   includes << "#include \"global.h\"" << endl;
   includes << "#include \"mbuffer.h\"" << endl;
   // 16x16
-  stage(find_sad_16x16_CoLa, "find_sad_16x16_CoLa", basename(__FILE__, "_generated"), 
+  stage(find_sad_16x16_Shim, "find_sad_16x16_Shim", basename(__FILE__, "_generated"), 
 	includes.str(), includes.str());
   // 4x4
 }

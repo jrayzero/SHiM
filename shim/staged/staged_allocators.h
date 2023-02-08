@@ -8,7 +8,7 @@
 #include "defs.h"
 #include "fwddecls.h"
 
-using namespace cola;
+using namespace shim;
 
 #ifndef UNSTAGED
 namespace builder {
@@ -50,7 +50,7 @@ HEAP_DYN_VAR(HEAP_T<double>);
 
 }
 
-namespace cola {
+namespace shim {
 
 
 /// 

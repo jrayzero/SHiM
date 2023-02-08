@@ -10,7 +10,7 @@
 
 using namespace std;
 
-namespace cola {
+namespace shim {
 
 template <typename Elem>
 struct HeapArray;

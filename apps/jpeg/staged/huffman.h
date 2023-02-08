@@ -4,7 +4,7 @@
 #include "runtime/cpp/heaparray.h"
 
 using namespace std;
-using namespace cola;
+using namespace shim;
 
 extern int luma_DC_huffbits[17];
 extern int luma_DC_huffvals[12];

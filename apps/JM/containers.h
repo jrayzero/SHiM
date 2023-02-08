@@ -14,7 +14,7 @@
 #include "typedefs.h"
 
 
-using namespace cola;
+using namespace shim;
 using builder::dyn_var;
 
 constexpr char macroblock_name[] = "Macroblock";
