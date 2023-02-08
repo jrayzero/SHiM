@@ -11,7 +11,7 @@
 #include "builder/array.h"
 #include "common/loop_type.h"
 
-namespace cola {
+namespace shim {
 
 #ifndef UNSTAGED
 //#define dvar  builder::dyn_var

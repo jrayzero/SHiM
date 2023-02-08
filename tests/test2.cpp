@@ -9,7 +9,7 @@
 
 using builder::dyn_var;
 using builder::dyn_arr;
-using namespace cola;
+using namespace shim;
 using darr2 = dyn_arr<int,2>;
 
 static void staged(builder::dyn_var<int*> data) {

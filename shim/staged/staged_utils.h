@@ -7,7 +7,7 @@
 #include "fwddecls.h"
 #include "traits.h"
 
-namespace cola {
+namespace shim {
 
 ///
 /// Convert a coordinate to a linear index 

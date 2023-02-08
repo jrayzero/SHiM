@@ -5,7 +5,7 @@
 #include "builder/dyn_var.h"
 #include "fwrappers.h"
 
-namespace cola {
+namespace shim {
 
 struct Bitstream {
   
@@ -92,13 +92,13 @@ builder::dyn_var<Ret> Bitstream::peek(builder::dyn_var<int> n) {
     } else {
       factor = 8 - bit_idx;
     }
-    byte = cola::rshift(byte, 8 - (factor+bit_idx));
+    byte = shim::rshift(byte, 8 - (factor+bit_idx));
     // now clear out any MSB bits that aren't needed
     builder::dyn_var<uint8_t> mask = lshift(1, factor) - 1;
     peeked = byte & mask; //band(byte, mask);
     bits_left = bits_left - factor;
     // now we are aligned, so we can read the remainder
-    peeked = cola::lshift(peeked, bits_left);
+    peeked = shim::lshift(peeked, bits_left);
     // temporarily adjust the cursor though
     cursor = cursor + factor;
     peeked = peeked | peek_aligned(bits_left); //bor(peeked, peek_aligned(bits_left));
@@ -119,7 +119,7 @@ builder::dyn_var<Ret> Bitstream::peek_aligned(builder::dyn_var<int> n) {
   for (builder::dyn_var<int> i = 0; i < upper; i = i + 8) {
     builder::dyn_var<uint8_t> byte = bitstream[byte_idx];
     byte_idx = byte_idx + 1;
-    builder::dyn_var<Ret> shifted = cola::lshift(peeked, 8 * dummy);
+    builder::dyn_var<Ret> shifted = shim::lshift(peeked, 8 * dummy);
     peeked = shifted | byte;
     dummy = 1;
     bits_left = bits_left - 8;
@@ -127,9 +127,9 @@ builder::dyn_var<Ret> Bitstream::peek_aligned(builder::dyn_var<int> n) {
 
   // if n was not a multiple of 8, will have some stragglers here
   if (bits_left > 0) {
-    peeked = cola::lshift(peeked, bits_left);
+    peeked = shim::lshift(peeked, bits_left);
     builder::dyn_var<uint8_t> byte = bitstream[byte_idx];
-    byte = cola::rshift(byte, 8-bits_left);
+    byte = shim::rshift(byte, 8-bits_left);
     peeked = peeked | byte; //bor(peeked, byte);
   }
   return peeked;
@@ -155,8 +155,8 @@ builder::dyn_var<Ret> Bitstream::pop_check(builder::dyn_var<int> n, builder::dyn
   skip(n);
   if (popped != should_be) {
     // TODO better error message (print expected then got)
-    cola::print_string("Invalid data");
-    cola::hexit(-1);
+    shim::print_string("Invalid data");
+    shim::hexit(-1);
   }
   return popped;
 }
@@ -167,8 +167,8 @@ builder::dyn_var<Ret> Bitstream::pop_check_aligned(builder::dyn_var<int> n, buil
   skip(n);
   if (popped != should_be) {
     // TODO better error message (print expected then got)
-    cola::print_string("Invalid data");
-    cola::hexit(-1);
+    shim::print_string("Invalid data");
+    shim::hexit(-1);
   }
   return popped;
 }

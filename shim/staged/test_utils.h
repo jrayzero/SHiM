@@ -9,11 +9,11 @@
 #include "common/loop_type.h"
 #include "fwrappers.h"
 
-namespace cola {
+namespace shim {
 
 #define ASSERT(cond) hassert(cond, #cond)
 
-//void cola_assert(builder::dyn_var<bool> condition, const char *msg="") {
+//void shim_assert(builder::dyn_var<bool> condition, const char *msg="") {
 //  hassert(condition, msg);
 //}
  

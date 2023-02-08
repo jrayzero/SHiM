@@ -254,8 +254,8 @@ static void free_encoder (EncoderParams *p_Enc)
 int main(int argc, char **argv)
 {
 
-#if USE_COLA==1
-  printf("Utilizing CoLa kernels.\n");
+#if USE_SHIM==1
+  printf("Utilizing SHiM kernels.\n");
 #else
   printf("Utilizing BuiltIn kernels.\n");
 #endif

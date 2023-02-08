@@ -7,7 +7,7 @@
 #include "fwrappers.h"
 #include "defs.h"
 
-namespace cola {
+namespace shim {
 
 // A default slice parameter value
 struct Def { };

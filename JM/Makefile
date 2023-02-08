@@ -16,10 +16,10 @@ STC?= 0
 ### OPENMP support : 1=yes, 0=no
 OPENMP?= 0
 
-USE_COLA?=0
+USE_SHIM?=0
 USE_CPP?=0
 VERBOSE?=0
-CFLAGS+=-DUSE_COLA=$(USE_COLA) -DUSE_CPP=$(USE_CPP)
+CFLAGS+=-DUSE_SHIM=$(USE_SHIM) -DUSE_CPP=$(USE_CPP)
 CXX?= $(shell which clang++)
 CC?= $(shell which clang)
 ifeq ($(VERBOSE),1)

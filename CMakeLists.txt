@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.13)
-project(HMDA)
+project(SHiM)
 include(ctest)
 set(CMAKE_VERBOSE_MAKEFILE ON)
 
@@ -18,7 +18,7 @@ endif()
 set(CMAKE_CXX_FLAGS_RELEASE "-O3")
 set(CMAKE_CXX_FLAGS_DEBUG "-g -O0 -DBOUNDS_CHECK")
 
-include_directories(cola ${CMAKE_SOURCE_DIR}/buildit/include ${CMAKE_SOURCE_DIR}/buildit/build/gen_headers)
+include_directories(shim ${CMAKE_SOURCE_DIR}/buildit/include ${CMAKE_SOURCE_DIR}/buildit/build/gen_headers)
 link_directories(${CMAKE_SOURCE_DIR}/buildit/build)
 
 # staged jpeg
@@ -55,42 +55,42 @@ add_executable(unstaged_jpeg ${CMAKE_SOURCE_DIR}/apps/jpeg/unstaged/ujpeg.cpp
                              ${CMAKE_SOURCE_DIR}/apps/jpeg/unstaged/bits.cpp)
 target_compile_definitions(unstaged_jpeg PUBLIC -DUNSTAGED)
  target_link_libraries(unstaged_jpeg buildit) # still link this because I haven't #ifdef'd all buildit things
-target_include_directories(unstaged_jpeg PUBLIC ${CMAKE_SOURCE_DIR}/cola
+target_include_directories(unstaged_jpeg PUBLIC ${CMAKE_SOURCE_DIR}/shim
   ${CMAKE_SOURCE_DIR}/apps/jpeg/unstaged
   ${CMAKE_BINARY_DIR})
 
 
-function (CoLaJM IS_CPP)
+function (ShimJM IS_CPP)
   if (${IS_CPP} EQUAL "0")
     set(SUFFIX "c")
     set(HSUFFIX "h")
-    set(GEN_TARGET_NAME CoLaJMC_generator)
-    set(TARGET_NAME CoLaJMC)
+    set(GEN_TARGET_NAME ShimJMC_generator)
+    set(TARGET_NAME ShimJMC)
   else() 
     set(SUFFIX "cpp")
     set(HSUFFIX "hpp")
-    set(GEN_TARGET_NAME CoLaJMCPP_generator)
-    set(TARGET_NAME CoLaJMCPP)
+    set(GEN_TARGET_NAME ShimJMCPP_generator)
+    set(TARGET_NAME ShimJMCPP)
   endif()
   add_executable(${GEN_TARGET_NAME}
-    ${CMAKE_SOURCE_DIR}/apps/JM/CoLaJM.cpp
+    ${CMAKE_SOURCE_DIR}/apps/JM/ShimJM.cpp
     ${CMAKE_SOURCE_DIR}/apps/JM/utils.cpp)
   target_link_libraries(${GEN_TARGET_NAME} buildit)
   target_include_directories(${GEN_TARGET_NAME} PUBLIC ${CMAKE_SOURCE_DIR}/JM/lencod/inc ${CMAKE_SOURCE_DIR}/JM/lcommon/inc)
   target_compile_definitions(${GEN_TARGET_NAME} PUBLIC IS_CPP=${IS_CPP})
   # now run the staged code
-  add_custom_command(OUTPUT ${CMAKE_BINARY_DIR}/CoLaJM_generated.${SUFFIX} ${CMAKE_BINARY_DIR}/CoLaJM_generated.${HSUFFIX}
+  add_custom_command(OUTPUT ${CMAKE_BINARY_DIR}/ShimJM_generated.${SUFFIX} ${CMAKE_BINARY_DIR}/ShimJM_generated.${HSUFFIX}
     COMMAND ${CMAKE_BINARY_DIR}/${GEN_TARGET_NAME}
     DEPENDS ${CMAKE_BINARY_DIR}/${GEN_TARGET_NAME})
 
   # build the generate cpp code   
-  add_library(${TARGET_NAME} STATIC ${CMAKE_BINARY_DIR}/CoLaJM_generated.${SUFFIX})
+  add_library(${TARGET_NAME} STATIC ${CMAKE_BINARY_DIR}/ShimJM_generated.${SUFFIX})
   target_include_directories(${TARGET_NAME} PUBLIC ${CMAKE_SOURCE_DIR}/JM/lencod/inc ${CMAKE_SOURCE_DIR}/JM/lcommon/inc)
 
 endfunction()
 
-CoLaJM(0)
-CoLAJM(1)
+ShimJM(0)
+ShimJM(1)
 
 # run "make test" to build all the tests
 add_custom_target(tests)

@@ -1,8 +1,8 @@
 #include <iostream>
 #if VERSION==1
-#include "sjpeg_v1.h"
+#include "sjpeg_v1.hpp"
 #elif VERSION==2
-#include "sjpeg_v2.h"
+#include "sjpeg_v2.hpp"
 #else
 static_assert(false, "Set VERSION=1||2");
 #endif

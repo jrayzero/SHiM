@@ -11,7 +11,7 @@
 #include "syntax.h"
 
 using namespace std;
-using namespace cola;
+using namespace shim;
 
 Iter<'i'> i;
 Iter<'j'> j;

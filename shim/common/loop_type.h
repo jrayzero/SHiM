@@ -1,5 +1,5 @@
 #pragma once
 
-namespace cola {
+namespace shim {
   using loop_type = int32_t;
 }

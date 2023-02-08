@@ -11,7 +11,7 @@
 #include "traits.h"
 #include "defs.h"
 
-namespace cola {
+namespace shim {
 
 ///
 /// Unspecialized template to determine the core type of a compound expression

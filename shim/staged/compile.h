@@ -10,7 +10,7 @@
 #include "annotations.h"
 #include "object.h"
 
-namespace cola {
+namespace shim {
 // fixes the syntax for staged function args of the form
 // dyn_var<T[]>
 // buildit prints "T[] arg", but correct syntax is "T arg[]"
@@ -172,17 +172,17 @@ void stage(Func func, std::string name, std::string fn_prefix, std::string pre_h
     src << "#define lshift(a,b) ((a) << (b))" << std::endl;
     src << "#define rshift(a,b) ((a) >> (b))" << std::endl;
   }
-  src << "#define COLA_CAST_UINT8_T(x) (uint8_t)(x)" << std::endl;
-  src << "#define COLA_CAST_UINT16_T(x) (uint16_t)(x)" << std::endl;
-  src << "#define COLA_CAST_UINT32_T(x) (uint32_t)(x)" << std::endl;
-  src << "#define COLA_CAST_UINT64_T(x) (uint64_t)(x)" << std::endl;
-  src << "#define COLA_CAST_INT8_T(x) (int8_t)(x)" << std::endl;
-  src << "#define COLA_CAST_INT16_T(x) (int16_t)(x)" << std::endl;
-  src << "#define COLA_CAST_INT32_T(x) (int32_t)(x)" << std::endl;
-  src << "#define COLA_CAST_INT64_T(x) (int64_t)(x)" << std::endl;
-  src << "#define COLA_CAST_CHAR(x) (char)(x)" << std::endl;
-  src << "#define COLA_CAST_FLOAT(x) (float)(x)" << std::endl;
-  src << "#define COLA_CAST_DOUBLE(x) (double)(x)" << std::endl;
+  src << "#define SHIM_CAST_UINT8_T(x) (uint8_t)(x)" << std::endl;
+  src << "#define SHIM_CAST_UINT16_T(x) (uint16_t)(x)" << std::endl;
+  src << "#define SHIM_CAST_UINT32_T(x) (uint32_t)(x)" << std::endl;
+  src << "#define SHIM_CAST_UINT64_T(x) (uint64_t)(x)" << std::endl;
+  src << "#define SHIM_CAST_INT8_T(x) (int8_t)(x)" << std::endl;
+  src << "#define SHIM_CAST_INT16_T(x) (int16_t)(x)" << std::endl;
+  src << "#define SHIM_CAST_INT32_T(x) (int32_t)(x)" << std::endl;
+  src << "#define SHIM_CAST_INT64_T(x) (int64_t)(x)" << std::endl;
+  src << "#define SHIM_CAST_CHAR(x) (char)(x)" << std::endl;
+  src << "#define SHIM_CAST_FLOAT(x) (float)(x)" << std::endl;
+  src << "#define SHIM_CAST_DOUBLE(x) (double)(x)" << std::endl;
   src << "void print_newline() { printf(\"\\n\"); }" << std::endl;
   std::stringstream src2;
   std::vector<std::string> sigs = hmda_cpp_code_generator::generate_code(ast, src2, 0);
