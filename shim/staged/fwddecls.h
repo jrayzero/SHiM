@@ -15,7 +15,7 @@ namespace shim {
 // Block-like things
 template <typename Elem, unsigned long Rank, bool MultiDimPtr>
 struct Block;
-template <typename Elem, unsigned long Rank, bool MultiDimPtr, unsigned long Frozen>
+template <typename Elem, unsigned long Rank, bool MultiDimPtr>
 struct View;
 template <typename BlockLike, typename Idxs> 
 struct Ref;

@@ -20,7 +20,7 @@
 #include "memalloc.h"
 
 #if USE_SHIM==1
-#include "ShimJM_generated.hpp"
+#include "ShimJM_generated.h"
 #endif
 
 /*!

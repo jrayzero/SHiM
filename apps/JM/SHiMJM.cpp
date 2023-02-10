@@ -180,23 +180,21 @@ static dyn_var<int> find_sad_16x16_Shim(Macroblock macroblock) {
     if (!break_out) {
       // now run the modes based on what data is available
       auto pred = Block<imgpel,3,true>::user({4,16,16}, macroblock->p_slice->mpr_16x16[0]);
-      // TODO use partial views here to do pred.partial(mode) so then users can access 
-      // pred as a 2d structure
       if (mode == VERT_PRED_16 && up_available) {	
-	auto p = pred.freeze(VERT_PRED_16);
+	auto p = pred.view(slice(VERT_PRED_16,VERT_PRED_16+1,1),slice(0,16,1),slice(0,16,1));
 	get_16x16_vertical(p, mblk_recons);
 	select_best(best_cost, best_mode, p, img_orig.colocate(mblk_recons), mode);
       } else if (mode == HOR_PRED_16 && left_available) {
-	auto p = pred.freeze(HOR_PRED_16);
+	auto p = pred.view(slice(HOR_PRED_16,HOR_PRED_16+1,1),slice(0,16,1),slice(0,16,1));
 	get_16x16_horizontal(p, mblk_recons);
 	select_best(best_cost, best_mode, p, img_orig.colocate(mblk_recons), mode);
       } else if (mode == PLANE_16 && all_available) {
-	auto p = pred.freeze(PLANE_16);
+	auto p = pred.view(slice(PLANE_16,PLANE_16+1,1),slice(0,16,1),slice(0,16,1));
 	get_16x16_plane(p, mblk_recons);
 	select_best(best_cost, best_mode, p, img_orig.colocate(mblk_recons), mode);
       } else if (mode == DC_PRED_16) {
 	// DC mode
-	auto p = pred.freeze(DC_PRED_16);
+	auto p = pred.view(slice(DC_PRED_16,DC_PRED_16+1,1),slice(0,16,1),slice(0,16,1));
 	get_16x16_dc(p, mblk_recons, left_available, up_available);
 	select_best(best_cost, best_mode, p, img_orig.colocate(mblk_recons), mode);
       }

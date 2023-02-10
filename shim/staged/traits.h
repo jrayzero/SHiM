@@ -12,8 +12,8 @@ struct is_view {
   static constexpr bool value = false;
 };
 
-template <typename Elem, unsigned long NUnfrozen, bool MultiDimPtr, unsigned long NFrozen>
-struct is_view<View<Elem,NUnfrozen,MultiDimPtr,NFrozen>> {
+template <typename Elem, unsigned long Rank, bool MultiDimPtr>
+struct is_view<View<Elem,Rank,MultiDimPtr>> {
   static constexpr bool value = true;
 };
 
