@@ -159,6 +159,7 @@ struct Block {
   SLoc_T bextents;
   SLoc_T bstrides;
   SLoc_T borigin;
+  std::array<int,Rank> permuted_indices;
 
 private:
 
@@ -361,12 +362,22 @@ private:
   
 };
 
+// LEFT OFF HERE: apply permutations for block read/write. Test for fails when needed too
+
 template <typename Elem, unsigned long Rank, bool MultiDimRepr>
 template <unsigned long N>
 dvar<Elem> Block<Elem,Rank,MultiDimRepr>::read(darr<loop_type,N> &coords) {
   static_assert(N <= Rank);
   if constexpr (N < Rank) {
     // we need padding at the front
+    // check that there isn't a permutation used here, because it is ambiguous where
+    // to put the padding then
+    for (int i = 0; i < Rank; i++) {
+      if (permuted_indices[i] != i) {
+	std::cerr << "Cannot use permuted indices with automatic padding!" << std::endl;
+	exit(-1);
+      }
+    }
     constexpr int pad_amt = Rank-N;
     darr<loop_type,Rank> arr;
     for (svar<int> i = 0; i < pad_amt; i=i+1) {
@@ -378,16 +389,25 @@ dvar<Elem> Block<Elem,Rank,MultiDimRepr>::read(darr<loop_type,N> &coords) {
     return this->read(arr);
   } else {
 #ifndef UNSTAGED
+    // apply permutations
+    darr<loop_type,Rank> permuted;
+    for (int i = 0; i < Rank; i++) {
+      permuted[permuted_indices[i]] = coords[i];
+    }
     if constexpr (MultiDimRepr==true) {
-      return allocator->read(coords);
+      return allocator->read(permuted);
     } else {
-      dvar<loop_type> lidx = linearize<0,Rank>(this->bextents, coords);
+      dvar<loop_type> lidx = linearize<0,Rank>(this->bextents, permuted);
       darr<loop_type,1> arr{lidx};
       return allocator->read(arr);
     }
 #else
-  dvar<loop_type> lidx = linearize<0,Rank>(this->bextents, coords);
-  return allocator[lidx];
+    darr<loop_type,Rank> permuted;
+    for (int i = 0; i < Rank; i++) {
+      permuted[permuted_indices[i]] = coords[i];
+    }
+    dvar<loop_type> lidx = linearize<0,Rank>(this->bextents, permuted);
+    return allocator[lidx];
 #endif
   }
 }
@@ -687,6 +707,9 @@ Block<Elem,Rank,MultiDimRepr>::Block(SLoc_T bextents, SLoc_T bstrides, SLoc_T bo
 #else
   this->allocator = HeapArray<Elem>(reduce<MulFunctor>(bextents));
 #endif
+  for (int i = 0; i < Rank; i=i+1) {
+    permuted_indices[i] = i;
+  }
 }
 
 template <typename Elem, unsigned long Rank, bool MultiDimRepr>
@@ -696,6 +719,9 @@ Block<Elem,Rank,MultiDimRepr>::Block(SLoc_T bextents) :
   for (svar<int> i = 0; i < Rank; i=i+1) {
     bstrides[i] = 1;
     borigin[i] = 0;
+  }
+  for (int i = 0; i < Rank; i=i+1) {
+    permuted_indices[i] = i;
   }
 #ifndef UNSTAGED
   this->allocator = std::make_shared<HeapAllocation<Elem>>(reduce<MulFunctor>(bextents));
@@ -711,6 +737,9 @@ Block<Elem,Rank,MultiDimRepr>::Block(SLoc_T bextents,
   for (svar<int> i = 0; i < Rank; i=i+1) {
     bstrides[i] = 1;
     borigin[i] = 0;
+  }
+  for (int i = 0; i < Rank; i=i+1) {
+    permuted_indices[i] = i;
   }
 }
 
@@ -1213,6 +1242,13 @@ Ref<BlockLike,typename TupleTypeCat<typename RefIdxType<Idx>::type,Idxs>::type> 
 template <typename BlockLike, typename Idxs>
 template <typename Rhs>
 void Ref<BlockLike,Idxs>::internal_assign(Rhs rhs) {
+  // check that permuted indices are not used here
+  for (int i = 0; i < BlockLike::Rank_T; i++) {
+    if (block_like.permuted_indices[i] != i) {
+      std::cerr << "Permuted indices cannot be used on the LHS of an inline index" << std::endl;
+      exit(-1);
+    }
+  }
   if constexpr (/*is_view<BlockLike>::value && */std::tuple_size<Idxs>() < BlockLike::Rank_T) {
     // get any padding dimensions
     constexpr int pad_amt = BlockLike::Rank_T - std::tuple_size<Idxs>();

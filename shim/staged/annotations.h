@@ -6,6 +6,7 @@
 #include <vector>
 #include "builder/builder.h"
 #include "defs.h"
+#include "staged_utils.h"
 
 namespace shim {
 
@@ -61,5 +62,20 @@ struct Comment {
     builder::annotate(ss.str());
   }
 };
+
+template <typename PermuteObj, typename...Types>
+void permute_one(PermuteObj &obj, std::tuple<Types...> value) {
+  static_assert(PermuteObj::Rank_T == sizeof...(Types));
+  auto arr = tuple_to_arr<loop_type>(value);
+  obj.permuted_indices = std::move(arr);
+}
+
+template <typename PermuteObj, typename...Types, typename...PermuteItems>
+void permute(PermuteObj &&obj, std::tuple<Types...> value, PermuteItems&&...items) {
+  permute_one(std::forward<PermuteObj>(obj), value);
+  if constexpr (sizeof...(PermuteItems) > 0) {
+    permute(std::forward<PermuteItems>(items)...);
+  }
+}
 
 }
