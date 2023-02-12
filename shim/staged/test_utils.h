@@ -11,7 +11,7 @@
 
 namespace shim {
 
-#define ASSERT(cond) hassert(cond, #cond)
+#define ASSERT(cond) hassert(cond, #cond, __FILE__, __LINE__)
 
 //void shim_assert(builder::dyn_var<bool> condition, const char *msg="") {
 //  hassert(condition, msg);

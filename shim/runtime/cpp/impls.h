@@ -7,9 +7,9 @@
 #include <cmath>
 #include "heaparray.h"
 
-#define SHIM_ASSERT(cond, msg)						\
+#define SHIM_ASSERT(cond, msg, file, line)				\
   if (!(cond)) {							\
-    std::cerr << "Condition failed (" << (msg) << ")" << std::endl;	\
+    std::cerr << "Condition failed (" << (msg) << ") [" << file << ":" << line << "]" << std::endl; \
     exit(-1);								\
   }
 

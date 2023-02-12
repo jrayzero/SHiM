@@ -349,4 +349,19 @@ auto dyn_arr_to_tuple(const darr<Elem,Sz> &arr) {
   }
 }
 
+template <typename Elem, int Depth, typename...Types>
+void tuple_to_arr(std::array<Elem,sizeof...(Types)> &arr, std::tuple<Types...> tup) {
+  arr[Depth] = std::get<Depth>(tup);
+  if constexpr (Depth+1 < sizeof...(Types)) {
+    tuple_to_arr<Elem,Depth+1>(arr, tup);
+  }
+}
+
+template <typename Elem, typename...Types>
+auto tuple_to_arr(std::tuple<Types...> tup) {
+  std::array<Elem,sizeof...(Types)> arr;
+  tuple_to_arr<Elem,0>(arr, tup);
+  return arr;
+}
+
 }
