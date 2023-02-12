@@ -51,14 +51,14 @@ static void staged() {
   ASSERT(view(1,0) == 9);
   ASSERT(view(1,1) == 10);
   ASSERT(view(1,2) == 11);
-  shim::permute(view, std::tuple{1,0});
+  shim::col_major(view);
   ASSERT(view(0,0) == 1);
   ASSERT(view(1,0) == 2);
   ASSERT(view(2,0) == 3);
   ASSERT(view(0,1) == 9);
   ASSERT(view(1,1) == 10);
   ASSERT(view(2,1) == 11);
-  shim::permute(view, std::tuple{0,1});
+  shim::row_major(view);
 
   auto view3 = view.view(slice(0,2,1), slice(0,3,2));
   shim::permute(view, std::tuple{1,0});

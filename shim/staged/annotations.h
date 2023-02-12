@@ -107,4 +107,30 @@ void permute(PermuteObj &&obj, std::initializer_list<T> value, PermuteItems&&...
 	  std::forward<PermuteItems>(items)...);
 }
 
+template <typename PermuteObj, typename...PermuteObjs>
+void row_major(PermuteObj &&obj, PermuteObjs&&...objs) {
+  constexpr int Rank_T = std::remove_reference<PermuteObj>::type::Rank_T;
+  std::array<int, Rank_T> arr;
+  for (int i = 0; i < Rank_T; i++) {
+    arr[i] = i;
+  }
+  obj.permuted_indices = std::move(arr);
+  if constexpr (sizeof...(PermuteObjs) > 0) {
+    row_major(objs...);
+  }
+}
+
+template <typename PermuteObj, typename...PermuteObjs>
+void col_major(PermuteObj &&obj, PermuteObjs&&...objs) {
+  constexpr int Rank_T = std::remove_reference<PermuteObj>::type::Rank_T;
+  std::array<int, Rank_T> arr;
+  for (int i = 0; i < Rank_T; i++) {
+    arr[i] = Rank_T - i - 1;
+  }
+  obj.permuted_indices = std::move(arr);
+  if constexpr (sizeof...(PermuteObjs) > 0) {
+    col_major(objs...);
+  }
+}
+
 }
