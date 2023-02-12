@@ -63,11 +63,33 @@ struct Comment {
   }
 };
 
+template <int Rank, int Depth, typename T>
+auto vector_to_tuple(std::vector<T> v) {
+  auto tup = std::tuple{v[Depth]};
+  if constexpr (Depth+1 < Rank) {
+    return std::tuple_cat(tup, vector_to_tuple<Rank,Depth+1>(v));
+  } else {
+    return tup;
+  }
+}
+
+template <int Rank, typename T>
+auto initlist_to_tuple(std::initializer_list<T> l) {
+  std::vector<T> v;
+  v.insert(v.end(), l.begin(), l.end());
+  return vector_to_tuple<Rank,0>(v);
+}
+
 template <typename PermuteObj, typename...Types>
 void permute_one(PermuteObj &obj, std::tuple<Types...> value) {
   static_assert(PermuteObj::Rank_T == sizeof...(Types));
   auto arr = tuple_to_arr<loop_type>(value);
   obj.permuted_indices = std::move(arr);
+}
+
+template <typename PermuteObj, typename T>
+void permute_one(PermuteObj &obj, std::initializer_list<T> value) {
+  permute_one(obj, initlist_to_tuple<PermuteObj::Rank_T>(value));
 }
 
 template <typename PermuteObj, typename...Types, typename...PermuteItems>
@@ -76,6 +98,13 @@ void permute(PermuteObj &&obj, std::tuple<Types...> value, PermuteItems&&...item
   if constexpr (sizeof...(PermuteItems) > 0) {
     permute(std::forward<PermuteItems>(items)...);
   }
+}
+
+template <typename PermuteObj, typename T, typename...PermuteItems>
+void permute(PermuteObj &&obj, std::initializer_list<T> value, PermuteItems&&...items) {
+  permute(std::forward<PermuteObj>(obj), 
+	  initlist_to_tuple<std::remove_reference<PermuteObj>::type::Rank_T>(value), 
+	  std::forward<PermuteItems>(items)...);
 }
 
 }

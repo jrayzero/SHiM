@@ -1348,7 +1348,7 @@ void Ref<BlockLike,Idxs>::operator=(builder::builder rhs) {
   builder::dyn_var<typename BlockLike::Elem_T> rhs2 = rhs;
   this->verify_unadorned();
   this->verify_unique<0>();
-  static_assert(std::tuple_size<Idxs>() == BlockLike::Rank_T);
+//  static_assert(std::tuple_size<Idxs>() == BlockLike::Rank_T);
 //  realize_loop_nest(rhs2);
   internal_assign(rhs2);
 }

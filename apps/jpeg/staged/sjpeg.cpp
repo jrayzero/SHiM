@@ -61,18 +61,20 @@ void color_one(RGB_T RGB, Block<int,3> YCbCr, dint comp) {
 
 template <typename RGB_T, typename YCbCr_T>
 void color(RGB_T &RGB, YCbCr_T &YCbCr) {
+  shim::permute(RGB, std::tuple{2,0,1});
   YCbCr[0][i][j] = 
-    cast<int>(cast<double>(RGB[i][j][0])*0.299 + 
-	      cast<double>(RGB[i][j][1])*0.587 + 
-	      cast<double>(RGB[i][j][2])*0.114);
+    cast<int>(cast<double>(RGB[0][i][j])*0.299 + 
+	      cast<double>(RGB[1][i][j])*0.587 + 
+	      cast<double>(RGB[2][i][j])*0.114);
   YCbCr[1][i][j] = 
-    cast<int>(cast<double>(RGB[i][j][0])*-0.168736 + 
-	      cast<double>(RGB[i][j][1])*-0.33126 + 
-	      cast<double>(RGB[i][j][2])*0.500002) + 128;
+    cast<int>(cast<double>(RGB[0][i][j])*-0.168736 + 
+	      cast<double>(RGB[1][i][j])*-0.33126 + 
+	      cast<double>(RGB[2][i][j])*0.500002) + 128;
   YCbCr[2][i][j] = 
-    cast<int>(cast<double>(RGB[i][j][0])*0.5 + 
-	      cast<double>(RGB[i][j][1])*-0.418688 + 
-	      cast<double>(RGB[i][j][2])*-0.081312) + 128;
+    cast<int>(cast<double>(RGB[0][i][j])*0.5 + 
+	      cast<double>(RGB[1][i][j])*-0.418688 + 
+	      cast<double>(RGB[2][i][j])*-0.081312) + 128;
+  shim::permute(RGB, {0,1,2});
 }
 
 // the external things to call for doing huffman
@@ -160,23 +162,23 @@ void dct(View<int,3> obj) {
   
   for (dint r = 0; r < 8; r=r+1) {
     auto row = obj.view(slice(0,1,1),slice(r,r+1,1),slice(0,8,1));
-    dint tmp0 = row(0,0,0) + row(0,0,7);
-    dint tmp7 = row(0,0,0) - row(0,0,7);
-    dint tmp1 = row(0,0,1) + row(0,0,6);
-    dint tmp6 = row(0,0,1) - row(0,0,6);
-    dint tmp2 = row(0,0,2) + row(0,0,5);
-    dint tmp5 = row(0,0,2) - row(0,0,5);
-    dint tmp3 = row(0,0,3) + row(0,0,4);
-    dint tmp4 = row(0,0,3) - row(0,0,4);
+    dint tmp0 = row(0) + row(7);
+    dint tmp7 = row(0) - row(7);
+    dint tmp1 = row(1) + row(6);
+    dint tmp6 = row(1) - row(6);
+    dint tmp2 = row(2) + row(5);
+    dint tmp5 = row(2) - row(5);
+    dint tmp3 = row(3) + row(4);
+    dint tmp4 = row(3) - row(4);
     dint tmp10 = tmp0 + tmp3;
     dint tmp13 = tmp0 - tmp3;
     dint tmp11 = tmp1 + tmp2;
     dint tmp12 = tmp1 - tmp2;
-    row[0][0][0] = (tmp10 + tmp11) << 2;
-    row[0][0][4] = (tmp10 - tmp11) << 2;
+    row[0] = (tmp10 + tmp11) << 2;
+    row[4] = (tmp10 - tmp11) << 2;
     dint z1 = (tmp12 + tmp13) * FIX_0_541196100;
-    row[0][0][2] = descale(z1 + tmp13 * FIX_0_765366865, 11);
-    row[0][0][6] = descale(z1 + tmp12 * -FIX_1_847759065, 11);
+    row[2] = descale(z1 + tmp13 * FIX_0_765366865, 11);
+    row[6] = descale(z1 + tmp12 * -FIX_1_847759065, 11);
     z1 = tmp4 + tmp7;
     dint z2 = tmp5 + tmp6;
     dint z3 = tmp4 + tmp6;
@@ -192,30 +194,30 @@ void dct(View<int,3> obj) {
     z4 = z4 * -FIX_0_390180644;
     z3 = z3 + z5;
     z4 = z4 + z5;
-    row[0][0][7] = descale(tmp4 + z1 + z3, 11);
-    row[0][0][5] = descale(tmp5 + z2 + z4, 11);
-    row[0][0][3] = descale(tmp6 + z2 + z3, 11);
-    row[0][0][1] = descale(tmp7 + z1 + z4, 11);
+    row[7] = descale(tmp4 + z1 + z3, 11);
+    row[5] = descale(tmp5 + z2 + z4, 11);
+    row[3] = descale(tmp6 + z2 + z3, 11);
+    row[1] = descale(tmp7 + z1 + z4, 11);
   }
   for (dint c = 0; c < 8; c=c+1) {
     auto col = obj.view(slice(0,1,1), slice(0,8,1), slice(c,c+1,1));    
-    dint tmp0 = col(0,0,0) + col(0,7,0);
-    dint tmp7 = col(0,0,0) - col(0,7,0);
-    dint tmp1 = col(0,1,0) + col(0,6,0);
-    dint tmp6 = col(0,1,0) - col(0,6,0);
-    dint tmp2 = col(0,2,0) + col(0,5,0);
-    dint tmp5 = col(0,2,0) - col(0,5,0);
-    dint tmp3 = col(0,3,0) + col(0,4,0);
-    dint tmp4 = col(0,3,0) - col(0,4,0);
+    dint tmp0 = col(0,0) + col(7,0);
+    dint tmp7 = col(0,0) - col(7,0);
+    dint tmp1 = col(1,0) + col(6,0);
+    dint tmp6 = col(1,0) - col(6,0);
+    dint tmp2 = col(2,0) + col(5,0);
+    dint tmp5 = col(2,0) - col(5,0);
+    dint tmp3 = col(3,0) + col(4,0);
+    dint tmp4 = col(3,0) - col(4,0);
     dint tmp10 = tmp0 + tmp3;
     dint tmp13 = tmp0 - tmp3;
     dint tmp11 = tmp1 + tmp2;
     dint tmp12 = tmp1 - tmp2;
-    col[0][0][0] = descale(tmp10 + tmp11, 2);
-    col[0][4][0] = descale(tmp10 - tmp11, 2);
+    col[0][0] = descale(tmp10 + tmp11, 2);
+    col[4][0] = descale(tmp10 - tmp11, 2);
     dint z1 = (tmp12 + tmp13) * FIX_0_541196100;
-    col[0][2][0] = descale(z1 + tmp13 * FIX_0_765366865, 15);
-    col[0][6][0] = descale(z1 + tmp12 * -FIX_1_847759065, 15);
+    col[2][0] = descale(z1 + tmp13 * FIX_0_765366865, 15);
+    col[6][0] = descale(z1 + tmp12 * -FIX_1_847759065, 15);
     z1 = tmp4 + tmp7;
     dint z2 = tmp5 + tmp6;
     dint z3 = tmp4 + tmp6;
@@ -231,17 +233,17 @@ void dct(View<int,3> obj) {
     z4 = z4 * -FIX_0_390180644;
     z3 = z3 + z5;
     z4 = z4 + z5;
-    col[0][7][0] = descale(tmp4 + z1 + z3, 15);
-    col[0][5][0] = descale(tmp5 + z2 + z4, 15);
-    col[0][3][0] = descale(tmp6 + z2 + z3, 15);
-    col[0][1][0] = descale(tmp7 + z1 + z4, 15);
+    col[7][0] = descale(tmp4 + z1 + z3, 15);
+    col[5][0] = descale(tmp5 + z2 + z4, 15);
+    col[3][0] = descale(tmp6 + z2 + z3, 15);
+    col[1][0] = descale(tmp7 + z1 + z4, 15);
   }
 }
 
 void quant(View<int,3> obj, Block<int,2> quant) {
   for (dint i = 0; i < 8; i=i+1) {
     for (dint j = 0; j < 8; j=j+1) {
-      dint v = obj(0,i,j);
+      dint v = obj(i,j);
       dint q = quant(i,j) * 8;
       dint mult = v < 0 ? -1 : 1;
       v = v * mult;
