@@ -189,7 +189,11 @@ struct View {
     bextents(std::move(bextents)), bstrides(std::move(bstrides)), borigin(std::move(borigin)),
     vextents(std::move(vextents)), vstrides(std::move(vstrides)), vorigin(std::move(vorigin)), 
     interpolation_factors(std::move(interpolation_factors)),
-    allocator(std::move(allocator)) { }    
+    allocator(std::move(allocator)) { 
+    for (int i = 0; i < Rank; i++) {
+      this->permuted_indices[i] = i;
+    }
+  }    
   
   ///
   /// Read a single element at the specified coordinate
@@ -264,7 +268,8 @@ struct View {
   SLoc_T vstrides;
   SLoc_T vorigin;  
   SLoc_T interpolation_factors;
-
+  std::array<int,Rank> permuted_indices;
+  
 private:
   
   ///
@@ -272,7 +277,7 @@ private:
   template <int Depth>
   void compute_absolute_location(const darr<loop_type,Rank> &coords,
 				 darr<loop_type,Rank> &out);
-
+  
 };
 
 ///
@@ -555,12 +560,27 @@ template <typename...Slices>
 View<Elem,Rank,MultiDimRepr> Block<Elem,Rank,MultiDimRepr>::view(Slices...slices) {
   // the block parameters stay the same, but we need to update the
   // view parameters  
+
+  SLoc_T permuted_extents;
+  for (int i = 0; i < Rank; i++) {
+    permuted_extents[i] = this->bextents[permuted_indices[i]];
+  }
+  SLoc_T vstops_p;
+  gather_stops<0,Rank>(vstops_p, permuted_extents, slices...);
+  SLoc_T vstrides_p;
+  gather_strides<0,Rank>(vstrides_p, slices...);
+  SLoc_T vorigin_p;
+  gather_origin<0,Rank>(vorigin_p, slices...);
+  // now permute all of the above to the canonical form
   SLoc_T vstops;
-  gather_stops<0,Rank>(vstops, this->bextents, slices...);
   SLoc_T vstrides;
-  gather_strides<0,Rank>(vstrides, slices...);
   SLoc_T vorigin;
-  gather_origin<0,Rank>(vorigin, slices...);
+  for (int i = 0; i < Rank; i++) {
+    vstops[permuted_indices[i]] = vstops_p[i];
+    vstrides[permuted_indices[i]] = vstrides_p[i];
+    vorigin[permuted_indices[i]] = vorigin_p[i];
+  }
+  
   // convert vstops into extents
   // just use the raw values from the slice parameters
   SLoc_T vextents;
@@ -576,6 +596,7 @@ View<Elem,Rank,MultiDimRepr> Block<Elem,Rank,MultiDimRepr>::view(Slices...slices
   for (svar<int> i = 0; i < Rank; i=i+1) {
     interpolation_factors[i] = 1;
   }
+
   return {this->bextents, this->bstrides, this->borigin,
     std::move(vextents), std::move(strides), std::move(vorigin),
     std::move(interpolation_factors),
@@ -798,6 +819,12 @@ template <typename Elem, unsigned long Rank, bool MultiDimRepr>
 template <unsigned long N>
 dvar<Elem> View<Elem,Rank,MultiDimRepr>::read(darr<loop_type,N> &coords) {
   if constexpr (N < Rank) {
+    for (int i = 0; i < Rank; i++) {
+      if (permuted_indices[i] != i) {
+	std::cerr << "Cannot use permuted indices with automatic padding!" << std::endl;
+	exit(-1);
+      }
+    }
     // we need padding at the front
     constexpr int pad_amt = Rank-N;
     darr<loop_type,Rank> arr;
@@ -814,8 +841,12 @@ dvar<Elem> View<Elem,Rank,MultiDimRepr>::read(darr<loop_type,N> &coords) {
     // manually specified all the dimensions (can happen with ref reads)
     // first get the global location
     // bi0 = vi0 * vstride0 + vorigin0
+    darr<loop_type,Rank> permuted;
+    for (int i = 0; i < Rank; i++) {
+      permuted[permuted_indices[i]] = coords[i];
+    }
     darr<loop_type,Rank> bcoords;
-    compute_absolute_location<0>(coords, bcoords);
+    compute_absolute_location<0>(permuted, bcoords);
     // now adjust to make it relative to the block
     for (svar<int> i = 0; i < N; i=i+1) {
       bcoords[i] = (bcoords[i] - borigin[i]) / bstrides[i];
@@ -852,6 +883,12 @@ template <typename ScalarElem, unsigned long N>
 void View<Elem,Rank,MultiDimRepr>::write(ScalarElem val, darr<loop_type,N> &coords) {
   if constexpr (N < Rank) {
     // we need padding at the front
+    for (int i = 0; i < Rank; i++) {
+      if (permuted_indices[i] != i) {
+	std::cerr << "Cannot use permuted indices with automatic padding!" << std::endl;
+	exit(-1);
+      }
+    }
     constexpr int pad_amt = Rank-N;
     darr<loop_type,Rank> arr;
     for (svar<int> i = 0; i < pad_amt; i=i+1) {
@@ -864,8 +901,12 @@ void View<Elem,Rank,MultiDimRepr>::write(ScalarElem val, darr<loop_type,N> &coor
   } else {
     static_assert(N == Rank);
     // manually specified all the dimensions (can happen with ref writes)
+    darr<loop_type,Rank> permuted;
+    for (int i = 0; i < Rank; i++) {
+      permuted[permuted_indices[i]] = coords[i];
+    }
     darr<loop_type,Rank> bcoords;
-    compute_absolute_location<0>(coords, bcoords);
+    compute_absolute_location<0>(permuted, bcoords);
     // now adjust to make it relative to the block
     for (svar<int> i = 0; i < N; i=i+1) {
       bcoords[i] = (bcoords[i] - borigin[i]) / bstrides[i];
@@ -978,22 +1019,28 @@ View<Elem,Rank,MultiDimRepr> View<Elem,Rank,MultiDimRepr>::view(Slices...slices)
   static_assert(sizeof...(Slices) == Rank, "Must specify slices for all dimensions.");
   // the block parameters stay the same, but we need to update the
   // view parameters  
-  // extract just the unfrozen extents
-  SLoc_T unfrozen_vstops;
-  gather_stops<0,Rank>(unfrozen_vstops, vextents, slices...);
-  SLoc_T unfrozen_vstrides;
-  gather_strides<0,Rank>(unfrozen_vstrides, slices...);
-  SLoc_T unfrozen_vorigin;
-  gather_origin<0,Rank>(unfrozen_vorigin, slices...);
-  // convert vstops into extents
-  SLoc_T unfrozen_vextents;
-  convert_stops_to_extents<Rank>(unfrozen_vextents, unfrozen_vorigin, 
-				 unfrozen_vstops, unfrozen_vstrides);
-  for (svar<int> i = 0; i < Rank; i=i+1) {
-    vorigin[i] = unfrozen_vorigin[i];
-    vstrides[i] = unfrozen_vstrides[i];
-    vextents[i] = unfrozen_vextents[i];
+  SLoc_T permuted_extents;
+  for (int i = 0; i < Rank; i++) {
+    permuted_extents[i] = this->vextents[permuted_indices[i]];
   }
+  SLoc_T vstops_p;
+  gather_stops<0,Rank>(vstops_p, permuted_extents, slices...);
+  SLoc_T vstrides_p;
+  gather_strides<0,Rank>(vstrides_p, slices...);
+  SLoc_T vorigin_p;
+  gather_origin<0,Rank>(vorigin_p, slices...);
+  // convert vstops into extents
+  SLoc_T vstops;
+  SLoc_T vstrides;
+  SLoc_T vorigin;
+  for (int i = 0; i < Rank; i++) {
+    vstops[permuted_indices[i]] = vstops_p[i];
+    vstrides[permuted_indices[i]] = vstrides_p[i];
+    vorigin[permuted_indices[i]] = vorigin_p[i];
+  }  
+  SLoc_T vextents;
+  convert_stops_to_extents<Rank>(vextents, vorigin, 
+				 vstops, vstrides);
   // now make everything relative to the prior view
   // new origin = old origin + vorigin * old strides
   SLoc_T origin;

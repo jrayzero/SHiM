@@ -29,63 +29,55 @@ static void staged() {
   ASSERT(obj(1,0) == 1);
   ASSERT(obj(1,2) == 9);
   shim::permute(obj, std::tuple{0,1});
-  obj.dump_data();
 
   shim::permute(obj2, std::tuple{1,0});
-  obj[i][j] = obj2[j][i]; // if I did obj2[i][j], then that's just undefined because I'ma ccssing data outside my area
+  obj[i][j] = obj2[j][i]; // if I did obj2[i][j], then that's just undefined because I'm accessing data outside my area
   shim::permute(obj2, std::tuple{0,1});
+  ASSERT(obj(0,1) == 1);
+  ASSERT(obj(1) == 1);
+  ASSERT(obj(2,1) == 9); 
 
-  obj.dump_data();
-/*
-  auto obj2 = Block<int,3>::heap({5,5,5});
-  // reads
+  auto view = obj.view(slice(0,3,2),slice(1,4,1));
+  shim::permute(obj, std::tuple{1,0});
+  auto view2 = obj.view(slice(1,4,1),slice(0,3,2));
+  shim::permute(obj, std::tuple{0,1});
+  ASSERT(compare_arrays(view.vextents, view2.vextents));
+  ASSERT(compare_arrays(view.vstrides, view2.vstrides));
+  ASSERT(compare_arrays(view.vorigin, view2.vorigin));
 
-  obj2[i][j][k] = i*j*5+j*5+k;
-  ASSERT(obj(1,2,3) == 23);
-  ASSERT(obj(0,4,1) == 21);
-  ASSERT(obj(4,1) == 21);
-  ASSERT(obj(4,4,4) == 104);
-  ASSERT(obj2(1,2,3) == 23);
-  ASSERT(obj2(0,4,1) == 21);
-  ASSERT(obj2(4,4,4) == 104);
-  shim::reverse();
-  ASSERT(obj(3,2,1) == 23);
-  ASSERT(obj(1,4,0) == 21);
-  ASSERT(obj(1,4) == 21);
-  ASSERT(obj(4,4,4) == 104);
-  shim::reverse();
-  shim::reverse(obj);
-  ASSERT(obj(3,2,1) == 23);
-  ASSERT(obj(1,4,0) == 21);
-  ASSERT(obj(1,4) == 21);
-  ASSERT(obj(4,4,4) == 104);
-  ASSERT(obj2(1,2,3) == 23);
-  ASSERT(obj2(0,4,1) == 21);
-  ASSERT(obj2(4,1) == 21);
-  ASSERT(obj2(4,4,4) == 104);
-  shim::reverse(obj);
-  shim::reverse(obj,obj2);
-  ASSERT(obj(3,2,1) == 23);
-  ASSERT(obj(1,4,0) == 21);
-  ASSERT(obj(1,4) == 21);
-  ASSERT(obj(4,4,4) == 104);
-  ASSERT(obj2(3,2,1) == 23);
-  ASSERT(obj2(1,4,0) == 21);
-  ASSERT(obj2(1,4) == 21);
-  ASSERT(obj2(4,4,4) == 104);
-  shim::reverse(obj,obj2);*/
-  // writes
-/*  auto obj3 = Block<int,2>::heap({3,4});
-  obj3[i][j] = i*4+j;
-  ASSERT(obj3(1,2) == 6);
-  shim::reverse(obj3);
-  ASSERT(obj3(2,1) == 6);
-  shim::reverse(obj3);
-  shim::reverse(obj3);
-  obj3[i][j] = i*4+j;
-  obj3.dump_data();
-  ASSERT(obj3(0,1) == 4);
-  shim::reverse(obj3);*/  
+  ASSERT(view(0,0) == 1);
+  ASSERT(view(0,1) == 2);
+  ASSERT(view(0,2) == 3);
+  ASSERT(view(1,0) == 9);
+  ASSERT(view(1,1) == 10);
+  ASSERT(view(1,2) == 11);
+  shim::permute(view, std::tuple{1,0});
+  ASSERT(view(0,0) == 1);
+  ASSERT(view(1,0) == 2);
+  ASSERT(view(2,0) == 3);
+  ASSERT(view(0,1) == 9);
+  ASSERT(view(1,1) == 10);
+  ASSERT(view(2,1) == 11);
+  shim::permute(view, std::tuple{0,1});
+
+  auto view3 = view.view(slice(0,2,1), slice(0,3,2));
+  shim::permute(view, std::tuple{1,0});
+  auto view4 = view.view(slice(0,3,2), slice(0,2,1));
+  shim::permute(view, std::tuple{0,1});
+  ASSERT(compare_arrays(view3.vextents, view4.vextents));
+  ASSERT(compare_arrays(view3.vstrides, view4.vstrides));
+  ASSERT(compare_arrays(view3.vorigin, view4.vorigin));
+
+  ASSERT(view3(0,0) == 1);
+  ASSERT(view3(0,1) == 3);
+  ASSERT(view3(1,0) == 9);
+  ASSERT(view3(1,1) == 11);
+  shim::permute(view3, std::tuple{1,0});
+  ASSERT(view3(0,0) == 1);
+  ASSERT(view3(1,0) == 3);
+  ASSERT(view3(0,1) == 9);
+  ASSERT(view3(1,1) == 11);  
+  shim::permute(view3, std::tuple{0,1});
 }
 
 int main() {
