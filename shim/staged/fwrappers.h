@@ -95,6 +95,18 @@ builder::dyn_var<HEAP_T<int32_t>(loop_type)> build_heaparr_int32_t = builder::as
 builder::dyn_var<HEAP_T<int64_t>(loop_type)> build_heaparr_int64_t = builder::as_global("shim::build_heaparr<int64_t>");
 builder::dyn_var<HEAP_T<float>(loop_type)> build_heaparr_float = builder::as_global("shim::build_heaparr<float>");
 builder::dyn_var<HEAP_T<double>(loop_type)> build_heaparr_double = builder::as_global("shim::build_heaparr<double>");
+
+builder::dyn_var<uint8_t*(loop_type)> build_stackarr_uint8_t = builder::as_global("SHIM_BUILD_STACK_UINT8_T");
+builder::dyn_var<uint16_t*(loop_type)> build_stackarr_uint16_t = builder::as_global("SHIM_BUILD_STACK_UINT16_T");
+builder::dyn_var<uint32_t*(loop_type)> build_stackarr_uint32_t = builder::as_global("SHIM_BUILD_STACK_UINT32_T");
+builder::dyn_var<uint64_t*(loop_type)> build_stackarr_uint64_t = builder::as_global("SHIM_BUILD_STACK_UINT64_T");
+builder::dyn_var<char*(loop_type)> build_stackarr_char = builder::as_global("SHIM_BUILD_STACK_CHAR");
+builder::dyn_var<int8_t*(loop_type)> build_stackarr_int8_t = builder::as_global("SHIM_BUILD_STACK_INT8_T");
+builder::dyn_var<int16_t*(loop_type)> build_stackarr_int16_t = builder::as_global("SHIM_BUILD_STACK_INT16_T");
+builder::dyn_var<int32_t*(loop_type)> build_stackarr_int32_t = builder::as_global("SHIM_BUILD_STACK_INT32_T");
+builder::dyn_var<int64_t*(loop_type)> build_stackarr_int64_t = builder::as_global("SHIM_BUILD_STACK_INT64_T");
+builder::dyn_var<float*(loop_type)> build_stackarr_float = builder::as_global("SHIM_BUILD_STACK_FLOAT");
+builder::dyn_var<double*(loop_type)> build_stackarr_double = builder::as_global("SHIM_BUILD_STACK_DOUBLE");
 #endif
 
 builder::dyn_var<void(uint8_t)> print_elem_uint8_t = builder::as_global("shim::print_elem<uint8_t>");

@@ -9,6 +9,7 @@
 #include "builder/builder_dynamic.h"
 #include "annotations.h"
 #include "object.h"
+#include "passes.h"
 
 namespace shim {
 // fixes the syntax for staged function args of the form
@@ -21,16 +22,6 @@ public:
   static std::vector<std::string> generate_code(block::block::Ptr ast, std::ostream &oss, int indent = 0) {
     hmda_cpp_code_generator generator;
     generator.curr_indent = indent;
-/*    // first generate all the struct definitions
-    std::stringstream structs;
-    for (auto kv : builder::StructInfo::structs) {
-      structs << "struct " << kv.first << " {" << std::endl;
-      for (auto p : kv.second) {
-	structs << "  " << p.second << ";" << std::endl;
-      }
-      structs << "};" << std::endl;
-    }
-    oss << structs.str();*/
     // then back to the usual
     ast->accept(&generator);
     oss << generator.last;
@@ -152,7 +143,13 @@ void stage(Func func, std::string name, std::string fn_prefix, std::string pre_h
   src.open(source);
   if (name.empty()) name = "__my_staged_func";
   auto ast = builder::builder_context().extract_function_ast(func, name, args...);
+  // run buildit passes
   block::eliminate_redundant_vars(ast);
+
+  // run shim passes
+  ReplaceStackBuilder replace_stack_builder;
+  ast->accept(&replace_stack_builder);
+
   hdr << "#pragma once" << std::endl;
   hdr << pre_hdr;
   src << pre_src;
@@ -183,6 +180,19 @@ void stage(Func func, std::string name, std::string fn_prefix, std::string pre_h
   src << "#define SHIM_CAST_CHAR(x) (char)(x)" << std::endl;
   src << "#define SHIM_CAST_FLOAT(x) (float)(x)" << std::endl;
   src << "#define SHIM_CAST_DOUBLE(x) (double)(x)" << std::endl;
+
+  src << "#define SHIM_BUILD_STACK_UINT8_T(name,x) uint8_t name[x]" << std::endl;
+  src << "#define SHIM_BUILD_STACK_UINT16_T(name,x) uint16_t name[x]" << std::endl;
+  src << "#define SHIM_BUILD_STACK_UINT32_T(name,x) uint32_t name[x]" << std::endl;
+  src << "#define SHIM_BUILD_STACK_UINT64_T(name,x) uint64_t name[x]" << std::endl;
+  src << "#define SHIM_BUILD_STACK_INT8_T(name,x) int8_t name[x]" << std::endl;
+  src << "#define SHIM_BUILD_STACK_INT16_T(name,x) int16_t name[x]" << std::endl;
+  src << "#define SHIM_BUILD_STACK_INT32_T(name,x) int32_t name[x]" << std::endl;
+  src << "#define SHIM_BUILD_STACK_INT64_T(name,x) int64_t name[x]" << std::endl;
+  src << "#define SHIM_BUILD_STACK_CHAR(name,x) char name[x]" << std::endl;
+  src << "#define SHIM_BUILD_STACK_FLOAT(name,x) float name[x]" << std::endl;
+  src << "#define SHIM_BUILD_STACK_DOUBLE(name,x) double name[x]" << std::endl;
+
   src << "void print_newline() { printf(\"\\n\"); }" << std::endl;
   std::stringstream src2;
   std::vector<std::string> sigs = hmda_cpp_code_generator::generate_code(ast, src2, 0);

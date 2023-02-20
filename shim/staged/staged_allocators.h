@@ -94,8 +94,8 @@ struct Allocation {
 
   ///
   /// Get the underlying stack allocation. Only valid for internally-managed stack allocations.
-  template <int Sz>
-  builder::dyn_var<Elem[Sz]> stack();
+//  template <int Sz>
+  builder::dyn_var<Elem*> stack();
 
 };
 
@@ -118,6 +118,15 @@ struct Allocation {
     auto operator()(builder::dyn_var<loop_type> sz) {	\
       return build_heaparr_##dtype(sz);			\
     }							\
+  }
+
+// calls the appropriate stack builder function
+#define DISPATCH_STACK_BUILDER(dtype)				\
+  template <>							\
+  struct DispatchBuildStack<dtype> {				\
+    auto operator()(loop_type sz) {				\
+      return build_stackarr_##dtype(sz);			\
+    }								\
   }
 
 template <typename Elem, bool IsHeapArry, typename Data>
@@ -148,6 +157,21 @@ DISPATCH_BUILDER(int64_t);
 DISPATCH_BUILDER(float);
 DISPATCH_BUILDER(double);
 
+template <typename Elem>
+struct DispatchBuildStack { };
+DISPATCH_STACK_BUILDER(uint8_t);
+DISPATCH_STACK_BUILDER(uint16_t);
+DISPATCH_STACK_BUILDER(uint32_t);
+DISPATCH_STACK_BUILDER(uint64_t);
+DISPATCH_STACK_BUILDER(char);
+DISPATCH_STACK_BUILDER(int8_t);
+DISPATCH_STACK_BUILDER(int16_t);
+DISPATCH_STACK_BUILDER(int32_t);
+DISPATCH_STACK_BUILDER(int64_t);
+DISPATCH_STACK_BUILDER(float);
+DISPATCH_STACK_BUILDER(double);
+
+
 ///
 /// Calls the appropriate external write function based on the Elem and allocation type
 template <typename Elem, bool IsHeapArr, typename Data>
@@ -160,6 +184,13 @@ void dispatch_memset(Data data, builder::dyn_var<Elem> val, builder::dyn_var<loo
 template <typename Elem>
 auto dispatch_build_heap(builder::dyn_var<loop_type> sz) {
   return DispatchBuildHeap<Elem>()(sz);  
+}
+
+///
+/// Calls the appropriate external StackArr builder function based on the Elem and allocation type
+template <typename Elem>
+auto dispatch_build_stack(loop_type sz) {
+  return DispatchBuildStack<Elem>()(sz);  
 }
 
 ///
@@ -184,12 +215,13 @@ struct HeapAllocation : public Allocation<Elem,1> {
 
 ///
 /// Defines an internally-allocated stack
-template <typename Elem, int Size>
+template <typename Elem>
 struct StackAllocation : public Allocation<Elem,1> {
 
   virtual ~StackAllocation() = default;
 
-  bool is_stack_strategy() const override { return true; }
+  // For a stack allocation, this better be a constant sz. otherwise your generated code may fail
+  explicit StackAllocation(builder::static_var<loop_type> sz) : data(dispatch_build_stack<Elem>(sz)) { }
 
   builder::dyn_var<Elem> read(builder::dyn_arr<loop_type,1> &idxs) override;
 
@@ -197,7 +229,7 @@ struct StackAllocation : public Allocation<Elem,1> {
 
   void memset(builder::dyn_var<loop_type> sz) override;
 
-  builder::dyn_var<Elem[Size]> data;
+  builder::dyn_var<Elem*> data;
 
 };
                 
@@ -227,10 +259,9 @@ builder::dyn_var<HEAP_T<Elem>> Allocation<Elem, PhysicalRank>::heap() {
   return static_cast<HeapAllocation<Elem>*>(this)->data;
 }
 template <typename Elem, int PhysicalRank>
-template <int Sz>
-builder::dyn_var<Elem[Sz]> Allocation<Elem, PhysicalRank>::stack() {
+builder::dyn_var<Elem*> Allocation<Elem, PhysicalRank>::stack() {
   assert(is_stack_strategy());
-  return static_cast<StackAllocation<Elem,Sz>*>(this)->data;
+  return static_cast<StackAllocation<Elem>*>(this)->data;
 }
 
 template <typename Elem>
@@ -248,18 +279,18 @@ void HeapAllocation<Elem>::memset(builder::dyn_var<loop_type> sz) {
   dispatch_memset<Elem,true>(data, Elem(0), sz);
 }
 
-template <typename Elem, int Sz>
-builder::dyn_var<Elem> StackAllocation<Elem,Sz>::read(builder::dyn_arr<loop_type,1> &idxs) { 
+template <typename Elem>
+builder::dyn_var<Elem> StackAllocation<Elem>::read(builder::dyn_arr<loop_type,1> &idxs) { 
   return data[idxs[0]];
 }
 
-template <typename Elem, int Sz>
-void StackAllocation<Elem,Sz>::write(builder::dyn_var<Elem> val, builder::dyn_arr<loop_type,1> &idxs) { 
+template <typename Elem>
+void StackAllocation<Elem>::write(builder::dyn_var<Elem> val, builder::dyn_arr<loop_type,1> &idxs) { 
   data[idxs[0]] = val;
 }
 
-template <typename Elem, int Sz>
-void StackAllocation<Elem,Sz>::memset(builder::dyn_var<loop_type> sz) {
+template <typename Elem>
+void StackAllocation<Elem>::memset(builder::dyn_var<loop_type> sz) {
   dispatch_memset<Elem,false>(data, Elem(0), sz);
 }  
 
