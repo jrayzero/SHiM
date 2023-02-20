@@ -19,6 +19,25 @@
 
 namespace shim {
 
+// TODO use within block and view to hold the info so I don't need to keep retyping it
+// Also allowing just building one of these manually and passing into a block/view constructor
+template <unsigned long Rank>
+struct MeshLocation {
+  using SLoc_T = Loc_T<Rank>;
+
+  MeshLocation(SLoc_T extents, SLoc_T strides, SLoc_T origin,
+	       SLoc_T refinement_factors, SLoc_T coarsening_factors);
+
+  void dump_location();
+
+  MeshLocation<Rank> compute_base_mesh_location();
+  
+  SLoc_T extents;
+  SLoc_T strides;
+  SLoc_T origin;
+  SLoc_T refinement_factors;
+  SLoc_T coarsening_factors; 
+};
 
 #ifndef UNSTAGED
 template <typename Elem, int PhysicalRank>
@@ -62,7 +81,8 @@ struct Block {
 
   ///
   /// Create an internally-managed heap Block
-  Block(SLoc_T bextents, SLoc_T bstrides, SLoc_T borigin, SLoc_T brefinement_factors);
+  Block(SLoc_T bextents, SLoc_T bstrides, SLoc_T borigin, 
+	SLoc_T brefinement_factors, SLoc_T bcoarsening_factors);
 
   ///
   /// Create an internally-managed heap Block
@@ -77,13 +97,22 @@ struct Block {
   /// Create an internally-managed stack Block
   template <loop_type...Extents>
   static Block<Elem,Rank,MultiDimRepr> stack();
+
+  ///
+  /// Create an internally-managed stack Block
+  template <loop_type...Extents>
+  static Block<Elem,Rank,false> stack(SLoc_T bstrides, SLoc_T borigin, 
+				      SLoc_T brefinement_factors, SLoc_T bcoarsening_factors);
 #endif
 
   ///
   /// Create a user-managed allocation
 #ifndef UNSTAGED
   static Block<Elem,Rank,MultiDimRepr> user(SLoc_T bextents, 
-					   dvar<typename decltype(ptr_wrap<Elem,Rank,MultiDimRepr>())::P> user);
+					    dvar<typename decltype(ptr_wrap<Elem,Rank,MultiDimRepr>())::P> user);
+  static Block<Elem,Rank,MultiDimRepr> user(SLoc_T bextents, SLoc_T bstrides, SLoc_T borigin,
+					    SLoc_T brefinement_factors, SLoc_T bcoarsening_factors,
+					    dvar<typename decltype(ptr_wrap<Elem,Rank,MultiDimRepr>())::P> user);
 #else
   static Block<Elem,Rank,MultiDimRepr> user(SLoc_T bextents, dvar<Elem*> user);
 #endif
@@ -123,6 +152,14 @@ struct Block {
   template <typename...Factors>
   Block<Elem,Rank,false> physically_refine(Factors...factors);
 
+  /// Create coarsening factors that physically decrease the extent of this block.
+  template <typename...Factors>
+  Block<Elem,Rank,false> physically_coarsen(Factors...factors);
+
+  ///
+  /// Print out the location of this block within the base mesh space
+  void dump_base_mesh_space_location();
+
   ///
   /// Write a single element at the specified coordinate
   /// Prefer the operator[] write method over this.
@@ -157,6 +194,7 @@ struct Block {
   SLoc_T bstrides;
   SLoc_T borigin;
   SLoc_T brefinement_factors;
+  SLoc_T bcoarsening_factors;
   std::array<int,Rank> permuted_indices;
 
 private:
@@ -164,6 +202,12 @@ private:
   ///
   /// Create a Block with the specifed Allocation
   Block(SLoc_T bextents, Allocation_T<Elem,physical<Rank,MultiDimRepr>()> allocator);
+
+  ///
+  /// Create a Block with the specifed Allocation
+  Block(SLoc_T bextents, SLoc_T bstrides, SLoc_T borigin,
+	SLoc_T brefinement_factors, SLoc_T bcoarsening_factors,
+	Allocation_T<Elem,physical<Rank,MultiDimRepr>()> allocator);
 
 };
 
@@ -180,8 +224,8 @@ struct View {
 
   /// 
   /// Create a View from the specified location information
-  View(SLoc_T bextents, SLoc_T bstrides, SLoc_T borigin, SLoc_T brefinement_factors,
-       SLoc_T vextents, SLoc_T vstrides, SLoc_T vorigin, SLoc_T vrefinement_factors,
+  View(SLoc_T bextents, SLoc_T bstrides, SLoc_T borigin, SLoc_T brefinement_factors, SLoc_T bcoarsening_factors,
+       SLoc_T vextents, SLoc_T vstrides, SLoc_T vorigin, SLoc_T vrefinement_factors, SLoc_T vcoarsening_factors,
        Allocation_T<Elem,physical<Rank,MultiDimRepr>()> allocator);
   
   ///
@@ -225,6 +269,14 @@ struct View {
   template <typename...Factors>
   Block<Elem,Rank,false> physically_refine(Factors...factors);
 
+  /// Create coarsening factors that physically decrease the extent of this view.
+  template <typename...Factors>
+  Block<Elem,Rank,false> physically_coarsen(Factors...factors);
+
+  ///
+  /// Print out the location of this view within the base mesh space
+  void dump_base_mesh_space_location();
+
   ///
   /// Slice out a View over a portion of this View
   template <typename...Slices>
@@ -255,10 +307,12 @@ struct View {
   SLoc_T bstrides;
   SLoc_T borigin;
   SLoc_T brefinement_factors;
+  SLoc_T bcoarsening_factors;
   SLoc_T vextents;
   SLoc_T vstrides;
   SLoc_T vorigin;  
   SLoc_T vrefinement_factors;
+  SLoc_T vcoarsening_factors;
   std::array<int,Rank> permuted_indices;
   
 private:
@@ -266,7 +320,7 @@ private:
   ///
   /// Compute the absolute indices of the coordinates. Can only be called once frozen dims are prepended.
   template <int Depth>
-  void compute_block_refinement_space_location(const darr<loop_type,Rank> &coords,
+  void compute_block_mesh_space_location(const darr<loop_type,Rank> &coords,
 				 darr<loop_type,Rank> &out);
   
 };
@@ -358,7 +412,44 @@ private:
   
 };
 
-// LEFT OFF HERE: apply permutations for block read/write. Test for fails when needed too
+template <unsigned long Rank>
+void MeshLocation<Rank>::dump_location() {
+  print("Mesh space location info");
+  print_newline();
+  print("  Extents: ");
+  for (svar<int> r = 0; r < Rank; r=r+1) {
+    print(" ");
+    dispatch_print_elem<int>(extents[r]);    
+  }  
+  print("  Origin: ");
+  for (svar<int> r = 0; r < Rank; r=r+1) {
+    print(" ");
+    dispatch_print_elem<int>(origin[r]);    
+  }  
+  print("  Strides: ");
+  for (svar<int> r = 0; r < Rank; r=r+1) {
+    print(" ");
+    dispatch_print_elem<int>(strides[r]);    
+  }  
+}
+
+template <unsigned long Rank>
+MeshLocation<Rank> MeshLocation<Rank>::compute_base_mesh_location() {
+  SLoc_T base_extents;
+  SLoc_T base_origin;
+  SLoc_T base_strides;
+  SLoc_T base_refinement;
+  SLoc_T base_coarsening;
+  for (svar<int> i = 0; i < Rank; i=i+1) {
+    base_extents[i] = this->bextents[i] * this->bcoarsening_factors[i] / this->brefinement_factors[i];
+    base_origin[i] = this->borigin[i] * this->bcoarsening_factors[i] / this->brefinement_factors[i];
+    base_strides[i] = this->bstrides[i] * this->bcoarsening_factors[i] / this->brefinement_factors[i];
+    base_refinement[i] = 1;
+    base_coarsening[i] = 1;
+  }
+  return {std::move(base_extents), std::move(base_origin), std::move(base_strides),
+    std::move(base_refinement), std::move(base_coarsening)};
+}
 
 template <typename Elem, unsigned long Rank, bool MultiDimRepr>
 template <unsigned long N>
@@ -458,7 +549,6 @@ void Block<Elem,Rank,MultiDimRepr>::write(ScalarElem val, darr<loop_type,N> &coo
   }
 }
 
-
 template <typename Elem, unsigned long Rank, bool MultiDimRepr>
 template <typename Idx>
 Ref<Block<Elem,Rank,MultiDimRepr>,std::tuple<typename RefIdxType<Idx>::type>> Block<Elem,Rank,MultiDimRepr>::operator[](Idx idx) {
@@ -491,34 +581,80 @@ dvar<Elem> Block<Elem,Rank,MultiDimRepr>::plidx(LIdx lidx) {
 template <typename Elem, unsigned long Rank, bool MultiDimRepr>
 template <typename Elem2, bool MultiDimRepr2>
 View<Elem,Rank,MultiDimRepr> Block<Elem,Rank,MultiDimRepr>::colocate(Block<Elem2,Rank,MultiDimRepr2> &block) {
-#ifdef SHIM_USER_DEBUG
+/*#ifdef SHIM_USER_DEBUG
   for (svar<int> i = 0; i < Rank; i=i+1) {
     if (this->brefinement_factors[i] > block.brefinement_factors[i]) {
       print("Colocation results in invalid refinement! Got base refinement of %d and view refinement of %d in dimension %d.\\n",
 	    this->brefinement_factors[i], block.brefinement_factors[i], i);
       hexit(-1);
     }
+    if (this->bcoarsening_factor[i] < block.bcoarsening_factors[i]) {
+      print("Colocation results in invalid coarsening! Got base coarsening of %d and view coarsening of %d in dimension %d.\\n",
+	    this->bcoarsening_factors[i], block.bcoarsening_factors[i], i);
+      hexit(-1);
+    }
   }
-#endif
-  return {this->bextents, this->bstrides, this->borigin, this->brefinement_factors,
-    block.bextents, block.bstrides, block.borigin, block.brefinement_factors,
+#endif*/
+  // convert parameterization to the base mesh space
+  SLoc_T base_extents;
+  SLoc_T base_strides;
+  SLoc_T base_origin;
+  for (svar<int> i = 0; i < Rank; i=i+1) {
+    base_extents[i] = block.bextents[i] * block.bcoarsening_factors[i] / block.brefinement_factors[i];
+    base_strides[i] = block.bstrides[i] * block.bcoarsening_factors[i] / block.brefinement_factors[i];
+    base_origin[i] = block.borigin[i] * block.bcoarsening_factors[i] / block.brefinement_factors[i];
+  }
+  // now put into this's mesh space
+  SLoc_T mesh_extents;
+  SLoc_T mesh_strides;
+  SLoc_T mesh_origin;
+  for (svar<int> i = 0; i < Rank; i=i+1) {
+    mesh_extents[i] = base_extents[i] * this->brefinement_factors[i] / this->bcoarsening_factors[i];
+    mesh_strides[i] = base_strides[i] * this->brefinement_factors[i] / this->bcoarsening_factors[i];
+    mesh_origin[i] = base_origin[i] * this->brefinement_factors[i] / this->bcoarsening_factors[i];
+  }
+  return {this->bextents, this->bstrides, this->borigin, this->brefinement_factors, this->bcoarsening_factors,
+    mesh_extents, mesh_strides, mesh_origin, this->brefinement_factors, this->bcoarsening_factors,
     this->allocator};
 }
 
 template <typename Elem, unsigned long Rank, bool MultiDimRepr>
 template <typename Elem2, bool MultiDimRepr2>
 View<Elem,Rank,MultiDimRepr> Block<Elem,Rank,MultiDimRepr>::colocate(View<Elem2,Rank,MultiDimRepr2> &view) {
-#ifdef SHIM_USER_DEBUG
+/*#ifdef SHIM_USER_DEBUG
   for (svar<int> i = 0; i < Rank; i=i+1) {
     if (this->brefinement_factors[i] > view.vrefinement_factors[i]) {
       print("Colocation results in invalid refinement! Got base refinement of %d and view refinement of %d in dimension %d.\\n",
 	    this->brefinement_factors[i], view.brefinement_factors[i], i);
       hexit(-1);
     }
+    if (this->bcoarsening_factors[i] < view.vcoarsening_factors[i]) {
+      print("Colocation results in invalid coarsening! Got base coarsening of %d and view coarsening of %d in dimension %d.\\n",
+	    this->brefinement_factors[i], view.brefinement_factors[i], i);
+      hexit(-1);
+    }
   }
-#endif
-  return {this->bextents, this->bstrides, this->borigin, this->brefinement_factors,
-    view.vextents, view.vstrides, view.vorigin, view.vrefinement_factors,
+#endif*/
+  // convert parameterization to the base mesh space
+  SLoc_T base_extents;
+  SLoc_T base_strides;
+  SLoc_T base_origin;
+  for (svar<int> i = 0; i < Rank; i=i+1) {
+    base_extents[i] = view.vextents[i] * view.vcoarsening_factors[i] / view.vrefinement_factors[i];
+    base_strides[i] = view.vstrides[i] * view.vcoarsening_factors[i] / view.vrefinement_factors[i];
+    base_origin[i] = view.vorigin[i] * view.vcoarsening_factors[i] / view.vrefinement_factors[i];
+  }
+  // now put into this's mesh space
+  SLoc_T mesh_extents;
+  SLoc_T mesh_strides;
+  SLoc_T mesh_origin;
+  for (svar<int> i = 0; i < Rank; i=i+1) {
+    mesh_extents[i] = base_extents[i] * this->brefinement_factors[i] / this->bcoarsening_factors[i];
+    mesh_strides[i] = base_strides[i] * this->brefinement_factors[i] / this->bcoarsening_factors[i];
+    mesh_origin[i] = base_origin[i] * this->brefinement_factors[i] / this->bcoarsening_factors[i];
+  }
+  return {this->bextents, this->bstrides, this->borigin, this->brefinement_factors, this->bcoarsening_factors,
+    mesh_extents, mesh_strides, mesh_origin, this->brefinement_factors, this->bcoarsening_factors,
     this->allocator};
 } 
 
@@ -540,7 +676,9 @@ View<Elem,Rank,MultiDimRepr> Block<Elem,Rank,MultiDimRepr>::virtually_refine(Fac
     rfactors[i] = this->brefinement_factors[i] * rfactors[i];
   }
   return {this->bextents, this->bstrides, this->borigin, this->brefinement_factors,
+    this->bcoarsening_factors,
     std::move(vextents), this->bstrides, std::move(vorigin), std::move(rfactors),
+    this->bcoarsening_factors,
     this->allocator};
 }
 
@@ -562,13 +700,38 @@ Block<Elem,Rank,false> Block<Elem,Rank,MultiDimRepr>::physically_refine(Factors.
     rfactors[i] = this->brefinement_factors[i] * rfactors[i];
   }
   return {std::move(new_bextents), this->bstrides, std::move(new_borigin), std::move(rfactors),
+    this->bcoarsening_factors,
+    this->allocator};
+}
+
+template <typename Elem, unsigned long Rank, bool MultiDimRepr>
+template <typename...Factors>
+Block<Elem,Rank,false> Block<Elem,Rank,MultiDimRepr>::physically_coarsen(Factors...factors) {
+  SLoc_T cfactors{factors...};
+  SLoc_T new_bextents;
+  SLoc_T new_borigin;  
+  for (svar<loop_type> i = 0; i < Rank; i=i+1) {
+#ifdef SHIM_USER_DEBUG 
+    if (this->bstrides[i] != 1 && rfactors[i] > 1) {
+      print("Cannot coarsen block with non-unit stride %d in dimension %d.\\n", this->bstrides[i], i);
+      hexit(-1);
+    }
+#endif
+    new_bextents[i] = this->bextents[i] /  cfactors[i];
+    new_borigin[i] = this->borigin[i] / cfactors[i];
+    cfactors[i] = this->bcoarsening_factors[i] * cfactors[i];
+  }
+  return {std::move(new_bextents), this->bstrides, std::move(new_borigin), 
+    this->refinement_factors, std::move(cfactors),
     this->allocator};
 }
 
 template <typename Elem, unsigned long Rank, bool MultiDimRepr>
 View<Elem,Rank,MultiDimRepr> Block<Elem,Rank,MultiDimRepr>::view() {
   return {this->bextents, this->bstrides, this->borigin, this->brefinement_factors,
-    this->bextents, this->bstrides, this->borigin, this->brefinement_factors,
+    this->bcoarsening_factors,
+    this->bextents, this->bstrides, this->borigin, this->brefinement_factors,    
+    this->bcoarsening_factors,
     this->allocator};
 }
 
@@ -608,8 +771,9 @@ View<Elem,Rank,MultiDimRepr> Block<Elem,Rank,MultiDimRepr>::view(Slices...slices
   for (svar<int> i = 0; i < Rank; i=i+1) {
     vorigin[i] = vorigin[i] * this->bstrides[i] + this->borigin[i];
   }
-  return {this->bextents, this->bstrides, this->borigin, this->brefinement_factors,
-    std::move(vextents), std::move(strides), std::move(vorigin), this->brefinement_factors,
+  return {
+    this->bextents, this->bstrides, this->borigin, this->brefinement_factors, this->bcoarsening_factors,
+    std::move(vextents), std::move(strides), std::move(vorigin), this->brefinement_factors, this->bcoarsening_factors,
     this->allocator};  
 }
 
@@ -644,6 +808,35 @@ void Block<Elem,Rank,MultiDimRepr>::dump_data() {
 }
 
 template <typename Elem, unsigned long Rank, bool MultiDimRepr>
+void Block<Elem,Rank,MultiDimRepr>::dump_base_mesh_space_location() {
+  SLoc_T base_extents;
+  SLoc_T base_origin;
+  SLoc_T base_strides;
+  for (svar<int> i = 0; i < Rank; i=i+1) {
+    base_extents[i] = this->bextents[i] / this->brefinement_factors[i] * this->bcoarsening_factors[i];
+    base_origin[i] = this->borigin[i] / this->brefinement_factors[i] * this->bcoarsening_factors[i];
+    base_strides[i] = this->bstrides[i] / this->brefinement_factors[i] * this->bcoarsening_factors[i];
+  }
+  print("Block base mesh space location info");
+  print_newline();
+  print("  Base extents: ");
+  for (svar<int> r = 0; r < Rank; r=r+1) {
+    print(" ");
+    dispatch_print_elem<int>(base_extents[r]);    
+  }  
+  print("  Base origin: ");
+  for (svar<int> r = 0; r < Rank; r=r+1) {
+    print(" ");
+    dispatch_print_elem<int>(base_origin[r]);    
+  }  
+  print("  Base strides: ");
+  for (svar<int> r = 0; r < Rank; r=r+1) {
+    print(" ");
+    dispatch_print_elem<int>(base_strides[r]);    
+  }  
+}
+
+template <typename Elem, unsigned long Rank, bool MultiDimRepr>
 void Block<Elem,Rank,MultiDimRepr>::dump_loc() {
   print("Block location info");
   print_newline();
@@ -674,6 +867,12 @@ void Block<Elem,Rank,MultiDimRepr>::dump_loc() {
     dispatch_print_elem<int>(brefinement_factors[r]);    
   }
   print_newline();
+  print("  BCoarsening factors:");
+  for (svar<int> r = 0; r < Rank; r=r+1) {
+    print(" ");
+    dispatch_print_elem<int>(bcoarsening_factors[r]);    
+  }
+  print_newline();
 }
 
 template <typename Elem, unsigned long Rank, bool MultiDimRepr>
@@ -688,13 +887,15 @@ Block<Elem,Rank,MultiDimRepr>::Block(SLoc_T bextents, SLoc_T bstrides, SLoc_T bo
   for (int i = 0; i < Rank; i=i+1) {
     permuted_indices[i] = i;
     brefinement_factors[i] = 1;
+    bcoarsening_factors[i] = 1;
   }
 }
 
 template <typename Elem, unsigned long Rank, bool MultiDimRepr>
-Block<Elem,Rank,MultiDimRepr>::Block(SLoc_T bextents, SLoc_T bstrides, SLoc_T borigin, SLoc_T brefinement_factors) :
+Block<Elem,Rank,MultiDimRepr>::Block(SLoc_T bextents, SLoc_T bstrides, SLoc_T borigin, 
+				     SLoc_T brefinement_factors, SLoc_T bcoarsening_factors) :
   bextents(std::move(bextents)), bstrides(std::move(bstrides)), borigin(std::move(borigin)),
-  brefinement_factors(std::move(brefinement_factors)) {
+  brefinement_factors(std::move(brefinement_factors)), bcoarsening_factors(std::move(bcoarsening_factors)) {
   static_assert(!MultiDimRepr);
 #ifndef UNSTAGED
   this->allocator = std::make_shared<HeapAllocation<Elem>>(reduce<MulFunctor>(bextents));
@@ -714,6 +915,7 @@ Block<Elem,Rank,MultiDimRepr>::Block(SLoc_T bextents) :
     bstrides[i] = 1;
     borigin[i] = 0;
     brefinement_factors[i] = 1;
+    bcoarsening_factors[i] = 1;
   }
   for (int i = 0; i < Rank; i=i+1) {
     permuted_indices[i] = i;
@@ -733,7 +935,20 @@ Block<Elem,Rank,MultiDimRepr>::Block(SLoc_T bextents,
     bstrides[i] = 1;
     borigin[i] = 0;
     brefinement_factors[i] = 1;
+    bcoarsening_factors[i] = 1;
   }
+  for (int i = 0; i < Rank; i=i+1) {
+    permuted_indices[i] = i;
+  }
+}
+
+template <typename Elem, unsigned long Rank, bool MultiDimRepr>
+Block<Elem,Rank,MultiDimRepr>::Block(SLoc_T bextents, SLoc_T bstrides, SLoc_T borigin,
+				     SLoc_T brefinement_factors, SLoc_T bcoarsening_factors,
+				     Allocation_T<Elem,physical<Rank,MultiDimRepr>()> allocator) :
+  bextents(std::move(bextents)), bstrides(std::move(bstrides)), borigin(std::move(borigin)), 
+  brefinement_factors(std::move(brefinement_factors)), bcoarsening_factors(std::move(bcoarsening_factors)),
+  allocator(std::move(allocator)) {
   for (int i = 0; i < Rank; i=i+1) {
     permuted_indices[i] = i;
   }
@@ -755,6 +970,17 @@ Block<Elem,Rank,MultiDimRepr> Block<Elem,Rank,MultiDimRepr>::stack() {
   auto allocator = std::make_shared<StackAllocation<Elem,mul_reduce<Extents...>()>>();
   SLoc_T bextents{Extents...};// = to_Loc_T<Extents...>();
   return Block<Elem,Rank,MultiDimRepr>(bextents, allocator);
+}
+
+template <typename Elem, unsigned long Rank, bool MultiDimRepr>
+template <loop_type...Extents>
+Block<Elem,Rank,false> Block<Elem,Rank,MultiDimRepr>::stack(SLoc_T bstrides, SLoc_T borigin, 
+							    SLoc_T brefinement_factors, SLoc_T bcoarsening_factors) {
+  static_assert(Rank == sizeof...(Extents));
+  auto allocator = std::make_shared<StackAllocation<Elem,mul_reduce<Extents...>()>>();
+  SLoc_T bextents{Extents...};
+  return Block<Elem,Rank,MultiDimRepr>(std::move(bextents), std::move(bstrides), std::move(borigin),
+				       std::move(brefinement_factors), std::move(bcoarsening_factors), allocator);
 }
 #endif
 
@@ -789,20 +1015,41 @@ Block<Elem,Rank,MultiDimRepr> Block<Elem,Rank,MultiDimRepr>::user(SLoc_T bextent
     }
 #endif
   }
+
+template <typename Elem, unsigned long Rank, bool MultiDimRepr>
+Block<Elem,Rank,MultiDimRepr> Block<Elem,Rank,MultiDimRepr>::user(SLoc_T bextents, SLoc_T bstrides, SLoc_T borigin,
+								  SLoc_T brefinement_factors, SLoc_T bcoarsening_factors,
+								  dvar<typename decltype(ptr_wrap<Elem,Rank,MultiDimRepr>())::P> user) {  
+  // make sure that the dyn_var passed in matches the actual storage type (seems like it's not caught otherwise?)
+  static_assert((MultiDimRepr && peel<typename decltype(ptr_wrap<Elem,Rank,MultiDimRepr>())::P>() == Rank) || 
+		(!MultiDimRepr && peel<typename decltype(ptr_wrap<Elem,Rank,MultiDimRepr>())::P>() == 1));
+  if constexpr (MultiDimRepr) {
+    auto allocator = std::make_shared<UserAllocation<Elem,typename decltype(ptr_wrap<Elem,Rank,MultiDimRepr>())::P,Rank>>(user);
+    return Block<Elem,Rank,MultiDimRepr>(std::move(bextents), std::move(bstrides), std::move(borigin),
+					 std::move(brefinement_factors), std::move(bcoarsening_factors), 
+					 allocator);
+  } else {
+    auto allocator = std::make_shared<UserAllocation<Elem,Elem*,1>>(user);
+    return Block<Elem,Rank,MultiDimRepr>(std::move(bextents), std::move(bstrides), std::move(borigin),
+					 std::move(brefinement_factors), std::move(bcoarsening_factors), std::move(allocator));
+  }
+}
  
 template <typename Elem, unsigned long Rank, bool MultiDimRepr>
-  View<Elem,Rank,MultiDimRepr>::View(SLoc_T bextents, SLoc_T bstrides, SLoc_T borigin, SLoc_T brefinement_factors,
-				      SLoc_T vextents, SLoc_T vstrides, SLoc_T vorigin, SLoc_T vrefinement_factors,
-				      Allocation_T<Elem,physical<Rank,MultiDimRepr>()> allocator) :
+  View<Elem,Rank,MultiDimRepr>::View(SLoc_T bextents, SLoc_T bstrides, SLoc_T borigin, 
+				     SLoc_T brefinement_factors, SLoc_T bcoarsening_factors,
+				     SLoc_T vextents, SLoc_T vstrides, SLoc_T vorigin, 
+				     SLoc_T vrefinement_factors, SLoc_T vcoarsening_factors,				     
+				     Allocation_T<Elem,physical<Rank,MultiDimRepr>()> allocator) :
   bextents(std::move(bextents)), bstrides(std::move(bstrides)), borigin(std::move(borigin)),
-  brefinement_factors(std::move(brefinement_factors)), 
+  brefinement_factors(std::move(brefinement_factors)), bcoarsening_factors(std::move(bcoarsening_factors)),
   vextents(std::move(vextents)), vstrides(std::move(vstrides)), vorigin(std::move(vorigin)), 
-  vrefinement_factors(std::move(vrefinement_factors)),
+  vrefinement_factors(std::move(vrefinement_factors)), vcoarsening_factors(std::move(vcoarsening_factors)),
   allocator(std::move(allocator)) { 
   for (int i = 0; i < Rank; i++) {
     this->permuted_indices[i] = i;
   }
-}      
+ }      
 
 template <typename Elem, unsigned long Rank, bool MultiDimRepr>
 template <unsigned long N>
@@ -834,7 +1081,7 @@ dvar<Elem> View<Elem,Rank,MultiDimRepr>::read(darr<loop_type,N> &coords) {
       permuted[permuted_indices[i]] = coords[i];
     }
     darr<loop_type,Rank> bcoords;
-    compute_block_refinement_space_location<0>(permuted, bcoords);
+    compute_block_mesh_space_location<0>(permuted, bcoords);
     // now adjust to make it relative to the block
     for (svar<int> i = 0; i < N; i=i+1) {
       bcoords[i] = (bcoords[i] - borigin[i]) / bstrides[i];
@@ -894,7 +1141,7 @@ void View<Elem,Rank,MultiDimRepr>::write(ScalarElem val, darr<loop_type,N> &coor
       permuted[permuted_indices[i]] = coords[i];
     }
     darr<loop_type,Rank> bcoords;
-    compute_block_refinement_space_location<0>(permuted, bcoords);
+    compute_block_mesh_space_location<0>(permuted, bcoords);
     // now adjust to make it relative to the block
     for (svar<int> i = 0; i < N; i=i+1) {
       bcoords[i] = (bcoords[i] - borigin[i]) / bstrides[i];
@@ -941,24 +1188,47 @@ dvar<Elem> View<Elem,Rank,MultiDimRepr>::plidx(LIdx lidx) {
 template <typename Elem, unsigned long Rank, bool MultiDimRepr>
 template <typename Elem2, bool MultiDimRepr2>
 View<Elem,Rank,MultiDimRepr> View<Elem,Rank,MultiDimRepr>::colocate(Block<Elem2,Rank,MultiDimRepr2> &block) {
-#ifdef SHIM_USER_DEBUG
+/*#ifdef SHIM_USER_DEBUG
   for (svar<int> i = 0; i < Rank; i=i+1) {
-    if (this->brefinement_factors[i] > view.vrefinement_factors[i]) {
+    if (this->brefinement_factors[i] > block.brefinement_factors[i]) {
       print("Colocation results in invalid refinement! Got base refinement of %d and view refinement of %d in dimension %d.\\n",
-	    this->brefinement_factors[i], view.brefinement_factors[i], i);
+	    this->brefinement_factors[i], block.brefinement_factors[i], i);
+      hexit(-1);
+    }
+    if (this->bcoarsening_factor[i] < block.bcoarsening_factors[i]) {
+      print("Colocation results in invalid coarsening! Got base coarsening of %d and view coarsening of %d in dimension %d.\\n",
+	    this->bcoarsening_factors[i], block.bcoarsening_factors[i], i);
       hexit(-1);
     }
   }
-#endif
-  return {this->bextents, this->bstrides, this->borigin, this->brefinement_factors, 
-    block.bextents, block.bstrides, block.borigin, block.brefinement_factors,
+#endif*/
+  // convert parameterization to the base mesh space
+  SLoc_T base_extents;
+  SLoc_T base_strides;
+  SLoc_T base_origin;
+  for (svar<int> i = 0; i < Rank; i=i+1) {
+    base_extents[i] = block.bextents[i] * block.bcoarsening_factors[i] / block.brefinement_factors[i];
+    base_strides[i] = block.bstrides[i] * block.bcoarsening_factors[i] / block.brefinement_factors[i];
+    base_origin[i] = block.borigin[i] * block.bcoarsening_factors[i] / block.brefinement_factors[i];
+  }
+  // now put into this's mesh space
+  SLoc_T mesh_extents;
+  SLoc_T mesh_strides;
+  SLoc_T mesh_origin;
+  for (svar<int> i = 0; i < Rank; i=i+1) {
+    mesh_extents[i] = base_extents[i] * this->vrefinement_factors[i] / this->vcoarsening_factors[i];
+    mesh_strides[i] = base_strides[i] * this->vrefinement_factors[i] / this->vcoarsening_factors[i];
+    mesh_origin[i] = base_origin[i] * this->vrefinement_factors[i] / this->vcoarsening_factors[i];
+  }
+  return {this->bextents, this->bstrides, this->borigin, this->brefinement_factors, this->bcoarsening_factors,
+    mesh_extents, mesh_strides, mesh_origin, this->vrefinement_factors, this->vcoarsening_factors,
     this->allocator};
 }
 
 template <typename Elem, unsigned long Rank, bool MultiDimRepr>
 template <typename Elem2, bool MultiDimRepr2>
 View<Elem,Rank,MultiDimRepr> View<Elem,Rank,MultiDimRepr>::colocate(View<Elem2,Rank,MultiDimRepr2> &view) {
-#ifdef SHIM_USER_DEBUG
+/*#ifdef SHIM_USER_DEBUG
   for (svar<int> i = 0; i < Rank; i=i+1) {
     if (this->brefinement_factors[i] > view.vrefinement_factors[i]) {
       print("Colocation results in invalid refinement! Got base refinement of %d and view refinement of %d in dimension %d.\\n",
@@ -966,9 +1236,27 @@ View<Elem,Rank,MultiDimRepr> View<Elem,Rank,MultiDimRepr>::colocate(View<Elem2,R
       hexit(-1);
     }
   }
-#endif
-  return {this->bextents, this->bstrides, this->borigin, this->brefinement_factors, 
-    view.bextents, view.bstrides, view.borigin, view.vrefinement_factors,
+#endif*/
+  // convert parameterization to the base mesh space
+  SLoc_T base_extents;
+  SLoc_T base_strides;
+  SLoc_T base_origin;
+  for (svar<int> i = 0; i < Rank; i=i+1) {
+    base_extents[i] = view.vextents[i] * view.vcoarsening_factors[i] / view.vrefinement_factors[i];
+    base_strides[i] = view.vstrides[i] * view.vcoarsening_factors[i] / view.vrefinement_factors[i];
+    base_origin[i] = view.vorigin[i] * view.vcoarsening_factors[i] / view.vrefinement_factors[i];
+  }
+  // now put into this's mesh space
+  SLoc_T mesh_extents;
+  SLoc_T mesh_strides;
+  SLoc_T mesh_origin;
+  for (svar<int> i = 0; i < Rank; i=i+1) {
+    mesh_extents[i] = base_extents[i] * this->vrefinement_factors[i] / this->vcoarsening_factors[i];
+    mesh_strides[i] = base_strides[i] * this->vrefinement_factors[i] / this->vcoarsening_factors[i];
+    mesh_origin[i] = base_origin[i] * this->vrefinement_factors[i] / this->vcoarsening_factors[i];
+  }
+  return {this->bextents, this->bstrides, this->borigin, this->brefinement_factors, this->bcoarsening_factors,
+    mesh_extents, mesh_strides, mesh_origin, this->vrefinement_factors, this->vcoarsening_factors,
     this->allocator};
 } 
 
@@ -989,8 +1277,8 @@ View<Elem,Rank,MultiDimRepr> View<Elem,Rank,MultiDimRepr>::virtually_refine(Fact
     vorigin[i] = this->vorigin[i] * rfactors[i];
     rfactors[i] = this->vrefinement_factors[i] * rfactors[i];
   }
-  return {this->bextents, this->bstrides, this->borigin, this->brefinement_factors,
-    std::move(vextents), this->vstrides, std::move(vorigin), std::move(rfactors),
+  return {this->bextents, this->bstrides, this->borigin, this->brefinement_factors, this->bcoarsening_factors,
+    std::move(vextents), this->vstrides, std::move(vorigin), std::move(rfactors), this->vcoarsening_factors,
     this->allocator};
 }
 
@@ -1012,6 +1300,29 @@ Block<Elem,Rank,false> View<Elem,Rank,MultiDimRepr>::physically_refine(Factors..
     rfactors[i] = this->vrefinement_factors[i] * rfactors[i];
   }
   return {std::move(new_bextents), this->vstrides, std::move(new_borigin), std::move(rfactors),
+    this->vcoarsening_factors,
+    this->allocator};
+}
+
+template <typename Elem, unsigned long Rank, bool MultiDimRepr>
+template <typename...Factors>
+Block<Elem,Rank,false> View<Elem,Rank,MultiDimRepr>::physically_coarsen(Factors...factors) {
+  SLoc_T cfactors{factors...};
+  SLoc_T new_bextents;
+  SLoc_T new_borigin;  
+  for (svar<loop_type> i = 0; i < Rank; i=i+1) {
+#ifdef SHIM_USER_DEBUG 
+    if (this->vstrides[i] != 1 && cfactors[i] > 1) {
+      print("Cannot coarsen block with non-unit stride %d in dimension %d.\\n", this->bstrides[i], i);
+      hexit(-1);
+    }
+#endif
+    new_bextents[i] = this->vextents[i] / cfactors[i];
+    new_borigin[i] = this->vorigin[i] / cfactors[i];
+    cfactors[i] = this->vcoarsening_factors[i] * cfactors[i];
+  }
+  return {std::move(new_bextents), this->vstrides, std::move(new_borigin), this->refinement_factors,
+    std::move(cfactors),
     this->allocator};
 }
 
@@ -1053,19 +1364,25 @@ View<Elem,Rank,MultiDimRepr> View<Elem,Rank,MultiDimRepr>::view(Slices...slices)
   SLoc_T strides;
   apply<MulFunctor,Rank>(strides, this->vstrides, vstrides);
   return View<Elem,Rank,MultiDimRepr>(this->bextents, this->bstrides, this->borigin, this->brefinement_factors,
+				      this->bcoarsening_factors,
 				      std::move(vextents), std::move(strides), std::move(origin), this->vrefinement_factors,
+				      this->vcoarsening_factors,
 				      this->allocator);
 }
 
 template <typename Elem, unsigned long Rank, bool MultiDimRepr>
 template <int Depth>
-void View<Elem,Rank,MultiDimRepr>::compute_block_refinement_space_location(const darr<loop_type,Rank> &coords,
-									     darr<loop_type,Rank> &out) {
+void View<Elem,Rank,MultiDimRepr>::compute_block_mesh_space_location(const darr<loop_type,Rank> &coords,
+								       darr<loop_type,Rank> &out) {
   if constexpr (Depth == Rank) {
   } else {
-    out[Depth] = (coords[Depth] * vstrides[Depth] + vorigin[Depth]) 
-      / (this->vrefinement_factors[Depth] / this->brefinement_factors[Depth]);
-    compute_block_refinement_space_location<Depth+1>(coords, out);
+    dvar<loop_type> rvidx = coords[Depth] * vstrides[Depth] + vorigin[Depth];
+    dvar<loop_type> rbidx = rvidx * this->vcoarsening_factors[Depth] * this->brefinement_factors[Depth] / 
+      (this->bcoarsening_factors[Depth] * this->vrefinement_factors[Depth]);
+    //    out[Depth] = (coords[Depth] * vstrides[Depth] + vorigin[Depth]) 
+//      / (this->vrefinement_factors[Depth] / this->brefinement_factors[Depth]);
+    out[Depth] = rbidx;
+    compute_block_mesh_space_location<Depth+1>(coords, out);
   }
 }
 
@@ -1098,6 +1415,35 @@ void View<Elem,Rank,MultiDimRepr>::dump_data() {
 
     }
   }
+}
+
+template <typename Elem, unsigned long Rank, bool MultiDimRepr>
+void View<Elem,Rank,MultiDimRepr>::dump_base_mesh_space_location() {
+  SLoc_T base_extents;
+  SLoc_T base_origin;
+  SLoc_T base_strides;
+  for (svar<int> i = 0; i < Rank; i=i+1) {
+    base_extents[i] = this->vextents[i] / this->vrefinement_factors[i] * this->vcoarsening_factors[i];
+    base_origin[i] = this->vorigin[i] / this->vrefinement_factors[i] * this->vcoarsening_factors[i];
+    base_strides[i] = this->vstrides[i] / this->vrefinement_factors[i] * this->vcoarsening_factors[i];
+  }
+  print("View base mesh space location info");
+  print_newline();
+  print("  Base extents: ");
+  for (svar<int> r = 0; r < Rank; r=r+1) {
+    print(" ");
+    dispatch_print_elem<int>(base_extents[r]);    
+  }  
+  print("  Base origin: ");
+  for (svar<int> r = 0; r < Rank; r=r+1) {
+    print(" ");
+    dispatch_print_elem<int>(base_origin[r]);    
+  }  
+  print("  Base strides: ");
+  for (svar<int> r = 0; r < Rank; r=r+1) {
+    print(" ");
+    dispatch_print_elem<int>(base_strides[r]);    
+  }  
 }
 
 template <typename Elem, unsigned long Rank, bool MultiDimRepr>
@@ -1137,6 +1483,12 @@ void View<Elem,Rank,MultiDimRepr>::dump_loc() {
     dispatch_print_elem<int>(brefinement_factors[r]);    
   }
   print_newline();
+  print("  BCoarsening factors:");
+  for (svar<int> r = 0; r < Rank; r=r+1) {
+    print(" ");
+    dispatch_print_elem<int>(bcoarsening_factors[r]);    
+  }
+  print_newline();
   print("  VExtents:");
   for (svar<int> r = 0; r < Rank; r=r+1) {
     print(" ");
@@ -1162,6 +1514,12 @@ void View<Elem,Rank,MultiDimRepr>::dump_loc() {
     dispatch_print_elem<int>(vrefinement_factors[r]);    
   }  
   print_newline();
+  print("  VCoarsening factors:");
+  for (svar<int> r = 0; r < Rank; r=r+1) {
+    print(" ");
+    dispatch_print_elem<int>(vcoarsening_factors[r]);    
+  }  
+  print_newline();
 }
 
 template <typename Elem, unsigned long Rank, bool MultiDimRepr>
@@ -1169,7 +1527,7 @@ template <typename...Coords>
 dvar<bool> View<Elem,Rank,MultiDimRepr>::logically_exists(Coords...coords) {
   static_assert(sizeof...(coords) == Rank, "No default padding allowed for logically_exists");
   Loc_T<Rank> rel;
-  compute_block_refinement_space_location<0>(builder::dyn_arr<int,Rank>{coords...}, rel);
+  compute_block_mesh_space_location<0>(builder::dyn_arr<int,Rank>{coords...}, rel);
   for (svar<loop_type> i = 0; i < Rank; i++) {
     if (rel[i] < 0) {
       return false; 
