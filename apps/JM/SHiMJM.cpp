@@ -102,9 +102,9 @@ static void set_intrapred_16x16(View<T,2,M> &mblk_recons,
   all_available = up_available && left_available && macroblock->mb_addr_D_available;
   if (macroblock->p_inp->use_constrained_intra_pred==1) {
     auto coloc = intra.colocate(mblk_recons);
-    up_available = up_available && (coloc(-16,0) != 0);
-    left_available = left_available && (coloc(0,-16) != 0);
-    all_available = all_available && (coloc(-16,-16) != 0);
+    up_available = up_available && (coloc(-1,0) != 0);
+    left_available = left_available && (coloc(0,-1) != 0);
+    all_available = all_available && (coloc(-1,-1) != 0);
   }
 }
 
@@ -141,8 +141,10 @@ static dyn_var<int> find_sad_16x16_Shim(Macroblock macroblock) {
 					       macroblock->p_vid->p_cur_img);
   auto img_recons = Block<imgpel, 2, true>::user({pixelH, pixelW}, 
 						 macroblock->p_vid->enc_picture->p_curr_img);
-  auto intra_block = Block<short,2>::user({mbH, mbW}, 
-					  macroblock->p_vid->intra_block).logically_interpolate(16,16);
+  // todo have better way to set this, maybe something like an intermediate location object
+  // that can be mutated (so call like obj.with_extent().with_coarsening().to_immutable())
+  auto intra_block = Block<short,2>::user({mbH, mbW}, {1,1}, {0,0}, {1,1}, {16,16},
+					  macroblock->p_vid->intra_block).virtually_refine(16,16);
   auto mblk_recons = img_recons.view(slice(macroblock->pix_y,macroblock->pix_y+16,1), 
 				     slice(macroblock->pix_x,macroblock->pix_x+16,1));
   dbool up_available = false;
