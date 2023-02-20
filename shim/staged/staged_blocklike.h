@@ -13,6 +13,7 @@
 #include "staged_utils.h"
 #include "staged_allocators.h"
 #include "object.h"
+//#include "location.h"
 #ifdef UNSTAGED
 #include "runtime/cpp/heaparray.h"
 #endif
@@ -21,23 +22,6 @@ namespace shim {
 
 // TODO use within block and view to hold the info so I don't need to keep retyping it
 // Also allowing just building one of these manually and passing into a block/view constructor
-template <unsigned long Rank>
-struct MeshLocation {
-  using SLoc_T = Loc_T<Rank>;
-
-  MeshLocation(SLoc_T extents, SLoc_T strides, SLoc_T origin,
-	       SLoc_T refinement_factors, SLoc_T coarsening_factors);
-
-  void dump_location();
-
-  MeshLocation<Rank> compute_base_mesh_location();
-  
-  SLoc_T extents;
-  SLoc_T strides;
-  SLoc_T origin;
-  SLoc_T refinement_factors;
-  SLoc_T coarsening_factors; 
-};
 
 #ifndef UNSTAGED
 template <typename Elem, int PhysicalRank>
@@ -95,12 +79,12 @@ struct Block {
 #ifndef UNSTAGED
   ///
   /// Create an internally-managed stack Block
-  template <loop_type...Extents>
+  template <int...Extents>
   static Block<Elem,Rank,MultiDimRepr> stack();
 
   ///
   /// Create an internally-managed stack Block
-  template <loop_type...Extents>
+  template <int...Extents>
   static Block<Elem,Rank,false> stack(SLoc_T bstrides, SLoc_T borigin, 
 				      SLoc_T brefinement_factors, SLoc_T bcoarsening_factors);
 #endif
@@ -411,45 +395,6 @@ private:
   void verify_unique();
   
 };
-
-template <unsigned long Rank>
-void MeshLocation<Rank>::dump_location() {
-  print("Mesh space location info");
-  print_newline();
-  print("  Extents: ");
-  for (svar<int> r = 0; r < Rank; r=r+1) {
-    print(" ");
-    dispatch_print_elem<int>(extents[r]);    
-  }  
-  print("  Origin: ");
-  for (svar<int> r = 0; r < Rank; r=r+1) {
-    print(" ");
-    dispatch_print_elem<int>(origin[r]);    
-  }  
-  print("  Strides: ");
-  for (svar<int> r = 0; r < Rank; r=r+1) {
-    print(" ");
-    dispatch_print_elem<int>(strides[r]);    
-  }  
-}
-
-template <unsigned long Rank>
-MeshLocation<Rank> MeshLocation<Rank>::compute_base_mesh_location() {
-  SLoc_T base_extents;
-  SLoc_T base_origin;
-  SLoc_T base_strides;
-  SLoc_T base_refinement;
-  SLoc_T base_coarsening;
-  for (svar<int> i = 0; i < Rank; i=i+1) {
-    base_extents[i] = this->bextents[i] * this->bcoarsening_factors[i] / this->brefinement_factors[i];
-    base_origin[i] = this->borigin[i] * this->bcoarsening_factors[i] / this->brefinement_factors[i];
-    base_strides[i] = this->bstrides[i] * this->bcoarsening_factors[i] / this->brefinement_factors[i];
-    base_refinement[i] = 1;
-    base_coarsening[i] = 1;
-  }
-  return {std::move(base_extents), std::move(base_origin), std::move(base_strides),
-    std::move(base_refinement), std::move(base_coarsening)};
-}
 
 template <typename Elem, unsigned long Rank, bool MultiDimRepr>
 template <unsigned long N>
@@ -964,22 +909,24 @@ Block<Elem,Rank,MultiDimRepr> Block<Elem,Rank,MultiDimRepr>::heap(SLoc_T bextent
 
 #ifndef UNSTAGED
 template <typename Elem, unsigned long Rank, bool MultiDimRepr>
-template <loop_type...Extents>
+template <int...Extents>
 Block<Elem,Rank,MultiDimRepr> Block<Elem,Rank,MultiDimRepr>::stack() {
-  static_assert(Rank == sizeof...(Extents));
-  auto allocator = std::make_shared<StackAllocation<Elem,mul_reduce<Extents...>()>>();
-  SLoc_T bextents{Extents...};// = to_Loc_T<Extents...>();
-  return Block<Elem,Rank,MultiDimRepr>(bextents, allocator);
+  // This causes a buildit error if I do static_var (and also make the allocator take a static var)
+  loop_type sz = mul_reduce<Extents...>();
+  auto allocator = std::make_shared<StackAllocation<Elem>>(sz);
+  SLoc_T extents{Extents...};
+  return Block<Elem,Rank,MultiDimRepr>(extents, allocator);
 }
 
 template <typename Elem, unsigned long Rank, bool MultiDimRepr>
-template <loop_type...Extents>
+template <int...Extents>
 Block<Elem,Rank,false> Block<Elem,Rank,MultiDimRepr>::stack(SLoc_T bstrides, SLoc_T borigin, 
 							    SLoc_T brefinement_factors, SLoc_T bcoarsening_factors) {
-  static_assert(Rank == sizeof...(Extents));
-  auto allocator = std::make_shared<StackAllocation<Elem,mul_reduce<Extents...>()>>();
-  SLoc_T bextents{Extents...};
-  return Block<Elem,Rank,MultiDimRepr>(std::move(bextents), std::move(bstrides), std::move(borigin),
+  // This causes a buildit error if I do static_var (and also make the allocator take a static var)
+  loop_type sz = mul_reduce<Extents...>();
+  auto allocator = std::make_shared<StackAllocation<Elem>>(sz);
+  SLoc_T extents{Extents...};
+  return Block<Elem,Rank,MultiDimRepr>(extents, std::move(bstrides), std::move(borigin),
 				       std::move(brefinement_factors), std::move(bcoarsening_factors), allocator);
 }
 #endif
