@@ -13,6 +13,7 @@
 #include "staged_utils.h"
 #include "staged_allocators.h"
 #include "object.h"
+#include "annotations.h"
 //#include "location.h"
 #ifdef UNSTAGED
 #include "runtime/cpp/heaparray.h"
@@ -173,6 +174,13 @@ struct Block {
   /// print out the location info
   void dump_loc();
 
+  /// 
+  /// Attach permutation
+  template <typename T, typename...PermuteItems>
+  View<Elem,Rank,MultiDimRepr> permute(std::initializer_list<T> value, PermuteItems&&...items);
+  View<Elem,Rank,MultiDimRepr> row_major();
+  View<Elem,Rank,MultiDimRepr> col_major();
+
   Allocation_T<Elem,physical<Rank,MultiDimRepr>()> allocator;
   SLoc_T bextents;
   SLoc_T bstrides;
@@ -263,6 +271,10 @@ struct View {
 
   ///
   /// Slice out a View over a portion of this View
+  View<Elem,Rank,MultiDimRepr> view();
+
+  ///
+  /// Slice out a View over a portion of this View
   template <typename...Slices>
   View<Elem,Rank,MultiDimRepr> view(Slices...slices);
 
@@ -279,6 +291,13 @@ struct View {
   ///
   /// print out the location info
   void dump_loc();
+
+  /// 
+  /// Attach permutation
+  template <typename T, typename...PermuteItems>
+  View<Elem,Rank,MultiDimRepr> permute(std::initializer_list<T> value, PermuteItems&&...items);
+  View<Elem,Rank,MultiDimRepr> row_major();
+  View<Elem,Rank,MultiDimRepr> col_major();
 
   ///
   /// True if global coords computed from the input coords are >= 0.
@@ -821,6 +840,28 @@ void Block<Elem,Rank,MultiDimRepr>::dump_loc() {
 }
 
 template <typename Elem, unsigned long Rank, bool MultiDimRepr>
+template <typename T, typename...PermuteItems>
+View<Elem,Rank,MultiDimRepr> Block<Elem,Rank,MultiDimRepr>::permute(std::initializer_list<T> value, PermuteItems&&...items) {
+  auto viewobj = this->view();
+  attach_permute(viewobj, value, items...);
+  return viewobj;
+}
+
+template <typename Elem, unsigned long Rank, bool MultiDimRepr>
+View<Elem,Rank,MultiDimRepr> Block<Elem,Rank,MultiDimRepr>::row_major() {
+  auto viewobj = this->view();
+  attach_row_major(viewobj);
+  return viewobj;
+}
+
+template <typename Elem, unsigned long Rank, bool MultiDimRepr>
+View<Elem,Rank,MultiDimRepr> Block<Elem,Rank,MultiDimRepr>::col_major() {
+  auto viewobj = this->view();
+  attach_col_major(viewobj);
+  return viewobj;
+}
+
+template <typename Elem, unsigned long Rank, bool MultiDimRepr>
 Block<Elem,Rank,MultiDimRepr>::Block(SLoc_T bextents, SLoc_T bstrides, SLoc_T borigin) :
   bextents(std::move(bextents)), bstrides(std::move(bstrides)), borigin(std::move(borigin)) {
   static_assert(!MultiDimRepr);
@@ -981,12 +1022,12 @@ Block<Elem,Rank,MultiDimRepr> Block<Elem,Rank,MultiDimRepr>::user(SLoc_T bextent
 					 std::move(brefinement_factors), std::move(bcoarsening_factors), std::move(allocator));
   }
 }
- 
-template <typename Elem, unsigned long Rank, bool MultiDimRepr>
-  View<Elem,Rank,MultiDimRepr>::View(SLoc_T bextents, SLoc_T bstrides, SLoc_T borigin, 
-				     SLoc_T brefinement_factors, SLoc_T bcoarsening_factors,
-				     SLoc_T vextents, SLoc_T vstrides, SLoc_T vorigin, 
-				     SLoc_T vrefinement_factors, SLoc_T vcoarsening_factors,				     
+
+ template <typename Elem, unsigned long Rank, bool MultiDimRepr>
+   View<Elem,Rank,MultiDimRepr>::View(SLoc_T bextents, SLoc_T bstrides, SLoc_T borigin, 
+				      SLoc_T brefinement_factors, SLoc_T bcoarsening_factors,
+				      SLoc_T vextents, SLoc_T vstrides, SLoc_T vorigin, 
+				      SLoc_T vrefinement_factors, SLoc_T vcoarsening_factors,		     
 				     Allocation_T<Elem,physical<Rank,MultiDimRepr>()> allocator) :
   bextents(std::move(bextents)), bstrides(std::move(bstrides)), borigin(std::move(borigin)),
   brefinement_factors(std::move(brefinement_factors)), bcoarsening_factors(std::move(bcoarsening_factors)),
@@ -1246,7 +1287,9 @@ Block<Elem,Rank,false> View<Elem,Rank,MultiDimRepr>::physically_refine(Factors..
     new_borigin[i] = this->vorigin[i] * rfactors[i];
     rfactors[i] = this->vrefinement_factors[i] * rfactors[i];
   }
-  return {std::move(new_bextents), this->vstrides, std::move(new_borigin), std::move(rfactors),
+  return {
+    this->bextents, this->bstrides, this->borigin, this->brefinement_factors, this->bcoarsening_factors,
+    std::move(new_bextents), this->vstrides, std::move(new_borigin), std::move(rfactors),
     this->vcoarsening_factors,
     this->allocator};
 }
@@ -1268,9 +1311,20 @@ Block<Elem,Rank,false> View<Elem,Rank,MultiDimRepr>::physically_coarsen(Factors.
     new_borigin[i] = this->vorigin[i] / cfactors[i];
     cfactors[i] = this->vcoarsening_factors[i] * cfactors[i];
   }
-  return {std::move(new_bextents), this->vstrides, std::move(new_borigin), this->refinement_factors,
+  return {
+    this->bextents, this->bstrides, this->borigin, this->brefinement_factors, this->bcoarsening_factors,
+    std::move(new_bextents), this->vstrides, std::move(new_borigin), this->refinement_factors,
     std::move(cfactors),
     this->allocator};
+}
+
+template <typename Elem, unsigned long Rank, bool MultiDimRepr>
+View<Elem,Rank,MultiDimRepr> View<Elem,Rank,MultiDimRepr>::view() {
+  return {
+    this->bextents, this->bstrides, this->borigin, this->brefinement_factors, this->bcoarsening_factors,
+    this->vextents, this->vstrides, this->vorigin, this->vrefinement_factors, this->vcoarsening_factors,
+    this->allocator
+  };
 }
 
 template <typename Elem, unsigned long Rank, bool MultiDimRepr>
@@ -1467,6 +1521,28 @@ void View<Elem,Rank,MultiDimRepr>::dump_loc() {
     dispatch_print_elem<int>(vcoarsening_factors[r]);    
   }  
   print_newline();
+}
+
+template <typename Elem, unsigned long Rank, bool MultiDimRepr>
+template <typename T, typename...PermuteItems>
+View<Elem,Rank,MultiDimRepr> View<Elem,Rank,MultiDimRepr>::permute(std::initializer_list<T> value, PermuteItems&&...items) {
+  auto viewobj = this->view();
+  attach_permute(viewobj, value, items...);
+  return viewobj;
+}
+
+template <typename Elem, unsigned long Rank, bool MultiDimRepr>
+View<Elem,Rank,MultiDimRepr> View<Elem,Rank,MultiDimRepr>::row_major() {
+  auto viewobj = this->view();
+  attach_row_major(viewobj);
+  return viewobj;
+}
+
+template <typename Elem, unsigned long Rank, bool MultiDimRepr>
+View<Elem,Rank,MultiDimRepr> View<Elem,Rank,MultiDimRepr>::col_major() {
+  auto viewobj = this->view();
+  attach_col_major(viewobj);
+  return viewobj;
 }
 
 template <typename Elem, unsigned long Rank, bool MultiDimRepr>

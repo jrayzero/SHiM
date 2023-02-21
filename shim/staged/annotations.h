@@ -81,34 +81,34 @@ auto initlist_to_tuple(std::initializer_list<T> l) {
 }
 
 template <typename PermuteObj, typename...Types>
-void permute_one(PermuteObj &obj, std::tuple<Types...> value) {
+void attach_permute_one(PermuteObj &obj, std::tuple<Types...> value) {
   static_assert(PermuteObj::Rank_T == sizeof...(Types));
   auto arr = tuple_to_arr<loop_type>(value);
   obj.permuted_indices = std::move(arr);
 }
 
 template <typename PermuteObj, typename T>
-void permute_one(PermuteObj &obj, std::initializer_list<T> value) {
-  permute_one(obj, initlist_to_tuple<PermuteObj::Rank_T>(value));
+void attach_permute_one(PermuteObj &obj, std::initializer_list<T> value) {
+  attach_permute_one(obj, initlist_to_tuple<PermuteObj::Rank_T>(value));
 }
 
 template <typename PermuteObj, typename...Types, typename...PermuteItems>
-void permute(PermuteObj &&obj, std::tuple<Types...> value, PermuteItems&&...items) {
-  permute_one(std::forward<PermuteObj>(obj), value);
+void attach_permute(PermuteObj &&obj, std::tuple<Types...> value, PermuteItems&&...items) {
+  attach_permute_one(std::forward<PermuteObj>(obj), value);
   if constexpr (sizeof...(PermuteItems) > 0) {
-    permute(std::forward<PermuteItems>(items)...);
+    attach_permute(std::forward<PermuteItems>(items)...);
   }
 }
 
 template <typename PermuteObj, typename T, typename...PermuteItems>
-void permute(PermuteObj &&obj, std::initializer_list<T> value, PermuteItems&&...items) {
-  permute(std::forward<PermuteObj>(obj), 
-	  initlist_to_tuple<std::remove_reference<PermuteObj>::type::Rank_T>(value), 
-	  std::forward<PermuteItems>(items)...);
+void attach_permute(PermuteObj &&obj, std::initializer_list<T> value, PermuteItems&&...items) {
+  attach_permute(std::forward<PermuteObj>(obj), 
+		 initlist_to_tuple<std::remove_reference<PermuteObj>::type::Rank_T>(value), 
+		 std::forward<PermuteItems>(items)...);
 }
 
 template <typename PermuteObj, typename...PermuteObjs>
-void row_major(PermuteObj &&obj, PermuteObjs&&...objs) {
+void attach_row_major(PermuteObj &&obj, PermuteObjs&&...objs) {
   constexpr int Rank_T = std::remove_reference<PermuteObj>::type::Rank_T;
   std::array<int, Rank_T> arr;
   for (int i = 0; i < Rank_T; i++) {
@@ -116,12 +116,12 @@ void row_major(PermuteObj &&obj, PermuteObjs&&...objs) {
   }
   obj.permuted_indices = std::move(arr);
   if constexpr (sizeof...(PermuteObjs) > 0) {
-    row_major(objs...);
+    attach_row_major(objs...);
   }
 }
 
 template <typename PermuteObj, typename...PermuteObjs>
-void col_major(PermuteObj &&obj, PermuteObjs&&...objs) {
+void attach_col_major(PermuteObj &&obj, PermuteObjs&&...objs) {
   constexpr int Rank_T = std::remove_reference<PermuteObj>::type::Rank_T;
   std::array<int, Rank_T> arr;
   for (int i = 0; i < Rank_T; i++) {
@@ -129,7 +129,7 @@ void col_major(PermuteObj &&obj, PermuteObjs&&...objs) {
   }
   obj.permuted_indices = std::move(arr);
   if constexpr (sizeof...(PermuteObjs) > 0) {
-    col_major(objs...);
+    attach_col_major(objs...);
   }
 }
 
