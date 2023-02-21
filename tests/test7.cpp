@@ -17,7 +17,7 @@ static void staged() {
   Iter<'j'> j;
   auto block = Block<int,2>::stack<5,5>();
   auto view = block.view(slice(1,4,2),slice(2,4,1));
-  auto block2 = Block<int,2>(view.vextents, view.vstrides, view.vorigin);
+  auto block2 = Block<int,2>(view.get_view_location());
   auto view2 = block2.view();
   block2[i][j] = i*2+j;
   ASSERT(block2(0,0) == 0);
@@ -30,7 +30,7 @@ static void staged() {
   ASSERT(view2(1,1) == 3);
   auto block3 = Block<int,2>::stack<10,10>();
   auto v = block3.view(slice(1,10,2),slice(1,10,3));
-  auto block4 = Block<int,2>(v.vextents, v.vstrides, v.vorigin);
+  auto block4 = Block<int,2>(v.get_view_location());
   auto view4 = block4.view(slice(1,5,2), slice(0,3,1));
   block4[i][j] = i*3+j;
   ASSERT(view4(0,0) == 3);

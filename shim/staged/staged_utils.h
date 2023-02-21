@@ -47,9 +47,9 @@ auto reduce_region(Obj &obj) {
 }
 
 ///
-/// Perform a reduction across a dyn_var<T[]>
+/// Perform a reduction across a dyn_arr<T>
 template <typename Functor, unsigned long Rank, typename T>
-dvar<T> reduce(darr<T,Rank> &arr) {
+dvar<T> reduce(const darr<T,Rank> &arr) {
   dvar<T> acc = arr[0];
   for (svar<T> i = 1; i < Rank; i=i+1) {
     acc = Functor()(acc, arr[i]);
@@ -362,6 +362,24 @@ auto tuple_to_arr(std::tuple<Types...> tup) {
   std::array<Elem,sizeof...(Types)> arr;
   tuple_to_arr<Elem,0>(arr, tup);
   return arr;
+}
+
+
+template <int Rank, int Depth, typename T>
+auto vector_to_tuple(std::vector<T> v) {
+  auto tup = std::tuple{v[Depth]};
+  if constexpr (Depth+1 < Rank) {
+    return std::tuple_cat(tup, vector_to_tuple<Rank,Depth+1>(v));
+  } else {
+    return tup;
+  }
+}
+
+template <int Rank, typename T>
+auto initlist_to_tuple(std::initializer_list<T> l) {
+  std::vector<T> v;
+  v.insert(v.end(), l.begin(), l.end());
+  return vector_to_tuple<Rank,0>(v);
 }
 
 }

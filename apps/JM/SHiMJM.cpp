@@ -30,12 +30,12 @@ static Iter<'y'> y;
 // that happening in JM...
 
 template <typename Pred, typename Ref>
-static void get_16x16_vertical(Pred &pred, Ref &ref) {
+static void get_vertical(Pred &pred, Ref &ref) {
   pred[y][x] = ref[-1][x];
 }
 
 template <typename Pred, typename Ref>
-static void get_16x16_horizontal(Pred &pred, Ref &ref) {
+static void get_horizontal(Pred &pred, Ref &ref) {
   pred[y][x] = ref[y][-1];
 }
 
@@ -65,16 +65,26 @@ static void get_16x16_dc(Pred &pred, Ref &ref,
   pred[y][x] = s;
 }
 
+/*template <typename Pred, typename Ref>
+static void get_4x4_dc(Pred &pred, Ref &ref, 
+		       dbool &left_available, dbool &up_available) {
+  auto p = ref.col_major();
+  dint s = 0;
+  if (up_available && left_available) {
+    s = p
+  }
+}*/
+
 template <typename Pred, typename Ref>
 static void get_16x16_plane(Pred &pred, Ref &ref) {
-  auto &p = ref;
+  auto p = ref.col_major();
   dint H = 0;
   dint V = 0;
   for (dint q = 0; q < 8; q=q+1) {
-    H += (q+1)*(p(-1,8+q) - p(-1,6-q));
-    V += (q+1)*(p(8+q,-1) - p(6-q,-1));
+    H += (q+1)*(p(8+q,-1) - p(6-q,-1));
+    V += (q+1)*(p(-1,8+q) - p(-1,6-q));
   }
-  dint a = 16 * (p(15,-1) + p(-1,15));
+  dint a = 16 * (p(-1,15) + p(15,-1));
   dint b = ((dint)(5 * H + 32) >> 6);
   dint c = ((dint)(5 * V + 32) >> 6);
   for (dint y = 0; y < 16; y=y+1) {
@@ -184,11 +194,11 @@ static dyn_var<int> find_sad_16x16_Shim(Macroblock macroblock) {
       auto pred = Block<imgpel,3,true>::user({4,16,16}, macroblock->p_slice->mpr_16x16[0]);
       if (mode == VERT_PRED_16 && up_available) {	
 	auto p = pred.view(slice(VERT_PRED_16,VERT_PRED_16+1,1),slice(0,16,1),slice(0,16,1));
-	get_16x16_vertical(p, mblk_recons);
+	get_vertical(p, mblk_recons);
 	select_best(best_cost, best_mode, p, img_orig.colocate(mblk_recons), mode);
       } else if (mode == HOR_PRED_16 && left_available) {
 	auto p = pred.view(slice(HOR_PRED_16,HOR_PRED_16+1,1),slice(0,16,1),slice(0,16,1));
-	get_16x16_horizontal(p, mblk_recons);
+	get_horizontal(p, mblk_recons);
 	select_best(best_cost, best_mode, p, img_orig.colocate(mblk_recons), mode);
       } else if (mode == PLANE_16 && all_available) {
 	auto p = pred.view(slice(PLANE_16,PLANE_16+1,1),slice(0,16,1),slice(0,16,1));

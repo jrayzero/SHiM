@@ -22,12 +22,12 @@ static void staged() {
   block2[i][j] = 0;
   auto block2_coloc = block2.colocate(block2_view);
   block2_coloc[i][j] = 9;
-  ASSERT(compare_arrays(block2_view.bextents, darr2{4,4}));
-  ASSERT(compare_arrays(block2_view.bstrides, darr2{1,1}));
-  ASSERT(compare_arrays(block2_view.borigin, darr2{0,0}));
-  ASSERT(compare_arrays(block2_view.vextents, darr2{3,2}));
-  ASSERT(compare_arrays(block2_view.vstrides, darr2{1,2}));
-  ASSERT(compare_arrays(block2_view.vorigin, darr2{1,0}));
+  ASSERT(compare_arrays(block2_view.get_block_location().get_extents(), darr2{4,4}));
+  ASSERT(compare_arrays(block2_view.get_block_location().get_strides(), darr2{1,1}));
+  ASSERT(compare_arrays(block2_view.get_block_location().get_origin(), darr2{0,0}));
+  ASSERT(compare_arrays(block2_view.get_view_location().get_extents(), darr2{3,2}));
+  ASSERT(compare_arrays(block2_view.get_view_location().get_strides(), darr2{1,2}));
+  ASSERT(compare_arrays(block2_view.get_view_location().get_origin(), darr2{1,0}));
   block.colocate(block2_view)[i][j] = 16;
   ASSERT(block2(1,0) == 9);
   ASSERT(block2(2,0) == 9);
