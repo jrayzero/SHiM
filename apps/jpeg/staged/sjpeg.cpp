@@ -61,20 +61,21 @@ void color_one(RGB_T RGB, Block<int,3> YCbCr, dint comp) {
 
 template <typename RGB_T, typename YCbCr_T>
 void color(RGB_T &RGB, YCbCr_T &YCbCr) {
-  shim::permute(RGB, std::tuple{2,0,1});
+//  shim::permute(RGB, std::tuple{2,0,1});
+  auto RGBp = RGB.permute({2,0,1});
   YCbCr[0][i][j] = 
-    cast<int>(cast<double>(RGB[0][i][j])*0.299 + 
-	      cast<double>(RGB[1][i][j])*0.587 + 
-	      cast<double>(RGB[2][i][j])*0.114);
+    cast<int>(cast<double>(RGBp[0][i][j])*0.299 + 
+	      cast<double>(RGBp[1][i][j])*0.587 + 
+	      cast<double>(RGBp[2][i][j])*0.114);
   YCbCr[1][i][j] = 
-    cast<int>(cast<double>(RGB[0][i][j])*-0.168736 + 
-	      cast<double>(RGB[1][i][j])*-0.33126 + 
-	      cast<double>(RGB[2][i][j])*0.500002) + 128;
+    cast<int>(cast<double>(RGBp[0][i][j])*-0.168736 + 
+	      cast<double>(RGBp[1][i][j])*-0.33126 + 
+	      cast<double>(RGBp[2][i][j])*0.500002) + 128;
   YCbCr[2][i][j] = 
-    cast<int>(cast<double>(RGB[0][i][j])*0.5 + 
-	      cast<double>(RGB[1][i][j])*-0.418688 + 
-	      cast<double>(RGB[2][i][j])*-0.081312) + 128;
-  shim::permute(RGB, {0,1,2});
+    cast<int>(cast<double>(RGBp[0][i][j])*0.5 + 
+	      cast<double>(RGBp[1][i][j])*-0.418688 + 
+	      cast<double>(RGBp[2][i][j])*-0.081312) + 128;
+//  shim::permute(RGB, {0,1,2});
 }
 
 // the external things to call for doing huffman

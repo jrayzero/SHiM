@@ -65,7 +65,7 @@ static void get_16x16_dc(Pred &pred, Ref &ref,
   pred[y][x] = s;
 }
 
-template <typename Pred, typename Ref>
+/*template <typename Pred, typename Ref>
 static void get_4x4_dc(Pred &pred, Ref &ref, 
 		       dbool &left_available, dbool &up_available) {
   auto p = ref.col_major();
@@ -73,7 +73,7 @@ static void get_4x4_dc(Pred &pred, Ref &ref,
   if (up_available && left_available) {
     s = p
   }
-}
+}*/
 
 template <typename Pred, typename Ref>
 static void get_16x16_plane(Pred &pred, Ref &ref) {

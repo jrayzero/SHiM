@@ -63,24 +63,7 @@ struct Comment {
   }
 };
 
-template <int Rank, int Depth, typename T>
-auto vector_to_tuple(std::vector<T> v) {
-  auto tup = std::tuple{v[Depth]};
-  if constexpr (Depth+1 < Rank) {
-    return std::tuple_cat(tup, vector_to_tuple<Rank,Depth+1>(v));
-  } else {
-    return tup;
-  }
-}
-
-template <int Rank, typename T>
-auto initlist_to_tuple(std::initializer_list<T> l) {
-  std::vector<T> v;
-  v.insert(v.end(), l.begin(), l.end());
-  return vector_to_tuple<Rank,0>(v);
-}
-
-template <typename PermuteObj, typename...Types>
+/*template <typename PermuteObj, typename...Types>
 void attach_permute_one(PermuteObj &obj, std::tuple<Types...> value) {
   static_assert(PermuteObj::Rank_T == sizeof...(Types));
   auto arr = tuple_to_arr<loop_type>(value);
@@ -131,6 +114,6 @@ void attach_col_major(PermuteObj &&obj, PermuteObjs&&...objs) {
   if constexpr (sizeof...(PermuteObjs) > 0) {
     attach_col_major(objs...);
   }
-}
+}*/
 
 }

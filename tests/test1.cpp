@@ -16,21 +16,21 @@ static void staged() {
   auto block = Block<int,2>::stack<10,20>();
   auto view = block.view();
   auto view2 = block.view(slice(0,10,2),slice(3,19,4));
-  ASSERT(compare_arrays(block.bextents, darr2{10, 20}));
-  ASSERT(compare_arrays(block.bstrides, darr2{1,1}));
-  ASSERT(compare_arrays(block.borigin, darr2{0,0}));
-  ASSERT(compare_arrays(view.bextents, darr2{10,20}));
-  ASSERT(compare_arrays(view.bstrides, darr2{1,1}));
-  ASSERT(compare_arrays(view.borigin, darr2{0,0}));
-  ASSERT(compare_arrays(view.vextents, darr2{10,20}));
-  ASSERT(compare_arrays(view.vstrides, darr2{1,1}));
-  ASSERT(compare_arrays(view.vorigin, darr2{0,0}));
-  ASSERT(compare_arrays(view2.bextents, darr2{10,20}));
-  ASSERT(compare_arrays(view2.bstrides, darr2{1,1}));
-  ASSERT(compare_arrays(view2.borigin, darr2{0,0}));
-  ASSERT(compare_arrays(view2.vextents, darr2{5,4}));
-  ASSERT(compare_arrays(view2.vstrides, darr2{2,4}));
-  ASSERT(compare_arrays(view2.vorigin, darr2{0,3}));
+  ASSERT(compare_arrays(block.get_location().get_extents(), darr2{10, 20}));
+  ASSERT(compare_arrays(block.get_location().get_strides(), darr2{1,1}));
+  ASSERT(compare_arrays(block.get_location().get_origin(), darr2{0,0}));
+  ASSERT(compare_arrays(view.get_block_location().get_extents(), darr2{10,20}));
+  ASSERT(compare_arrays(view.get_block_location().get_strides(), darr2{1,1}));
+  ASSERT(compare_arrays(view.get_block_location().get_origin(), darr2{0,0}));
+  ASSERT(compare_arrays(view.get_view_location().get_extents(), darr2{10,20}));
+  ASSERT(compare_arrays(view.get_view_location().get_strides(), darr2{1,1}));
+  ASSERT(compare_arrays(view.get_view_location().get_origin(), darr2{0,0}));
+  ASSERT(compare_arrays(view2.get_block_location().get_extents(), darr2{10,20}));
+  ASSERT(compare_arrays(view2.get_block_location().get_strides(), darr2{1,1}));
+  ASSERT(compare_arrays(view2.get_block_location().get_origin(), darr2{0,0}));
+  ASSERT(compare_arrays(view2.get_view_location().get_extents(), darr2{5,4}));
+  ASSERT(compare_arrays(view2.get_view_location().get_strides(), darr2{2,4}));
+  ASSERT(compare_arrays(view2.get_view_location().get_origin(), darr2{0,3}));
 }
 
 int main() {

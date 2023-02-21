@@ -19,31 +19,35 @@ static void staged() {
   auto obj2 = Block<int,2>::heap({3,4});
   obj[i][j] = i*4+j;
   obj2[i][j] = i*4+j;
-  shim::permute(obj, std::tuple{0,1});
-  ASSERT(obj(0,1) == 1);
-  ASSERT(obj(1) == 1);
-  ASSERT(obj(2,1) == 9); 
-  shim::permute(obj, std::tuple{0,1});
-
-  shim::permute(obj, std::tuple{1,0});
-  ASSERT(obj(1,0) == 1);
-  ASSERT(obj(1,2) == 9);
-  shim::permute(obj, std::tuple{0,1});
-
-  shim::permute(obj2, std::tuple{1,0});
-  obj[i][j] = obj2[j][i]; // if I did obj2[i][j], then that's just undefined because I'm accessing data outside my area
-  shim::permute(obj2, std::tuple{0,1});
-  ASSERT(obj(0,1) == 1);
-  ASSERT(obj(1) == 1);
-  ASSERT(obj(2,1) == 9); 
+  {
+    auto pobj = obj.permute({0,1});
+    ASSERT(pobj(0,1) == 1);
+    ASSERT(pobj(1) == 1);
+    ASSERT(pobj(2,1) == 9); 
+  }
+  {
+    auto pobj = obj.permute({1,0});
+    ASSERT(pobj(1,0) == 1);
+    ASSERT(pobj(1,2) == 9);
+  }
+  {
+    auto pobj2 = obj2.permute({1,0});
+    obj[i][j] = pobj2[j][i]; // if I did obj2[i][j], then that's just undefined because I'm accessing data outside my area
+    ASSERT(obj(0,1) == 1);
+    ASSERT(obj(1) == 1);
+    ASSERT(obj(2,1) == 9); 
+  }
 
   auto view = obj.view(slice(0,3,2),slice(1,4,1));
-  shim::permute(obj, std::tuple{1,0});
-  auto view2 = obj.view(slice(1,4,1),slice(0,3,2));
-  shim::permute(obj, std::tuple{0,1});
-  ASSERT(compare_arrays(view.vextents, view2.vextents));
-  ASSERT(compare_arrays(view.vstrides, view2.vstrides));
-  ASSERT(compare_arrays(view.vorigin, view2.vorigin));
+  auto pobjtmp = obj.permute({1,0});
+  auto view2 = pobjtmp.view(slice(1,4,1),slice(0,3,2));
+
+  ASSERT(compare_arrays(view.get_view_location().get_extents(), 
+			view2.get_view_location().get_extents()));
+  ASSERT(compare_arrays(view.get_view_location().get_strides(), 
+			view2.get_view_location().get_strides()));
+  ASSERT(compare_arrays(view.get_view_location().get_origin(), 
+			view2.get_view_location().get_origin()));
 
   ASSERT(view(0,0) == 1);
   ASSERT(view(0,1) == 2);
@@ -51,33 +55,37 @@ static void staged() {
   ASSERT(view(1,0) == 9);
   ASSERT(view(1,1) == 10);
   ASSERT(view(1,2) == 11);
-  shim::col_major(view);
-  ASSERT(view(0,0) == 1);
-  ASSERT(view(1,0) == 2);
-  ASSERT(view(2,0) == 3);
-  ASSERT(view(0,1) == 9);
-  ASSERT(view(1,1) == 10);
-  ASSERT(view(2,1) == 11);
-  shim::row_major(view);
+  {
+    auto pview = view.col_major();
+    ASSERT(pview(0,0) == 1);
+    ASSERT(pview(1,0) == 2);
+    ASSERT(pview(2,0) == 3);
+    ASSERT(pview(0,1) == 9);
+    ASSERT(pview(1,1) == 10);
+    ASSERT(pview(2,1) == 11);
+  }
 
   auto view3 = view.view(slice(0,2,1), slice(0,3,2));
-  shim::permute(view, std::tuple{1,0});
-  auto view4 = view.view(slice(0,3,2), slice(0,2,1));
-  shim::permute(view, std::tuple{0,1});
-  ASSERT(compare_arrays(view3.vextents, view4.vextents));
-  ASSERT(compare_arrays(view3.vstrides, view4.vstrides));
-  ASSERT(compare_arrays(view3.vorigin, view4.vorigin));
+  auto pviewtmp = view.permute({1,0});
+  auto view4 = pviewtmp.view(slice(0,3,2), slice(0,2,1));
+  ASSERT(compare_arrays(view3.get_view_location().get_extents(), 
+			view4.get_view_location().get_extents()));
+  ASSERT(compare_arrays(view3.get_view_location().get_strides(), 
+			view4.get_view_location().get_strides()));
+  ASSERT(compare_arrays(view3.get_view_location().get_origin(),
+			view4.get_view_location().get_origin()));
 
   ASSERT(view3(0,0) == 1);
   ASSERT(view3(0,1) == 3);
   ASSERT(view3(1,0) == 9);
   ASSERT(view3(1,1) == 11);
-  shim::permute(view3, std::tuple{1,0});
-  ASSERT(view3(0,0) == 1);
-  ASSERT(view3(1,0) == 3);
-  ASSERT(view3(0,1) == 9);
-  ASSERT(view3(1,1) == 11);  
-  shim::permute(view3, std::tuple{0,1});
+  {
+    auto pview3 = view3.permute({1,0});
+    ASSERT(pview3(0,0) == 1);
+    ASSERT(pview3(1,0) == 3);
+    ASSERT(pview3(0,1) == 9);
+    ASSERT(pview3(1,1) == 11);  
+  }
 }
 
 int main() {
