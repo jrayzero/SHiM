@@ -133,22 +133,22 @@ struct is_iter<Iter<Ident>> {
 };
 
 template <typename T>
-struct is_slice { 
+struct is_range { 
   static constexpr bool value = false;
 };
 
 template <bool B>
-struct is_slice<Slice<B>> { 
+struct is_range<Range<B>> { 
   static constexpr bool value = true;
 };
 
 template <typename T>
-struct is_stop_slice {
+struct is_stop_range {
   static constexpr bool value = false;
 };
 
 template <>
-struct is_stop_slice<Slice<true>> {
+struct is_stop_range<Range<true>> {
   static constexpr bool value = true;
 };
 

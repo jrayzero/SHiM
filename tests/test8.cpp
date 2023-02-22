@@ -38,9 +38,9 @@ static void staged() {
     ASSERT(obj(2,1) == 9); 
   }
 
-  auto view = obj.view(slice(0,3,2),slice(1,4,1));
+  auto view = obj.slice(range(0,3,2),range(1,4,1));
   auto pobjtmp = obj.permute({1,0});
-  auto view2 = pobjtmp.view(slice(1,4,1),slice(0,3,2));
+  auto view2 = pobjtmp.slice(range(1,4,1),range(0,3,2));
 
   ASSERT(compare_arrays(view.get_view_location().get_extents(), 
 			view2.get_view_location().get_extents()));
@@ -65,9 +65,9 @@ static void staged() {
     ASSERT(pview(2,1) == 11);
   }
 
-  auto view3 = view.view(slice(0,2,1), slice(0,3,2));
+  auto view3 = view.slice(range(0,2,1), range(0,3,2));
   auto pviewtmp = view.permute({1,0});
-  auto view4 = pviewtmp.view(slice(0,3,2), slice(0,2,1));
+  auto view4 = pviewtmp.slice(range(0,3,2), range(0,2,1));
   ASSERT(compare_arrays(view3.get_view_location().get_extents(), 
 			view4.get_view_location().get_extents()));
   ASSERT(compare_arrays(view3.get_view_location().get_strides(), 

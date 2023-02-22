@@ -16,7 +16,7 @@ static void staged() {
   Iter<'i'> i;
   Iter<'j'> j;
   auto image = Block<int,2>::stack<64,64>();
-  auto mblk = image.view(slice(32,48,1),slice(16,32,1));
+  auto mblk = image.slice(range(32,48,1),range(16,32,1));
   auto intra_pred = Block<int,2>::stack<4,4>(LocationBuilder<2>().with_coarsening({16,16}));
   auto intra_pred_interp = intra_pred.virtually_refine(16,16);
   auto intra_at_mblk = intra_pred_interp.colocate(mblk);
