@@ -168,8 +168,8 @@ static dyn_var<int> find_sad_16x16_Shim(Macroblock macroblock) {
   // that can be mutated (so call like obj.with_extent().with_coarsening().to_immutable())
   auto intra_block = Block<short,2>::user({mbH, mbW}, {1,1}, {0,0}, {1,1}, {16,16},
 					  macroblock->p_vid->intra_block).virtually_refine(16,16);
-  auto mblk_recons = img_recons.view(slice(macroblock->pix_y,macroblock->pix_y+16,1), 
-				     slice(macroblock->pix_x,macroblock->pix_x+16,1));
+  auto mblk_recons = img_recons.slice(range(macroblock->pix_y,macroblock->pix_y+16,1), 
+				     range(macroblock->pix_x,macroblock->pix_x+16,1));
   dbool up_available = false;
   dbool left_available = false;
   dbool all_available = false;
@@ -206,20 +206,20 @@ static dyn_var<int> find_sad_16x16_Shim(Macroblock macroblock) {
       // now run the modes based on what data is available
       auto pred = Block<imgpel,3,true>::user({4,16,16}, macroblock->p_slice->mpr_16x16[0]);
       if (mode == VERT_PRED_16 && up_available) {	
-	auto p = pred.view(slice(VERT_PRED_16,VERT_PRED_16+1,1),slice(0,16,1),slice(0,16,1));
+	auto p = pred.slice(range(VERT_PRED_16,VERT_PRED_16+1,1),range(0,16,1),range(0,16,1));
 	get_vertical(p, mblk_recons);
 	select_best(best_cost, best_mode, p, img_orig.colocate(mblk_recons), mode);
       } else if (mode == HOR_PRED_16 && left_available) {
-	auto p = pred.view(slice(HOR_PRED_16,HOR_PRED_16+1,1),slice(0,16,1),slice(0,16,1));
+	auto p = pred.slice(range(HOR_PRED_16,HOR_PRED_16+1,1),range(0,16,1),range(0,16,1));
 	get_horizontal(p, mblk_recons);
 	select_best(best_cost, best_mode, p, img_orig.colocate(mblk_recons), mode);
       } else if (mode == PLANE_16 && all_available) {
-	auto p = pred.view(slice(PLANE_16,PLANE_16+1,1),slice(0,16,1),slice(0,16,1));
+	auto p = pred.slice(range(PLANE_16,PLANE_16+1,1),range(0,16,1),range(0,16,1));
 	get_16x16_plane(p, mblk_recons);
 	select_best(best_cost, best_mode, p, img_orig.colocate(mblk_recons), mode);
       } else if (mode == DC_PRED_16) {
 	// DC mode
-	auto p = pred.view(slice(DC_PRED_16,DC_PRED_16+1,1),slice(0,16,1),slice(0,16,1));
+	auto p = pred.slice(range(DC_PRED_16,DC_PRED_16+1,1),range(0,16,1),range(0,16,1));
 	get_16x16_dc(p, mblk_recons, left_available, up_available);
 	select_best(best_cost, best_mode, p, img_orig.colocate(mblk_recons), mode);
       }

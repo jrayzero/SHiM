@@ -15,7 +15,7 @@ using darr2 = dyn_arr<int,2>;
 static void staged() {
   auto block = Block<int,2>::stack<10,20>();
   auto block2 = Block<int,2>::stack<4,4>();
-  auto block2_view = block2.view(slice(1,4,1),slice(0,4,2));
+  auto block2_view = block2.slice(range(1,4,1),range(0,4,2));
   Iter<'i'> i;
   Iter<'j'> j;
   block[i][j] = 0;

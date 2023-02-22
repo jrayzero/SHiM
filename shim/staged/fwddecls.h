@@ -42,7 +42,7 @@ struct TernaryCond;
 
 // Other
 template <bool B>
-struct Slice;
+struct Range;
 
 ///// Types
 #ifndef UNSTAGED

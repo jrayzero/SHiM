@@ -162,7 +162,7 @@ void dct(View<int,3> obj) {
   sint FIX_3_072711026 = 25172;
   
   for (dint r = 0; r < 8; r=r+1) {
-    auto row = obj.view(slice(0,1,1),slice(r,r+1,1),slice(0,8,1));
+    auto row = obj.slice(range(0,1,1),range(r,r+1,1),range(0,8,1));
     dint tmp0 = row(0) + row(7);
     dint tmp7 = row(0) - row(7);
     dint tmp1 = row(1) + row(6);
@@ -201,7 +201,7 @@ void dct(View<int,3> obj) {
     row[1] = descale(tmp7 + z1 + z4, 11);
   }
   for (dint c = 0; c < 8; c=c+1) {
-    auto col = obj.view(slice(0,1,1), slice(0,8,1), slice(c,c+1,1));    
+    auto col = obj.slice(range(0,1,1), range(0,8,1), range(c,c+1,1));    
     dint tmp0 = col(0,0) + col(7,0);
     dint tmp7 = col(0,0) - col(7,0);
     dint tmp1 = col(1,0) + col(6,0);
@@ -286,7 +286,7 @@ void jpeg_staged(dyn_var<uint8_t*> input, dyn_var<int> H, dyn_var<int> W,
   
   for (dint r = 0; r < H; r = r + 8) {
     for (dint c = 0; c < W; c = c + 8) {
-      auto mcu = RGB.view(slice(r,r+8,1),slice(c,c+8,1),slice(0,3,1));
+      auto mcu = RGB.slice(range(r,r+8,1),range(c,c+8,1),range(0,3,1));
       if (r+8>H || c+8>W) {
 	// need padding
 	dint row_pad = 0;
@@ -299,11 +299,11 @@ void jpeg_staged(dyn_var<uint8_t*> input, dyn_var<int> H, dyn_var<int> W,
 	dint last_valid_row = 8 - row_pad;
 	dint last_valid_col = 8 - col_pad;
 	// copy over original
-	auto orig_padded = padded.view(slice(0,last_valid_row,1),slice(0,last_valid_col,1),slice(0,3,1));
+	auto orig_padded = padded.slice(range(0,last_valid_row,1),range(0,last_valid_col,1),range(0,3,1));
 	orig_padded[i][j][k] = RGB[i+r][j+c][k];
 	// pad
-	auto row_padding_area = padded.view(slice(last_valid_row,last_valid_row+row_pad,1),slice(0,8,1),slice(0,3,1));
-	auto col_padding_area = padded.view(slice(0,8,1), slice(last_valid_col,last_valid_col+col_pad,1), slice(0,3,1));
+	auto row_padding_area = padded.slice(range(last_valid_row,last_valid_row+row_pad,1),range(0,8,1),range(0,3,1));
+	auto col_padding_area = padded.slice(range(0,8,1), range(last_valid_col,last_valid_col+col_pad,1), range(0,3,1));
 	row_padding_area[i][j][k] = padded[(last_valid_row-1)][j][k];
 	col_padding_area[i][j][k] = padded[i][(last_valid_col-1)][k];
 	color(padded, YCbCr);
@@ -313,9 +313,9 @@ void jpeg_staged(dyn_var<uint8_t*> input, dyn_var<int> H, dyn_var<int> W,
       }
       // offset
       YCbCr[i][j][k] = YCbCr[i][j][k] - 128;
-      auto Y = YCbCr.view(slice(0,1,1),slice(0,8,1),slice(0,8,1));
-      auto Cb = YCbCr.view(slice(1,2,1),slice(0,8,1),slice(0,8,1));
-      auto Cr = YCbCr.view(slice(2,3,1),slice(0,8,1),slice(0,8,1));
+      auto Y = YCbCr.slice(range(0,1,1),range(0,8,1),range(0,8,1));
+      auto Cb = YCbCr.slice(range(1,2,1),range(0,8,1),range(0,8,1));
+      auto Cr = YCbCr.slice(range(2,3,1),range(0,8,1),range(0,8,1));
       dct(Y);      
       dct(Cb);
       dct(Cr);

@@ -167,12 +167,12 @@ struct Block {
 
   ///
   /// Create a View over this whole block
-  View<Elem,Rank,MultiDimRepr> view();
+  View<Elem,Rank,MultiDimRepr> slice();
 
   ///
   /// Slice out a View over a portion of this Block
   template <typename...Slices>
-  View<Elem,Rank,MultiDimRepr> view(Slices...slices);
+  View<Elem,Rank,MultiDimRepr> slice(Slices...slices);
 
   /// 
   /// Perform a lazy inline access on this Block
@@ -304,12 +304,12 @@ struct View {
 
   ///
   /// Slice out a View over a portion of this View
-  View<Elem,Rank,MultiDimRepr> view();
+  View<Elem,Rank,MultiDimRepr> slice();
 
   ///
   /// Slice out a View over a portion of this View
   template <typename...Slices>
-  View<Elem,Rank,MultiDimRepr> view(Slices...slices);
+  View<Elem,Rank,MultiDimRepr> slice(Slices...slices);
 
   /// 
   /// Perform a lazy inline access on this View
@@ -609,13 +609,13 @@ Block<Elem,Rank,false> Block<Elem,Rank,MultiDimRepr>::physically_coarsen(Factors
 }
 
 template <typename Elem, unsigned long Rank, bool MultiDimRepr>
-View<Elem,Rank,MultiDimRepr> Block<Elem,Rank,MultiDimRepr>::view() {
+View<Elem,Rank,MultiDimRepr> Block<Elem,Rank,MultiDimRepr>::slice() {
   return {location, location, allocator};
 }
 
 template <typename Elem, unsigned long Rank, bool MultiDimRepr>
 template <typename...Slices>
-View<Elem,Rank,MultiDimRepr> Block<Elem,Rank,MultiDimRepr>::view(Slices...slices) {
+View<Elem,Rank,MultiDimRepr> Block<Elem,Rank,MultiDimRepr>::slice(Slices...slices) {
   // the block parameters stay the same, but we need to update the
   // view parameters  
   SLoc_T permuted_extents;
@@ -1108,13 +1108,13 @@ Block<Elem,Rank,false> View<Elem,Rank,MultiDimRepr>::physically_coarsen(Factors.
 }
 
 template <typename Elem, unsigned long Rank, bool MultiDimRepr>
-View<Elem,Rank,MultiDimRepr> View<Elem,Rank,MultiDimRepr>::view() {
+View<Elem,Rank,MultiDimRepr> View<Elem,Rank,MultiDimRepr>::slice() {
   return {block_location, view_location};
 }
 
 template <typename Elem, unsigned long Rank, bool MultiDimRepr>
 template <typename...Slices>
-View<Elem,Rank,MultiDimRepr> View<Elem,Rank,MultiDimRepr>::view(Slices...slices) {
+View<Elem,Rank,MultiDimRepr> View<Elem,Rank,MultiDimRepr>::slice(Slices...slices) {
   static_assert(sizeof...(Slices) == Rank, "Must specify slices for all dimensions.");
   // the block parameters stay the same, but we need to update the
   // view parameters  

@@ -14,8 +14,8 @@ using darr2 = dyn_arr<int,2>;
 
 static void staged() {
   auto block = Block<int,2>::stack<10,20>();
-  auto view = block.view();
-  auto view2 = block.view(slice(0,10,2),slice(3,19,4));
+  auto view = block.slice();
+  auto view2 = block.slice(range(0,10,2),range(3,19,4));
   ASSERT(compare_arrays(block.get_location().get_extents(), darr2{10, 20}));
   ASSERT(compare_arrays(block.get_location().get_strides(), darr2{1,1}));
   ASSERT(compare_arrays(block.get_location().get_origin(), darr2{0,0}));
