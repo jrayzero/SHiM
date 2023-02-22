@@ -193,6 +193,8 @@ void stage(Func func, std::string name, std::string fn_prefix, std::string pre_h
   src << "#define SHIM_BUILD_STACK_FLOAT(name,x) float name[x]" << std::endl;
   src << "#define SHIM_BUILD_STACK_DOUBLE(name,x) double name[x]" << std::endl;
 
+  src << "#define TERNARY(cond,t,f) (cond) ? (t) : (f)" << std::endl;
+
   src << "void print_newline() { printf(\"\\n\"); }" << std::endl;
   std::stringstream src2;
   std::vector<std::string> sigs = hmda_cpp_code_generator::generate_code(ast, src2, 0);

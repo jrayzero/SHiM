@@ -37,6 +37,11 @@ struct is_expr<Binary<Functor,Operand0,Operand1>> {
   static constexpr bool value = true;
 };
 
+template <typename Cond, typename TBranch, typename FBranch>
+struct is_expr<TernaryCond<Cond,TBranch,FBranch>> {
+  static constexpr bool value = true;
+};
+
 template <char Ident>
 struct is_expr<Iter<Ident>> {
   static constexpr bool value = true;
