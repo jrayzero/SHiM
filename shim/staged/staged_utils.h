@@ -382,4 +382,32 @@ auto initlist_to_tuple(std::initializer_list<T> l) {
   return vector_to_tuple<Rank,0>(v);
 }
 
+template <typename TypeA, typename TypeB, typename...Types> 
+struct CheckHomogeneousTupleProxy {
+  constexpr bool operator()() {
+    constexpr bool is_eq = std::is_same<TypeA,TypeB>::value;
+    if constexpr (sizeof...(Types) > 0) {
+      return is_eq && CheckHomogeneousTupleProxy<TypeA, Types...>()();
+    } else {
+      return is_eq;
+    }
+  }
+};
+
+template <typename...Types>
+struct CheckHomogeneousTuple {
+  constexpr bool operator()() {
+    if constexpr (sizeof...(Types) == 0 || sizeof...(Types) == 1) {
+      return true;
+    } else {
+      return CheckHomogeneousTupleProxy<Types...>()();
+    }
+  }
+};
+
+template <typename...Types>
+constexpr bool check_homogeneous_tuple() {
+  return CheckHomogeneousTuple<Types...>()();
+}
+
 }

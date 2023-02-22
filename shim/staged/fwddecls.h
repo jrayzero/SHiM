@@ -24,7 +24,7 @@ struct Ref;
 template <typename Elem, typename IsPrimitive>
 struct SField;
 
-// Expressions
+// Expressions and expression-like things
 template <typename Derived>
 struct Expr;
 template <typename Functor, typename Operand0>
@@ -39,6 +39,8 @@ template <typename To, typename Operand>
 struct TemplateCast;
 template <typename Cond, typename TBranch, typename FBranch>
 struct TernaryCond;
+template <int GOPType, typename...Options>
+struct GroupedJunctionOperator;
 
 // Other
 template <bool B>

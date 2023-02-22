@@ -10,8 +10,39 @@
 #include "fwddecls.h"
 #include "traits.h"
 #include "defs.h"
+#include "staged_utils.h"
 
 namespace shim {
+
+///
+/// A disjunction or conjunction like Or(a,b,c,...) or And(a,b,c,...) that can be used as part of a boolean expression such as
+/// q == Or(a,b,c), which eventually expands to q == a || q == b || q == c. These are not Exprs by themselves,
+/// thus they cannot be realized and instead should be expanded before realization
+/// GOPType == 0 => or
+/// GOPType == 1 => and
+template <int GOPType, typename...Options>
+struct GroupedJunctionOperator {
+  static constexpr int GOPType_T = GOPType;
+  explicit GroupedJunctionOperator(std::tuple<Options...> group) : group(std::move(group)) { 
+    static_assert(sizeof...(Options) > 0);
+  } 
+  std::tuple<Options...> group;
+  
+};
+
+///
+/// Create an OR GroupedJunctionOperator
+template <typename...Options>
+GroupedJunctionOperator<0, Options...> Or(Options...options) {
+  return GroupedJunctionOperator<0, Options...>{std::tuple{options...}};
+}
+
+///
+/// Create an AND GroupedJunctionOperator
+template <typename...Options>
+GroupedJunctionOperator<1, Options...> And(Options...options) {
+  return GroupedJunctionOperator<1, Options...>(std::tuple{options...});
+}
 
 ///
 /// Unspecialized template to determine the core type of a compound expression
@@ -125,6 +156,11 @@ struct GetCoreT<T*> { using Core_T = typename GetCoreT<T>::Core_T; };
 ///
 /// Core type is core type of T
 template <typename T>
+struct GetCoreT<T&> { using Core_T = typename GetCoreT<T>::Core_T; };
+
+///
+/// Core type is core type of T
+template <typename T>
 struct GetCoreT<T[]> { using Core_T = typename GetCoreT<T>::Core_T; };
 
 ///
@@ -141,6 +177,11 @@ struct GetCoreT<TemplateCast<To,CompoundExpr>> { using Core_T = To; };
 /// Core type is TBranch (or FBranch)
 template <typename Cond, typename TBranch, typename FBranch>
 struct GetCoreT<TernaryCond<Cond,TBranch,FBranch>> { using Core_T = typename GetCoreT<TBranch>::Core_T; };
+
+///
+/// Core type is 
+template <int GOPType, typename Option, typename...Options>
+struct GetCoreT<GroupedJunctionOperator<GOPType,Option,Options...>> { using Core_T = typename GetCoreT<Option>::Core_T; };
 
 ///
 /// Represents a compound expression. This class just implements the overloads, but all the realization
@@ -193,42 +234,42 @@ struct Expr {
   ///
   /// Build less than compound expression
   template <typename Rhs>
-  Binary<LTFunctor<false>,Derived,Rhs> operator<(const Rhs &rhs);
+  auto operator<(const Rhs &rhs);
 
   ///
   /// Build less than or equals compound expression
   template <typename Rhs>
-  Binary<LTFunctor<true>,Derived,Rhs> operator<=(const Rhs &rhs);
+  auto operator<=(const Rhs &rhs);
 
   ///
   /// Build greater than compound expression
   template <typename Rhs>
-  Binary<GTFunctor<false>,Derived,Rhs> operator>(const Rhs &rhs);
+  auto operator>(const Rhs &rhs);
 
   ///
   /// Build greater than or equals compound expression
   template <typename Rhs>
-  Binary<GTFunctor<true>,Derived,Rhs> operator>=(const Rhs &rhs);
+  auto operator>=(const Rhs &rhs);
 
   ///
   /// Build equals compound expression
   template <typename Rhs>
-  Binary<EqFunctor<false>,Derived,Rhs> operator==(const Rhs &rhs);
+  auto operator==(const Rhs &rhs);
 
   ///
   /// Build not equals compound expression
   template <typename Rhs>
-  Binary<EqFunctor<true>,Derived,Rhs> operator!=(const Rhs &rhs);
+  auto operator!=(const Rhs &rhs);
 
   ///
   /// Build boolean and compound expression
   template <typename Rhs>
-  Binary<AndFunctor,Derived,Rhs> operator&&(const Rhs &rhs);
+  auto operator&&(const Rhs &rhs);
 
   ///
   /// Build boolean or compound expression
   template <typename Rhs>
-  Binary<OrFunctor,Derived,Rhs> operator||(const Rhs &rhs);
+  auto operator||(const Rhs &rhs);
 
   ///
   /// Build bitwise and compound expression
@@ -364,6 +405,61 @@ private:
   
 };
 
+
+template <int Depth, typename Functor, int GOPType, typename Rhs, typename...Options>
+auto apply_lhs_grouped_junction_operator(std::tuple<Options...> group, const Rhs &rhs) {
+  if constexpr (Depth == 0 && sizeof...(Options) == 0) { 
+    // no junction needed
+    return rhs;
+  } else if constexpr (Depth < sizeof...(Options) - 1) {
+    auto d = std::get<Depth>(group);
+    Binary<Functor, decltype(d), Rhs> cur_binary(d, rhs);
+    auto applied = apply_lhs_grouped_junction_operator<Depth+1,Functor,GOPType>(group, rhs);
+    if constexpr (GOPType == 0) {
+      return Binary<OrFunctor,decltype(cur_binary),decltype(applied)>(cur_binary, applied);
+    } else {
+      return Binary<AndFunctor,decltype(cur_binary),decltype(applied)>(cur_binary, applied);
+    }
+  } else {
+    auto d = std::get<Depth>(group);
+    Binary<Functor, decltype(d), Rhs> cur_binary(d, rhs);
+    return cur_binary;
+  }
+}
+
+template <int Depth, typename Functor, int GOPType, typename Lhs, typename...Options>
+auto apply_rhs_grouped_junction_operator(const Lhs &lhs, std::tuple<Options...> group) {
+  if constexpr (Depth == 0 && sizeof...(Options) == 0) { 
+    // no junction needed
+    return lhs;
+  } else if constexpr (Depth < sizeof...(Options) - 1) {
+    auto d = std::get<Depth>(group);
+    Binary<Functor, Lhs, decltype(d)> cur_binary(lhs, d);
+    auto applied = apply_rhs_grouped_junction_operator<Depth+1,Functor,GOPType>(lhs, group);
+    if constexpr (GOPType == 0) {
+      return Binary<OrFunctor,decltype(applied),decltype(cur_binary)>(applied, cur_binary);
+    } else {
+      return Binary<AndFunctor,decltype(applied),decltype(cur_binary)>(applied, cur_binary);
+    }
+  } else {
+    auto d = std::get<Depth>(group);
+    Binary<Functor, Lhs, decltype(d)> cur_binary(lhs, d);
+    return cur_binary;
+  }
+}
+
+template <typename Functor, typename Lhs, typename Rhs>
+auto maybe_apply_grouped_junction_operator(const Lhs &lhs, const Rhs &rhs) {
+  static_assert(!(is_grouped_junction_operator<Lhs>::value && is_grouped_junction_operator<Rhs>::value));
+  if constexpr (is_grouped_junction_operator<Lhs>::value) {
+    return apply_lhs_grouped_junction_operator<0,Functor,Lhs::GOPType_T>(lhs.group, rhs);
+  } else if constexpr (is_grouped_junction_operator<Rhs>::value) {
+    return apply_rhs_grouped_junction_operator<0,Functor,Rhs::GOPType_T>(lhs, rhs.group);
+  } else {
+    return Binary<Functor,Lhs,Rhs>(lhs,rhs);
+  }
+}
+
 template <typename Derived>
 Unary<NotFunctor,Derived> Expr<Derived>::operator!() {
   return Unary<NotFunctor,Derived>(*static_cast<Derived*>(this));
@@ -382,96 +478,104 @@ Unary<NegateFunctor,Derived> Expr<Derived>::operator-() {
 template <typename Derived>
 template <typename Rhs>
 Binary<AddFunctor,Derived,Rhs> Expr<Derived>::operator+(const Rhs &rhs) {
+  static_assert(!is_grouped_junction_operator<Rhs>::value);
   return Binary<AddFunctor,Derived,Rhs>(*static_cast<Derived*>(this), rhs);
 }
 
 template <typename Derived>
 template <typename Rhs>
 Binary<SubFunctor,Derived,Rhs> Expr<Derived>::operator-(const Rhs &rhs) {
+  static_assert(!is_grouped_junction_operator<Rhs>::value);
   return Binary<SubFunctor,Derived,Rhs>(*static_cast<Derived*>(this), rhs);
 }
 
 template <typename Derived>
 template <typename Rhs>
 Binary<MulFunctor,Derived,Rhs> Expr<Derived>::operator*(const Rhs &rhs) {
+  static_assert(!is_grouped_junction_operator<Rhs>::value);
   return Binary<MulFunctor,Derived,Rhs>(*static_cast<Derived*>(this), rhs);
 }
 
 template <typename Derived>
 template <typename Rhs>
 Binary<DivFunctor,Derived,Rhs> Expr<Derived>::operator/(const Rhs &rhs) {
+  static_assert(!is_grouped_junction_operator<Rhs>::value);
   return Binary<DivFunctor,Derived,Rhs>(*static_cast<Derived*>(this), rhs);
 }
 
 template <typename Derived>
 template <typename Rhs>
 Binary<LShiftFunctor,Derived,Rhs> Expr<Derived>::operator<<(const Rhs &rhs) {
+  static_assert(!is_grouped_junction_operator<Rhs>::value);
   return Binary<LShiftFunctor,Derived,Rhs>(*static_cast<Derived*>(this), rhs);
 }
 
 template <typename Derived>
 template <typename Rhs>
 Binary<RShiftFunctor,Derived,Rhs> Expr<Derived>::operator>>(const Rhs &rhs) {
+  static_assert(!is_grouped_junction_operator<Rhs>::value);
   return Binary<RShiftFunctor,Derived,Rhs>(*static_cast<Derived*>(this), rhs);
 }
 
 template <typename Derived>
 template <typename Rhs>
-Binary<LTFunctor<false>,Derived,Rhs> Expr<Derived>::operator<(const Rhs &rhs) {
-  return Binary<LTFunctor<false>,Derived,Rhs>(*static_cast<Derived*>(this), rhs);
+auto Expr<Derived>::operator<(const Rhs &rhs) {
+  return maybe_apply_grouped_junction_operator<LTFunctor<false>>(*static_cast<Derived*>(this), rhs);
 }
 
 template <typename Derived>
 template <typename Rhs>
-Binary<LTFunctor<true>,Derived,Rhs> Expr<Derived>::operator<=(const Rhs &rhs) {
-  return Binary<LTFunctor<true>,Derived,Rhs>(*static_cast<Derived*>(this), rhs);
+auto Expr<Derived>::operator<=(const Rhs &rhs) {
+  return maybe_apply_grouped_junction_operator<LTFunctor<true>>(*static_cast<Derived*>(this), rhs);
 }
 
 template <typename Derived>
 template <typename Rhs>
-Binary<GTFunctor<false>,Derived,Rhs> Expr<Derived>::operator>(const Rhs &rhs) {
-  return Binary<GTFunctor<false>,Derived,Rhs>(*static_cast<Derived*>(this), rhs);
+auto Expr<Derived>::operator>(const Rhs &rhs) {
+  return maybe_apply_grouped_junction_operator<GTFunctor<false>>(*static_cast<Derived*>(this), rhs);
 }
 
 template <typename Derived>
 template <typename Rhs>
-Binary<GTFunctor<true>,Derived,Rhs> Expr<Derived>::operator>=(const Rhs &rhs) {
-  return Binary<GTFunctor<true>,Derived,Rhs>(*static_cast<Derived*>(this), rhs);
+auto Expr<Derived>::operator>=(const Rhs &rhs) {
+  return maybe_apply_grouped_junction_operator<GTFunctor<true>>(*static_cast<Derived*>(this), rhs);
 }
 
 template <typename Derived>
 template <typename Rhs>
-Binary<EqFunctor<false>,Derived,Rhs> Expr<Derived>::operator==(const Rhs &rhs) {
-  return Binary<EqFunctor<false>,Derived,Rhs>(*static_cast<Derived*>(this), rhs);
+auto Expr<Derived>::operator==(const Rhs &rhs) {
+  return maybe_apply_grouped_junction_operator<EqFunctor<false>>(*static_cast<Derived*>(this), rhs);
 }
 
 template <typename Derived>
 template <typename Rhs>
-Binary<EqFunctor<true>,Derived,Rhs> Expr<Derived>::operator!=(const Rhs &rhs) {
-  return Binary<EqFunctor<true>,Derived,Rhs>(*static_cast<Derived*>(this), rhs);
+auto Expr<Derived>::operator!=(const Rhs &rhs) {
+  return maybe_apply_grouped_junction_operator<EqFunctor<true>>(*static_cast<Derived*>(this), rhs);
 }
 
 template <typename Derived>
 template <typename Rhs>
-Binary<AndFunctor,Derived,Rhs> Expr<Derived>::operator&&(const Rhs &rhs) {
-  return Binary<AndFunctor,Derived,Rhs>(*static_cast<Derived*>(this), rhs);
+auto Expr<Derived>::operator&&(const Rhs &rhs) {
+  return maybe_apply_grouped_junction_operator<AndFunctor>(*static_cast<Derived*>(this), rhs);
 }
 
 template <typename Derived>
 template <typename Rhs>
-Binary<OrFunctor,Derived,Rhs> Expr<Derived>::operator||(const Rhs &rhs) {
-  return Binary<OrFunctor,Derived,Rhs>(*static_cast<Derived*>(this), rhs);
+auto Expr<Derived>::operator||(const Rhs &rhs) {
+  return maybe_apply_grouped_junction_operator<OrFunctor>(*static_cast<Derived*>(this), rhs);
 }
 
 template <typename Derived>
 template <typename Rhs>
 Binary<BitwiseAndFunctor,Derived,Rhs> Expr<Derived>::operator&(const Rhs &rhs) {
+  static_assert(!is_grouped_junction_operator<Rhs>::value);
   return Binary<BitwiseAndFunctor,Derived,Rhs>(*static_cast<Derived*>(this), rhs);
 }
 
 template <typename Derived>
 template <typename Rhs>
 Binary<BitwiseOrFunctor,Derived,Rhs> Expr<Derived>::operator|(const Rhs &rhs) {
+  static_assert(!is_grouped_junction_operator<Rhs>::value);
   return Binary<BitwiseOrFunctor,Derived,Rhs>(*static_cast<Derived*>(this), rhs);
 }
 
@@ -480,6 +584,8 @@ Binary<BitwiseOrFunctor,Derived,Rhs> Expr<Derived>::operator|(const Rhs &rhs) {
 template <typename Lhs, typename Rhs,
 	  typename std::enable_if<is_expr<Rhs>::value, int>::type = 0>
 Binary<AddFunctor,Lhs,Rhs> operator+(const Lhs &lhs, const Rhs &rhs) {
+  static_assert(!is_grouped_junction_operator<Lhs>::value);
+  static_assert(!is_grouped_junction_operator<Rhs>::value);
   return Binary<AddFunctor,Lhs,Rhs>(lhs, rhs);
 }
 
@@ -488,6 +594,8 @@ Binary<AddFunctor,Lhs,Rhs> operator+(const Lhs &lhs, const Rhs &rhs) {
 template <typename Lhs, typename Rhs,
 	  typename std::enable_if<is_expr<Rhs>::value, int>::type = 0>
 Binary<SubFunctor,Lhs,Rhs> operator-(const Lhs &lhs, const Rhs &rhs) {
+  static_assert(!is_grouped_junction_operator<Lhs>::value);
+  static_assert(!is_grouped_junction_operator<Rhs>::value);
   return Binary<SubFunctor,Lhs,Rhs>(lhs, rhs);
 }
 
@@ -496,6 +604,8 @@ Binary<SubFunctor,Lhs,Rhs> operator-(const Lhs &lhs, const Rhs &rhs) {
 template <typename Lhs, typename Rhs,
 	  typename std::enable_if<is_expr<Rhs>::value, int>::type = 0>
 Binary<MulFunctor,Lhs,Rhs> operator*(const Lhs &lhs, const Rhs &rhs) {
+  static_assert(!is_grouped_junction_operator<Lhs>::value);
+  static_assert(!is_grouped_junction_operator<Rhs>::value);
   return Binary<MulFunctor,Lhs,Rhs>(lhs, rhs);
 }
 
@@ -504,6 +614,8 @@ Binary<MulFunctor,Lhs,Rhs> operator*(const Lhs &lhs, const Rhs &rhs) {
 template <typename Lhs, typename Rhs,
 	  typename std::enable_if<is_expr<Rhs>::value, int>::type = 0>
 Binary<DivFunctor,Lhs,Rhs> operator/(const Lhs &lhs, const Rhs &rhs) {
+  static_assert(!is_grouped_junction_operator<Lhs>::value);
+  static_assert(!is_grouped_junction_operator<Rhs>::value);
   return Binary<DivFunctor,Lhs,Rhs>(lhs, rhs);
 }
 
@@ -512,6 +624,8 @@ Binary<DivFunctor,Lhs,Rhs> operator/(const Lhs &lhs, const Rhs &rhs) {
 template <typename Lhs, typename Rhs,
 	  typename std::enable_if<is_expr<Rhs>::value, int>::type = 0>
 Binary<LShiftFunctor,Lhs,Rhs> operator<<(const Lhs &lhs, const Rhs &rhs) {
+  static_assert(!is_grouped_junction_operator<Lhs>::value);
+  static_assert(!is_grouped_junction_operator<Rhs>::value);
   return Binary<LShiftFunctor,Lhs,Rhs>(lhs, rhs);
 }
 
@@ -520,6 +634,8 @@ Binary<LShiftFunctor,Lhs,Rhs> operator<<(const Lhs &lhs, const Rhs &rhs) {
 template <typename Lhs, typename Rhs,
 	  typename std::enable_if<is_expr<Rhs>::value, int>::type = 0>
 Binary<RShiftFunctor,Lhs,Rhs> operator>>(const Lhs &lhs, const Rhs &rhs) {
+  static_assert(!is_grouped_junction_operator<Lhs>::value);
+  static_assert(!is_grouped_junction_operator<Rhs>::value);
   return Binary<RShiftFunctor,Lhs,Rhs>(lhs, rhs);
 }
 
@@ -527,64 +643,64 @@ Binary<RShiftFunctor,Lhs,Rhs> operator>>(const Lhs &lhs, const Rhs &rhs) {
 /// Free version of Expr::operator< between non-Expr and Expr
 template <typename Lhs, typename Rhs,
 	  typename std::enable_if<is_expr<Rhs>::value, int>::type = 0>
-Binary<LTFunctor<false>,Lhs,Rhs> operator<(const Lhs &lhs, const Rhs &rhs) {
-  return Binary<LTFunctor<false>,Lhs,Rhs>(lhs, rhs);
+auto operator<(const Lhs &lhs, const Rhs &rhs) {
+  return maybe_apply_grouped_junction_operator<LTFunctor<false>>(lhs, rhs);
 }
 
 ///
 /// Free version of Expr::operator<= between non-Expr and Expr
 template <typename Lhs, typename Rhs,
 	  typename std::enable_if<is_expr<Rhs>::value, int>::type = 0>
-Binary<LTFunctor<true>,Lhs,Rhs> operator<=(const Lhs &lhs, const Rhs &rhs) {
-  return Binary<LTFunctor<true>,Lhs,Rhs>(lhs, rhs);
+auto operator<=(const Lhs &lhs, const Rhs &rhs) {
+  return maybe_apply_grouped_junction_operator<LTFunctor<true>>(lhs, rhs);
 }
 
 ///
 /// Free version of Expr::operator> between non-Expr and Expr
 template <typename Lhs, typename Rhs,
 	  typename std::enable_if<is_expr<Rhs>::value, int>::type = 0>
-Binary<GTFunctor<false>,Lhs,Rhs> operator>(const Lhs &lhs, const Rhs &rhs) {
-  return Binary<GTFunctor<false>,Lhs,Rhs>(lhs, rhs);
+auto operator>(const Lhs &lhs, const Rhs &rhs) {
+  return maybe_apply_grouped_junction_operator<GTFunctor<false>>(lhs, rhs);
 }
 
 ///
 /// Free version of Expr::operator>= between non-Expr and Expr
 template <typename Lhs, typename Rhs,
 	  typename std::enable_if<is_expr<Rhs>::value, int>::type = 0>
-Binary<GTFunctor<true>,Lhs,Rhs> operator>=(const Lhs &lhs, const Rhs &rhs) {
-  return Binary<GTFunctor<true>,Lhs,Rhs>(lhs, rhs);
+auto operator>=(const Lhs &lhs, const Rhs &rhs) {
+  return maybe_apply_grouped_junction_operator<GTFunctor<true>>(lhs, rhs);
 }
 
 ///
 /// Free version of Expr::operator== between non-Expr and Expr
 template <typename Lhs, typename Rhs,
 	  typename std::enable_if<is_expr<Rhs>::value, int>::type = 0>
-Binary<EqFunctor<false>,Lhs,Rhs> operator==(const Lhs &lhs, const Rhs &rhs) {
-  return Binary<EqFunctor<false>,Lhs,Rhs>(lhs, rhs);
+auto operator==(const Lhs &lhs, const Rhs &rhs) {
+  return maybe_apply_grouped_junction_operator<EqFunctor<false>>(lhs, rhs);
 }
 
 ///
 /// Free version of Expr::operator!= between non-Expr and Expr
 template <typename Lhs, typename Rhs,
 	  typename std::enable_if<is_expr<Rhs>::value, int>::type = 0>
-Binary<EqFunctor<true>,Lhs,Rhs> operator!=(const Lhs &lhs, const Rhs &rhs) {
-  return Binary<EqFunctor<true>,Lhs,Rhs>(lhs, rhs);
+auto operator!=(const Lhs &lhs, const Rhs &rhs) {
+  return maybe_apply_grouped_junction_operator<EqFunctor<true>>(lhs, rhs);
 }
 
 ///
 /// Free version of Expr::operator&& between non-Expr and Expr
 template <typename Lhs, typename Rhs,
 	  typename std::enable_if<is_expr<Rhs>::value, int>::type = 0>
-Binary<AndFunctor,Lhs,Rhs> operator&&(const Lhs &lhs, const Rhs &rhs) {
-  return Binary<AndFunctor,Lhs,Rhs>(lhs, rhs);
+auto operator&&(const Lhs &lhs, const Rhs &rhs) {
+  return maybe_apply_grouped_junction_operator<AndFunctor>(lhs, rhs);
 }
 
 ///
 /// Free version of Expr::operator|| between non-Expr and Expr
 template <typename Lhs, typename Rhs,
 	  typename std::enable_if<is_expr<Rhs>::value, int>::type = 0>
-Binary<OrFunctor,Lhs,Rhs> operator||(const Lhs &lhs, const Rhs &rhs) {
-  return Binary<OrFunctor,Lhs,Rhs>(lhs, rhs);
+auto operator||(const Lhs &lhs, const Rhs &rhs) {
+  return maybe_apply_grouped_junction_operator<OrFunctor>(lhs, rhs);
 }
 
 ///
@@ -592,6 +708,8 @@ Binary<OrFunctor,Lhs,Rhs> operator||(const Lhs &lhs, const Rhs &rhs) {
 template <typename Lhs, typename Rhs,
 	  typename std::enable_if<is_expr<Rhs>::value, int>::type = 0>
 Binary<BitwiseAndFunctor,Lhs,Rhs> operator&(const Lhs &lhs, const Rhs &rhs) {
+  static_assert(!is_grouped_junction_operator<Lhs>::value);
+  static_assert(!is_grouped_junction_operator<Rhs>::value);
   return Binary<BitwiseAndFunctor,Lhs,Rhs>(lhs, rhs);
 }
 
@@ -600,6 +718,8 @@ Binary<BitwiseAndFunctor,Lhs,Rhs> operator&(const Lhs &lhs, const Rhs &rhs) {
 template <typename Lhs, typename Rhs,
 	  typename std::enable_if<is_expr<Rhs>::value, int>::type = 0>
 Binary<BitwiseOrFunctor,Lhs,Rhs> operator|(const Lhs &lhs, const Rhs &rhs) {
+  static_assert(!is_grouped_junction_operator<Lhs>::value);
+  static_assert(!is_grouped_junction_operator<Rhs>::value);
   return Binary<BitwiseOrFunctor,Lhs,Rhs>(lhs, rhs);
 }
 

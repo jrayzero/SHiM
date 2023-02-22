@@ -15,48 +15,53 @@ using darr2 = dyn_arr<int,2>;
 static void staged() {
   Iter<'i'> i;
   Iter<'j'> j;
-  Iter<'k'> k;
-  Iter<'l'> l;
-  auto block = Block<int,4>::stack<2,4,6,8>();
-  block[i][j][k][l] = i+j+k+l;
-  ASSERT(block(1,1,2,3) == 7);
-  ASSERT(block.plidx(259) == 7);  
-  
-  auto view = block.freeze(1); // set the first dim to 1
- 
-  ASSERT(view(1,2,3) == 7);
-  ASSERT(view.plidx(67) == 7); 
-  view[1][2][3] = 199;
-  ASSERT(view(1,2,3) == 199);
-  // override the frozen dimensions by specifying 4 
-  view[0][1][2][3] = 120;
-  ASSERT(view(0,1,2,3) == 120);
-  // do one with 4 dims on the rhs side
-  view[1][2][3] = view[0][1][2][3] * 10;
-  ASSERT(view(1,1,2,3) == 1200); 
-  // freeze again, will now have [1,3] frozen
-  auto view2 = view.freeze(3);
-  view2[4][5] = view[0][1][2][3] + 1;
-  ASSERT(view2(4,5) == 121);
-  ASSERT(view2(1,3,4,5) == view2(4,5));
-  ASSERT(view2(1,3,4,5) == 121);
-  // now if you specify too few dimensions, it will pad between the frozen and unfrozen
-  view2[0][5] = 37;
-  ASSERT(view2(5) == view2(0,5));
-  ASSERT(view2(5) == 37);
-  ASSERT(view2.plidx(5) == 37);
-
-  // now insert some padding too with inline indexing
-  view2[5] = 48;
-  view2[3] = 33;
-  ASSERT(view2(5) == view2(0,5));
-  ASSERT(view2(5) == 48);
-  ASSERT(view2.plidx(5) == 48);
-  ASSERT(view2(3) == view2(0,3));
-  ASSERT(view2(3) == 33);
-  ASSERT(view2.plidx(3) == 33);
-  view2[5] = view2[3] + 1;
-  ASSERT(view2(5) == 34);
+  auto block = Block<int,2>::stack<10,10>();
+  block[i][j] = select(i+j == Or(0,1,2), 9, 1);
+  ASSERT(block(0,0) == 9);
+  ASSERT(block(0,1) == 9);
+  ASSERT(block(0,2) == 9);
+  ASSERT(block(1,0) == 9);
+  ASSERT(block(1,1) == 9);
+  ASSERT(block(2,0) == 9);
+  for (dyn_var<int> q = 0; q < 10; q=q+1) {
+    for (dyn_var<int> r = 0; r < 10; r=r+1) {
+      if (q + r != 0 && q + r != 1 && q + r != 2) {
+	ASSERT(block(q,r) == 1);
+      }
+    }
+  }
+  block[i][j] = select(Or(0,1,2) == i + j, 8, 2);
+  ASSERT(block(0,0) == 8);
+  ASSERT(block(0,1) == 8);
+  ASSERT(block(0,2) == 8);
+  ASSERT(block(1,0) == 8);
+  ASSERT(block(1,1) == 8);
+  ASSERT(block(2,0) == 8);
+  for (dyn_var<int> q = 0; q < 10; q=q+1) {
+    for (dyn_var<int> r = 0; r < 10; r=r+1) {
+      if (q + r != 0 && q + r != 1 && q + r != 2) {
+	ASSERT(block(q,r) == 2);
+      }
+    }
+  }
+  block[i][j] = select(Or(0,i) == i + j, 7, 3);
+  ASSERT(block(0,0) == 7);
+  ASSERT(block(1,0) == 7);
+  ASSERT(block(2,0) == 7);
+  ASSERT(block(3,0) == 7);
+  ASSERT(block(4,0) == 7);
+  ASSERT(block(5,0) == 7);
+  ASSERT(block(6,0) == 7);
+  ASSERT(block(7,0) == 7);
+  ASSERT(block(8,0) == 7);
+  ASSERT(block(9,0) == 7);
+  for (dyn_var<int> q = 0; q < 10; q=q+1) {
+    for (dyn_var<int> r = 0; r < 10; r=r+1) {
+      if (q + r != 0 && q + r != 1 && q + r != q) {
+	ASSERT(block(q,r) == 3);
+      }
+    }
+  }
 }
 
 int main() {

@@ -212,4 +212,14 @@ struct is_hmda_fundamental<double> {
   static constexpr bool value = true;
 };
 
+template <typename T>
+struct is_grouped_junction_operator {
+  static constexpr bool value = false;
+};
+
+template <int GOPType, typename...Options>
+struct is_grouped_junction_operator<GroupedJunctionOperator<GOPType, Options...>> {
+  static constexpr bool value = true;
+};
+
 }
