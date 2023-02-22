@@ -37,6 +37,8 @@ template <typename BlockLIke, typename Idxs>
 struct Ref;
 template <typename To, typename Operand>
 struct TemplateCast;
+template <typename Cond, typename TBranch, typename FBranch>
+struct TernaryCond;
 
 // Other
 template <bool B>

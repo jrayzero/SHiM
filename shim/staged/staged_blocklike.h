@@ -198,7 +198,9 @@ struct Block {
   // TODO make this private
   Allocation_T<Elem,physical<Rank,MultiDimRepr>()> allocator;
 
-  MeshLocation<Rank> get_location() { return location; }
+  MeshLocation<Rank> get_location() { return location; }  
+
+  MeshLocation<Rank> get_primary_location() { return get_location(); }  
 
 private:
 
@@ -339,6 +341,8 @@ struct View {
   MeshLocation<Rank> get_block_location() { return block_location; }
 
   MeshLocation<Rank> get_view_location() { return view_location; }
+
+  MeshLocation<Rank> get_primary_location() { return get_view_location(); }
 
   // TODO make this private
   Allocation_T<Elem,physical<Rank,MultiDimRepr>()> allocator;

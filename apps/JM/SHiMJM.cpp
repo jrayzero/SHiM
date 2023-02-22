@@ -65,16 +65,6 @@ static void get_16x16_dc(Pred &pred, Ref &ref,
   pred[y][x] = s;
 }
 
-/*template <typename Pred, typename Ref>
-static void get_4x4_dc(Pred &pred, Ref &ref, 
-		       dbool &left_available, dbool &up_available) {
-  auto p = ref.col_major();
-  dint s = 0;
-  if (up_available && left_available) {
-    s = p
-  }
-}*/
-
 template <typename Pred, typename Ref>
 static void get_16x16_plane(Pred &pred, Ref &ref) {
   auto p = ref.col_major();
@@ -87,12 +77,35 @@ static void get_16x16_plane(Pred &pred, Ref &ref) {
   dint a = 16 * (p(-1,15) + p(15,-1));
   dint b = ((dint)(5 * H + 32) >> 6);
   dint c = ((dint)(5 * V + 32) >> 6);
-  for (dint y = 0; y < 16; y=y+1) {
-    for (dint x = 0; x < 16; x=x+1) {
-      pred[y][x] = clip1Y(((dint)(a+b*(x-7)+c*(y-7)+16) >> 5));
-    }
-  }
+  pred[y][x] = CLIP1Y((a+b*(x-7)+c*(y-7)+16) >> 5);
 }
+
+template <typename Pred, typename Ref>
+static void get_4x4_dc(Pred &pred, Ref &ref, 
+		       dbool &left_available, dbool &up_available) {
+  auto p = ref.col_major();
+  dint s = 0;
+  if (up_available && left_available) {
+    s = (p(0,-1) + p(1,-1) + p(2,-1) + p(3,-1) + p(-1,0) + p(-1,1) + p(-1,2) + p(-1,3) + 4) >> 3;
+  } else if (up_available) {
+    s = (p(-1,0) + p(-1,1) + p(-1,2) + p(-1,3) + 2) >> 2;
+  } else if (left_available) {
+    s = (p(0,-1) + p(1,-1) + p(2,-1) + p(3,-1) + 2) >> 2;
+  } else {
+    s = 128;
+  }
+  pred[y][x] = s;
+}
+
+/*template <typename Pred, typename Ref>
+static void get_4x4_ddl(Pred &pred, Ref &ref, 
+			dbool &left_available, dbool &up_available) {
+  auto p = ref.col_major();
+  pred[3][3] = (p(6,-1) + 3 * p(7,-1) + 2) >> 2;
+  pred[y][x] = select(y == 3 && x == 3, 
+		      (p(6,-1) + 3 * p(7,-1) + 2) >> 2,
+		      (p(x + y,-1) + 2 * p(x + y + 1,-1) + p(x + y + 2,-1) + 2) >> 2);
+}*/
 
 // availability depends on:
 // 1. use_constrained_intra

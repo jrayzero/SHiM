@@ -94,6 +94,13 @@ template <typename Elem, unsigned long Rank, bool MultiDimPtr, typename Idxs>
 struct GetCoreT<Ref<View<Elem,Rank,MultiDimPtr>,Idxs>> { using Core_T = Elem; };
 
 ///
+/// Core type is the core type of Unary
+template <typename Functor, typename CompoundExpr>
+struct GetCoreT<Unary<Functor,CompoundExpr>> { 
+  using Core_T = typename Unary<Functor,CompoundExpr>::Core_T;
+};
+
+///
 /// Core type is the core type of Binary
 template <typename Functor, typename CompoundExpr0, typename CompoundExpr1>
 struct GetCoreT<Binary<Functor,CompoundExpr0,CompoundExpr1>> { 
@@ -129,6 +136,11 @@ struct GetCoreT<T[sz]> { using Core_T = typename GetCoreT<T>::Core_T; };
 /// Core type is To
 template <typename To, typename CompoundExpr>
 struct GetCoreT<TemplateCast<To,CompoundExpr>> { using Core_T = To; };
+
+///
+/// Core type is TBranch (or FBranch)
+template <typename Cond, typename TBranch, typename FBranch>
+struct GetCoreT<TernaryCond<Cond,TBranch,FBranch>> { using Core_T = typename GetCoreT<TBranch>::Core_T; };
 
 ///
 /// Represents a compound expression. This class just implements the overloads, but all the realization
@@ -283,6 +295,32 @@ struct TemplateCast : public Expr<TemplateCast<To,CompoundExpr>> {
 private:
 
   CompoundExpr compound_expr;
+
+};
+
+/// 
+/// Represents a ternary operation on compound expressions
+template <typename Cond, typename TBranch, typename FBranch>
+struct TernaryCond : public Expr<TernaryCond<Cond,TBranch,FBranch>> {
+
+  /// 
+  /// The core type
+  using Core_T = typename GetCoreT<TBranch>::Core_T;
+
+  TernaryCond(const Cond &cond, const TBranch &tbranch, const FBranch &fbranch) :
+    cond(cond), tbranch(tbranch), fbranch(fbranch) { 
+    static_assert(std::is_same<Core_T, typename GetCoreT<FBranch>::Core_T>(),
+		  "Ternary branches must be the same!");
+  }
+
+  /// 
+  /// Realize the ternary (which generates a call to a macro)
+  template <typename LhsIdxs, unsigned long N>
+  dvar<Core_T> realize(const LhsIdxs &lhs_idxs, const darr<loop_type,N> &iters);
+
+  Cond cond;
+  TBranch tbranch;
+  FBranch fbranch;
 
 };
 
@@ -650,18 +688,18 @@ struct DispatchCast<int64_t,From> { dvar<int64_t>  operator()(From val) { return
 ///
 /// Cast to float
 template <typename From>
-struct DispatchCast<float,From> { auto operator()(From val) { return cast_float(val); } };
+struct DispatchCast<float,From> { dvar<float> operator()(From val) { return cast_float(val); } };
 
 ///
 /// Cast to double
 template <typename From>
-struct DispatchCast<double,From> { auto operator()(From val) { return cast_double(val); } };
+struct DispatchCast<double,From> { dvar<double> operator()(From val) { return cast_double(val); } };
 
     
 ///
 /// Syntactic sugar for creating a TemplateCast
 template <typename To, typename From>
-auto rcast(From val) {
+TemplateCast<To,From> rcast(From val) {
   return TemplateCast<To,From>(val);
 }
 
@@ -677,6 +715,13 @@ auto cast(From val) {
   }
 }
 
+/// 
+/// Build a TernaryCond
+template <typename Cond, typename TBranch, typename FBranch>
+TernaryCond<Cond,TBranch,FBranch> select(Cond cond, TBranch tbranch, FBranch fbranch) {
+  return TernaryCond<Cond,TBranch,FBranch>(cond,tbranch,fbranch);
+}
+
 template <typename To, typename CompoundExpr>
 template <typename LhsIdxs, unsigned long N>
 dvar<To> TemplateCast<To,CompoundExpr>::realize(const LhsIdxs &lhs_idxs, const darr<loop_type,N> &iters) {
@@ -688,6 +733,31 @@ dvar<To> TemplateCast<To,CompoundExpr>::realize(const LhsIdxs &lhs_idxs, const d
     dvar<To> casted = cast<To>(op);
     return casted;
   }
+}
+
+template <typename Cond, typename TBranch, typename FBranch>
+template <typename LhsIdxs, unsigned long N>
+dvar<typename GetCoreT<TBranch>::Core_T> 
+TernaryCond<Cond,TBranch,FBranch>::realize(const LhsIdxs &lhs_idxs, const darr<loop_type,N> &iters) {
+  dvar<typename GetCoreT<Cond>::Core_T> cond_realized;
+  dvar<typename GetCoreT<TBranch>::Core_T> tbranch_realized;
+  dvar<typename GetCoreT<FBranch>::Core_T> fbranch_realized;
+  if constexpr (std::is_fundamental<Cond>::value) {
+    cond_realized = cond;
+  } else {
+    cond_realized = dispatch_realize(cond, lhs_idxs, iters);
+  }
+  if constexpr (std::is_fundamental<TBranch>::value) {
+    tbranch_realized = tbranch;
+  } else {
+    tbranch_realized = dispatch_realize(tbranch, lhs_idxs, iters);
+  }
+  if constexpr (std::is_fundamental<FBranch>::value) {
+    fbranch_realized = fbranch;
+  } else {
+    fbranch_realized = dispatch_realize(fbranch, lhs_idxs, iters);
+  }
+  return ternary_cond_wrapper(cond_realized, tbranch_realized, fbranch_realized);
 }
 
 template <char Ident, int Depth, typename LhsIdx, typename...LhsIdxs>
