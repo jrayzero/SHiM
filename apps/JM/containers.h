@@ -95,6 +95,7 @@ public:
   dyn_var<int> mb_addr_B_available = as_member_of(this, "mbAvailB");
   dyn_var<int> mb_addr_A_available = as_member_of(this, "mbAvailA");
   dyn_var<int> mb_addr_D_available = as_member_of(this, "mbAvailD");
+  dyn_var<int> mb_addr_C_available = as_member_of(this, "mbAvailC");
   dyn_var<char> i16_mode = as_member_of(this, "i16mode");
 };
 DYN_VAR_PTR(macroblock_t)
