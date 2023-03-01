@@ -199,6 +199,17 @@ static dint sad_16x16(Pred &pred, Orig &orig_mblk, dint min_cost) {
 }
 
 template <typename Pred, typename Orig>
+static dint SoD_error(Pred &pred, Orig &orig, dint y, dint x) {
+  dint cost = 0;
+  for (dint i = 0; i < y; i=i+1) {
+    for (dint j = 0; j < x; j=j+1) {
+      cost += orig(i,j) - pred(i,j);
+    }
+  }
+  return cost;
+}
+
+template <typename Pred, typename Orig>
 static void select_best(dint &best_cost, dint &best_mode, 
 			Pred &pred, Orig &&orig_mblk,
 			const dint &cur_mode) {
@@ -217,9 +228,9 @@ static dyn_var<int> find_sad_16x16_Shim(Macroblock macroblock) {
   auto mbH = macroblock->p_inp->source.mb_height;
   auto mbW = macroblock->p_inp->source.mb_width;
   auto img_orig = Block<imgpel, 2, true>::user({pixelH, pixelW}, 
-					       macroblock->p_vid->p_cur_img);
+					       macroblock->p_vid->orig_image);
   auto img_recons = Block<imgpel, 2, true>::user({pixelH, pixelW}, 
-						 macroblock->p_vid->enc_picture->p_curr_img);
+						 macroblock->p_vid->enc_picture->recons_image);
   auto intra_block = Block<short,2>::user(LocationBuilder<2>().with_extents({mbH, mbW}).
 					  with_coarsening({16,16}).to_loc(),
 					  macroblock->p_vid->intra_block).virtually_refine(16,16);
@@ -295,9 +306,9 @@ static dyn_var<int> find_sad_16x16_Shim(Macroblock macroblock) {
   auto mbH = macroblock->p_inp->source.mb_height;
   auto mbW = macroblock->p_inp->source.mb_width;
   auto img_orig = Block<imgpel, 2, true>::user({pixelH, pixelW}, 
-					       macroblock->p_vid->p_cur_img);
+					       macroblock->p_vid->orig_image);
   auto img_recons = Block<imgpel, 2, true>::user({pixelH, pixelW}, 
-						 macroblock->p_vid->enc_picture->p_curr_img);
+						 macroblock->p_vid->enc_picture->recons_image);
   auto intra_block = Block<short,2>::user(LocationBuilder<2>().with_extents({mbH, mbW}).
 					  with_coarsening({16,16}).to_loc(),
 					  macroblock->p_vid->intra_block).virtually_refine(4,4); 
@@ -422,7 +433,7 @@ dint compute_4x4_availability(Macroblock macroblock, dint block_y, dint block_x,
   auto mbH = macroblock->p_inp->source.mb_height;
   auto mbW = macroblock->p_inp->source.mb_width;
   auto img_recons = Block<imgpel,2,true>::user({pixelH, pixelW}, 
-					       macroblock->p_vid->enc_picture->p_curr_img);
+					       macroblock->p_vid->enc_picture->recons_image);
   auto intra_block = Block<short,2>::user(LocationBuilder<2>().with_extents({mbH, mbW}).
   					  with_coarsening({16,16}).to_loc(),
 					  macroblock->p_vid->intra_block).virtually_refine(4,4); 
@@ -461,6 +472,32 @@ dint compute_4x4_availability(Macroblock macroblock, dint block_y, dint block_x,
   return most_probable_mode;
 }
 
+void shim_generate_4x4_residual(Macroblock macroblock, 
+				dint mode,
+				dint block_y, dint block_x) {
+  auto pixelH = macroblock->p_inp->source.height[0];
+  auto pixelW = macroblock->p_inp->source.width[0];
+  auto mbH = macroblock->p_inp->source.mb_height;
+  auto mbW = macroblock->p_inp->source.mb_width;
+  auto img_orig = Block<imgpel, 2, true>::user({pixelH, pixelW}, 
+					       macroblock->p_vid->orig_image);
+  auto img_recons = Block<imgpel,2,true>::user({pixelH, pixelW}, 
+					       macroblock->p_vid->enc_picture->recons_image);
+  auto mblk = img_recons.slice(range(macroblock->pix_y,macroblock->pix_y+16,1), 
+				      range(macroblock->pix_x,macroblock->pix_x+16,1));  
+  auto smblk = mblk.slice(range(block_y,block_y+4),range(block_x,block_x+4));
+  // this is 4x4
+  auto pred = Block<imgpel,2,true>::user(smblk.get_view_location(), macroblock->p_slice->mpr_4x4[0][mode]);
+  // TODO allow passing in a block or view to make something from the location
+  // these are 16x16
+  auto residual = Block<int,2,true>::user(mblk.get_view_location(), macroblock->p_slice->mb_ores[0]);
+  auto cur_pred = Block<imgpel,2,true>::user(mblk.get_view_location(), macroblock->p_slice->mb_pred[0]);
+  // copy over to the memory that will go through the rest of the pipeline
+  cur_pred.colocate(smblk)[y][x] = pred[y][x];
+  // and residual
+  residual.colocate(smblk)[y][x] = cast<int>(img_orig.colocate(smblk)[y][x] - pred[y][x]);
+}
+
 int main(int argc, char **argv) {
   CompileOptions::isCPP = IS_CPP == 1;
   stringstream includes;
@@ -470,6 +507,6 @@ int main(int argc, char **argv) {
   stage(find_sad_16x16_Shim, "find_sad_16x16_Shim", basename(__FILE__, "_generated"), 
 	includes.str(), includes.str());
   // 4x4
-  stage(compute_4x4_availability, "shim_4x4_available", basename(__FILE__, "_generated"), 
-	includes.str(), includes.str());
+  stage_append(compute_4x4_availability, "shim_4x4_available", basename(__FILE__, "_generated"));
+  stage_append(shim_generate_4x4_residual, "shim_generate_4x4_residual", basename(__FILE__, "_generated"));
 }

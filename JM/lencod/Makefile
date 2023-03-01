@@ -49,10 +49,10 @@ CFLAGS+= -std=gnu99
 endif
 CFLAGS+= -pedantic -fno-strict-aliasing -fsigned-char $(STATIC)
 FLAGS=  $(CFLAGS) -Wall -I$(INCDIR) -I$(ADDINCDIR) -D __USE_LARGEFILE64 -D _FILE_OFFSET_BITS=64
-ifeq ($(USE_SHIM),1)
+#ifeq ($(USE_SHIM),1)
 LIBS+= -L../../build/ -lShimJMC
 FLAGS+= -I../../build/
-endif
+#endif
 
 ifeq ($(M32),1)
 FLAGS+=-m32

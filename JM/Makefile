@@ -17,9 +17,10 @@ STC?= 0
 OPENMP?= 0
 
 USE_SHIM?=0
+USE_SHIM_4x4?=0
 USE_CPP?=0
 VERBOSE?=0
-CFLAGS+=-DUSE_SHIM=$(USE_SHIM) -DUSE_CPP=$(USE_CPP)
+CFLAGS+=-DUSE_SHIM=$(USE_SHIM) -DUSE_SHIM_4x4=$(USE_SHIM_4x4) -DUSE_CPP=$(USE_CPP)
 CXX?= $(shell which clang++)
 CC?= $(shell which clang)
 ifeq ($(VERBOSE),1)

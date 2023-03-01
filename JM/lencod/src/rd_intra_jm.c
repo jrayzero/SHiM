@@ -38,6 +38,10 @@
 #include "intra4x4.h"
 #include "intra8x8.h"
 
+#if USE_SHIM==1 || USE_SHIM_4x4==1
+#include "ShimJM_generated.h"
+#endif
+
 extern int MBType2Value (Macroblock* currMB);
 
 /*!
@@ -91,9 +95,38 @@ int mode_decision_for_I4x4_blocks_JM_High (Macroblock *currMB, int  b8,  int  b4
     cbp_bits = 0;  
 #endif
 
+  *min_cost = DISTBLK_MAX;
+  currMB->ipmode_DPCM = NO_INTRA_PMODE; ////For residual DPCM
+
   get4x4Neighbour(currMB, block_x - 1, block_y    , mb_size, &left_block);
   get4x4Neighbour(currMB, block_x,     block_y - 1, mb_size, &top_block );
 
+#ifdef USE_SHIM_4x4==1 || USE_SHIM==1
+//  int tmp_up, tmp_left, tmp_all;
+//  char tmp_up_mode, tmp_left_mode;
+//  int tmp_most_probable = shim_4x4_available(currMB, block_y, block_x, &tmp_up, &tmp_left, &tmp_all, &tmp_up_mode, &tmp_left_mode);
+  mostProbableMode = shim_4x4_available(currMB, block_y, block_x, 
+					&up_available, &left_available, &all_available,
+					&upMode, &leftMode);
+/*  if (tmp_up != up_available || tmp_left != left_available || tmp_all != all_available) {
+    printf("4x4 block is at %d,%d\n", pic_pix_y, pic_pix_x);
+    printf("jm: up %d, left %d, all: %d\n", up_available, left_available, all_available);
+    printf("shim: up %d, left %d, all: %d\n", tmp_up, tmp_left, tmp_all);
+    exit(-1);
+    }
+  if (tmp_up_mode != upMode || tmp_left_mode != leftMode) {
+    printf("4x4 block is at %d,%d\n", pic_pix_y, pic_pix_x);
+    printf("jm: up mode %d, left mode %d\n", upMode, leftMode);
+    printf("shim: up mode %d, left mode %d\n", tmp_up_mode, tmp_left_mode);
+    exit(-1);
+  }
+  if (tmp_most_probable != mostProbableMode) {
+    printf("4x4 block is at %d,%d\n", pic_pix_y, pic_pix_x);
+    printf("jm: probable %d\n", mostProbableMode);
+    printf("shim: probable %d\n", tmp_most_probable);
+    exit(-1);
+  }*/
+#else
   // constrained intra pred
   if (p_Inp->UseConstrainedIntraPred)
   {
@@ -105,17 +138,17 @@ int mode_decision_for_I4x4_blocks_JM_High (Macroblock *currMB, int  b8,  int  b4
   leftMode          = left_block.available ? p_Vid->ipredmode[left_block.pos_y][left_block.pos_x] : (char) -1;
 
   mostProbableMode  = (upMode < 0 || leftMode < 0) ? DC_PRED : upMode < leftMode ? upMode : leftMode;
-  *min_cost = DISTBLK_MAX;
-
-  currMB->ipmode_DPCM = NO_INTRA_PMODE; ////For residual DPCM
+#endif
 
   //===== INTRA PREDICTION FOR 4x4 BLOCK =====
   // set intra prediction values for 4x4 intra prediction
   currSlice->set_intrapred_4x4(currMB, PLANE_Y, pic_pix_x, pic_pix_y, &left_available, &up_available, &all_available);  
 
+
   //===== LOOP OVER ALL 4x4 INTRA PREDICTION MODES =====
   for (ipmode = 0; ipmode < NO_INTRA_PMODE; ipmode++)
   {
+    // I believe this is a bug--the up available ones don't check for up_right!
     available_mode =  (all_available) || (ipmode==DC_PRED) ||
       (up_available && (ipmode==VERT_PRED||ipmode==VERT_LEFT_PRED||ipmode==DIAG_DOWN_LEFT_PRED)) ||
       (left_available && (ipmode==HOR_PRED||ipmode==HOR_UP_PRED));
@@ -128,9 +161,24 @@ int mode_decision_for_I4x4_blocks_JM_High (Macroblock *currMB, int  b8,  int  b4
       // generate intra 4x4 prediction block given availability
       get_intrapred_4x4(currMB, PLANE_Y, ipmode, block_x, block_y, left_available, up_available);
 
+#if USE_SHIM_4x4==1 || USE_SHIM==1
+//      printf("4x4 block is at %d,%d, (%d, %d)\n", pic_pix_y, pic_pix_x, block_y, block_x);
+      shim_generate_4x4_residual(currMB, ipmode, block_y, block_x);
+/*      printf("SHIM\n");
+      for (int i = 0; i < 4; i++) {
+	for (int j = 0; j < 4; j++) {
+	  printf("%d ", currSlice->mb_ores[0][block_y+i][block_x+j]);
+	}
+	printf("\n");
+      }
+      printf("\n");*/
+#else
       // get prediction and prediction error
-      generate_pred_error_4x4(&p_Vid->pCurImg[pic_opix_y], currSlice->mpr_4x4[0][ipmode], &currSlice->mb_pred[0][block_y], &currSlice->mb_ores[0][block_y], pic_opix_x, block_x);     
-
+      generate_pred_error_4x4(&p_Vid->pCurImg[pic_opix_y], 
+			      currSlice->mpr_4x4[0][ipmode], 
+			      &currSlice->mb_pred[0][block_y], 
+			      &currSlice->mb_ores[0][block_y], pic_opix_x, block_x);     
+#endif
       // get and check rate-distortion cost
 #ifdef BEST_NZ_COEFF
       currMB->cbp_bits[0] = cbp_bits;

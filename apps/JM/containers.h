@@ -36,7 +36,7 @@ template <>
 class dyn_var<storablepic_t> : public dyn_var_impl<storablepic_t> {
 public:
   DYN_VAR_BP(storablepic_t)
-  dyn_var<imgpel**> p_curr_img = as_member_of(this, "p_curr_img");
+  dyn_var<imgpel**> recons_image = as_member_of(this, "p_curr_img");
 };
 DYN_VAR_PTR(storablepic_t)
 
@@ -54,7 +54,7 @@ template <>
 class dyn_var<videoparam_t> : public dyn_var_impl<videoparam_t> {
 public:
   DYN_VAR_BP(videoparam_t)
-  dyn_var<imgpel**> p_cur_img = as_member_of(this, "pCurImg");
+  dyn_var<imgpel**> orig_image = as_member_of(this, "pCurImg");
   dyn_var<storablepic_t*> enc_picture = as_member_of(this, "enc_picture");
   dyn_var<short*> intra_block = as_member_of(this, "intra_block");
   dyn_var<char**> ipredmode = as_member_of(this, "ipredmode");
@@ -80,6 +80,9 @@ public:
   dyn_var<int> P444_joined = as_member_of(this, "P444_joined");
   dyn_var<int> slice_type = as_member_of(this, "slice_type");
   dyn_var<imgpel****> mpr_16x16 = as_member_of(this, "mpr_16x16");
+  dyn_var<imgpel****> mpr_4x4 = as_member_of(this, "mpr_4x4");
+  dyn_var<int***> mb_ores = as_member_of(this, "mb_ores");
+  dyn_var<imgpel***> mb_pred = as_member_of(this, "mb_pred");
 };
 DYN_VAR_PTR(slice_t)
 

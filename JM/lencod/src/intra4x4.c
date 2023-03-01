@@ -22,7 +22,6 @@ void generate_pred_error_4x4(imgpel **cur_img, imgpel **prd_img, imgpel **cur_pr
 {
   int j, i, *m7_line;
   imgpel *cur_line, *prd_line;
-
   for (j = 0; j < BLOCK_SIZE; j++)
   {
     m7_line = &m7[j][block_x];
