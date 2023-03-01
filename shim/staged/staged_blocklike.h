@@ -738,7 +738,6 @@ Block<Elem,Rank,MultiDimRepr>::Block(MeshLocation<Rank> location) : location(loc
 template <typename Elem, unsigned long Rank, bool MultiDimRepr>
 Block<Elem,Rank,MultiDimRepr>::Block(MeshLocation<Rank> location, Allocation_T<Elem,physical<Rank,MultiDimRepr>()> allocator) : 
   location(location), allocator(allocator) { 
-  static_assert(!MultiDimRepr);
 }
 
 template <typename Elem, unsigned long Rank, bool MultiDimRepr>

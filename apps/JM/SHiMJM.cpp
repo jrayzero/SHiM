@@ -399,12 +399,10 @@ static void check_intra4x4_availability(View<T,2,M> &mblk_recons,
 					dbool &up_left_available,
 					dint up_right_offset,
 					IntraPred &&intra) {
-  // for constrainedIntraPred, you can only use surrounding data that also uses intrapred
-//  mblk_recons.dump_loc();
-  up_available = mblk_recons.logically_exists(-1,0);// && macroblock->mb_addr_B_available;
-  left_available = mblk_recons.logically_exists(0,-1);// && macroblock->mb_addr_A_available;
-  up_left_available = mblk_recons.logically_exists(-1,-1);// && macroblock->mb_addr_D_available;
-  up_right_available = mblk_recons.logically_exists(-1,up_right_offset);// && macroblock->mb_addr_C_available;
+  up_available = mblk_recons.logically_exists(-1,0);
+  left_available = mblk_recons.logically_exists(0,-1);
+  up_left_available = mblk_recons.logically_exists(-1,-1);
+  up_right_available = mblk_recons.logically_exists(-1,up_right_offset);
   if (macroblock->p_inp->use_constrained_intra_pred==1) {
     auto coloc = intra.colocate(mblk_recons);
     up_available = up_available && (coloc(-1,0) != 0);
@@ -417,26 +415,27 @@ static void check_intra4x4_availability(View<T,2,M> &mblk_recons,
 // also returns the most probable mode
 dint compute_4x4_availability(Macroblock macroblock, dint block_y, dint block_x,
 			      dyn_var<int*> up_available, dyn_var<int*> left_available,
-			      dyn_var<int*> all_available) {
+			      dyn_var<int*> all_available,
+			      dyn_var<char*> up_mode, dyn_var<char*> left_mode) {
   auto pixelH = macroblock->p_inp->source.height[0];
   auto pixelW = macroblock->p_inp->source.width[0];
   auto mbH = macroblock->p_inp->source.mb_height;
   auto mbW = macroblock->p_inp->source.mb_width;
-  auto img_recons = Block<imgpel, 2, true>::user({pixelH, pixelW}, 
-						 macroblock->p_vid->enc_picture->p_curr_img);
+  auto img_recons = Block<imgpel,2,true>::user({pixelH, pixelW}, 
+					       macroblock->p_vid->enc_picture->p_curr_img);
   auto intra_block = Block<short,2>::user(LocationBuilder<2>().with_extents({mbH, mbW}).
   					  with_coarsening({16,16}).to_loc(),
 					  macroblock->p_vid->intra_block).virtually_refine(4,4); 
-//  auto ipredmode = Block<short,2>::user(LocationBuilder<2>().with_extents({mbH, mbW}).
-//					with_coarsening({4,4}).to_loc(),
-//					macroblock->p_vid->intra_block).virtually_refine(4,4); 
+  auto ipredmode = Block<char,2,true>::user(LocationBuilder<2>().with_extents({pixelH/4, pixelW/4}).
+					    with_coarsening({4,4}).to_loc(),
+					    macroblock->p_vid->ipredmode).virtually_refine(4,4);
   auto smblk_recons = img_recons.slice(range(block_y+macroblock->pix_y,block_y+macroblock->pix_y+4), 
 				       range(block_x+macroblock->pix_x,block_x+macroblock->pix_x+4));
+  // figure out what's available for the macroblock
   dbool bup_available = false;
   dbool bleft_available = false;
   dbool bup_right_available = false;
   dbool bup_left_available = false;
-  // figure out what's available for the macroblock
   check_intra4x4_availability(smblk_recons, macroblock, 
 			      bup_available, bleft_available, bup_right_available, bup_left_available, 4,
 			      intra_block);
@@ -444,7 +443,22 @@ dint compute_4x4_availability(Macroblock macroblock, dint block_y, dint block_x,
   up_available[0] = bup_available;
   left_available[0] = bleft_available;
   all_available[0] = bleft_available && bup_available && bup_left_available;
-  return 0;
+  // get the most probable mode
+  if (bup_available) {
+    up_mode[0] = ipredmode.colocate(smblk_recons)(-1,0);
+  } else {
+    up_mode[0] = -1;
+  }
+  if (bleft_available) {
+    left_mode[0] = ipredmode.colocate(smblk_recons)(0,-1);
+  } else {
+    left_mode[0] = -1;
+  }
+  dint most_probable_mode;
+  if (up_mode[0] < 0 || left_mode[0] < 0) most_probable_mode = DC_PRED;
+  else if (up_mode[0] < left_mode[0]) most_probable_mode = up_mode[0];
+  else most_probable_mode = left_mode[0];
+  return most_probable_mode;
 }
 
 int main(int argc, char **argv) {

@@ -57,6 +57,7 @@ public:
   dyn_var<imgpel**> p_cur_img = as_member_of(this, "pCurImg");
   dyn_var<storablepic_t*> enc_picture = as_member_of(this, "enc_picture");
   dyn_var<short*> intra_block = as_member_of(this, "intra_block");
+  dyn_var<char**> ipredmode = as_member_of(this, "ipredmode");
 };
 DYN_VAR_PTR(videoparam_t)
 
