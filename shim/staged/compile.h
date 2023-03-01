@@ -210,6 +210,30 @@ void stage(Func func, std::string name, std::string fn_prefix, std::string pre_h
   std::cout << "Staging took " << std::chrono::duration_cast<std::chrono::nanoseconds> (stop - start).count()/1e9 << "s" << std::endl;  
 }
 
+// Append to an already created file
+template <typename Func, typename...Args>
+void stage_append(Func func, std::string name, std::string fn_prefix, Args...args) {
+  std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
+  std::ofstream src;
+  std::string source = CompileOptions::isCPP ? fn_prefix + ".cpp" : fn_prefix + ".c";
+  src.open(source, std::ios_base::app);
+  if (name.empty()) name = "__my_staged_func";
+  auto ast = builder::builder_context().extract_function_ast(func, name, args...);
+  // run buildit passes
+  block::eliminate_redundant_vars(ast);
+
+  // run shim passes
+  ReplaceStackBuilder replace_stack_builder;
+  ast->accept(&replace_stack_builder);
+  std::stringstream src2;
+  hmda_cpp_code_generator::generate_code(ast, src2, 0);
+  src << src2.str();
+  src.flush();
+  src.close();
+  std::chrono::steady_clock::time_point stop = std::chrono::steady_clock::now();
+  std::cout << "Staging took " << std::chrono::duration_cast<std::chrono::nanoseconds> (stop - start).count()/1e9 << "s" << std::endl;  
+}
+
 std::string basename(std::string path, std::string suffix="") {
   std::stringstream f;
   std::string f2 = std::filesystem::path(path).stem();
