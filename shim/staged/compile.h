@@ -215,8 +215,11 @@ template <typename Func, typename...Args>
 void stage_append(Func func, std::string name, std::string fn_prefix, Args...args) {
   std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
   std::ofstream src;
+  std::ofstream hdr;
+  std::string header = fn_prefix + (CompileOptions::isCPP ? ".hpp" : ".h");  
   std::string source = CompileOptions::isCPP ? fn_prefix + ".cpp" : fn_prefix + ".c";
   src.open(source, std::ios_base::app);
+  hdr.open(header, std::ios_base::app);
   if (name.empty()) name = "__my_staged_func";
   auto ast = builder::builder_context().extract_function_ast(func, name, args...);
   // run buildit passes
@@ -226,7 +229,10 @@ void stage_append(Func func, std::string name, std::string fn_prefix, Args...arg
   ReplaceStackBuilder replace_stack_builder;
   ast->accept(&replace_stack_builder);
   std::stringstream src2;
-  hmda_cpp_code_generator::generate_code(ast, src2, 0);
+  std::vector<std::string> sigs = hmda_cpp_code_generator::generate_code(ast, src2, 0);
+  for (auto sig : sigs) {
+    hdr << sig << ";" << std::endl;
+  }
   src << src2.str();
   src.flush();
   src.close();
