@@ -68,6 +68,10 @@ struct Block {
   Block(MeshLocation<Rank> location);
 
   ///
+  /// Create a Block from an already-defined allocator
+  Block(MeshLocation<Rank> location, Allocation_T<Elem,physical<Rank,MultiDimRepr>()> allocator);
+
+  ///
   /// Create an internally-managed heap Block
   Block(SLoc_T bextents, SLoc_T bstrides, SLoc_T borigin);
 
@@ -108,6 +112,8 @@ struct Block {
   /// Create a user-managed allocation
 #ifndef UNSTAGED
   static Block<Elem,Rank,MultiDimRepr> user(SLoc_T bextents, 
+					    dvar<typename decltype(ptr_wrap<Elem,Rank,MultiDimRepr>())::P> user);
+  static Block<Elem,Rank,MultiDimRepr> user(MeshLocation<Rank> location, 
 					    dvar<typename decltype(ptr_wrap<Elem,Rank,MultiDimRepr>())::P> user);
   static Block<Elem,Rank,MultiDimRepr> user(SLoc_T bextents, SLoc_T bstrides, SLoc_T borigin,
 					    SLoc_T brefinement_factors, SLoc_T bcoarsening_factors,
@@ -730,6 +736,12 @@ Block<Elem,Rank,MultiDimRepr>::Block(MeshLocation<Rank> location) : location(loc
 }
 
 template <typename Elem, unsigned long Rank, bool MultiDimRepr>
+Block<Elem,Rank,MultiDimRepr>::Block(MeshLocation<Rank> location, Allocation_T<Elem,physical<Rank,MultiDimRepr>()> allocator) : 
+  location(location), allocator(allocator) { 
+  static_assert(!MultiDimRepr);
+}
+
+template <typename Elem, unsigned long Rank, bool MultiDimRepr>
 Block<Elem,Rank,MultiDimRepr>::Block(SLoc_T bextents, SLoc_T bstrides, SLoc_T borigin) :
   location(LocationBuilder<Rank>().
 	   with_extents(bextents).
@@ -886,6 +898,22 @@ Block<Elem,Rank,MultiDimRepr> Block<Elem,Rank,MultiDimRepr>::user(SLoc_T bextent
     auto allocator = std::make_shared<UserAllocation<Elem,Elem*,1>>(user);
     return Block<Elem,Rank,MultiDimRepr>(std::move(bextents), std::move(bstrides), std::move(borigin),
 					 std::move(brefinement_factors), std::move(bcoarsening_factors), std::move(allocator));
+  }
+}
+
+template <typename Elem, unsigned long Rank, bool MultiDimRepr>
+Block<Elem,Rank,MultiDimRepr> Block<Elem,Rank,MultiDimRepr>::user(MeshLocation<Rank> location,
+								  dvar<typename decltype(ptr_wrap<Elem,Rank,MultiDimRepr>())::P> user) {  
+  // make sure that the dyn_var passed in matches the actual storage type (seems like it's not caught otherwise?)
+  static_assert((MultiDimRepr && peel<typename decltype(ptr_wrap<Elem,Rank,MultiDimRepr>())::P>() == Rank) || 
+		(!MultiDimRepr && peel<typename decltype(ptr_wrap<Elem,Rank,MultiDimRepr>())::P>() == 1));
+  if constexpr (MultiDimRepr) {
+    auto allocator = std::make_shared<UserAllocation<Elem,typename decltype(ptr_wrap<Elem,Rank,MultiDimRepr>())::P,Rank>>(user);
+    return Block<Elem,Rank,MultiDimRepr>(location,
+					 allocator);
+  } else {
+    auto allocator = std::make_shared<UserAllocation<Elem,Elem*,1>>(user);
+    return Block<Elem,Rank,MultiDimRepr>(location, std::move(allocator));
   }
 }
 

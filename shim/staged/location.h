@@ -205,7 +205,9 @@ MeshLocation<Rank> MeshLocation<Rank>::into(MeshLocation<Rank> &other) {
   SLoc_T mesh_origin;
   for (svar<int> i = 0; i < Rank; i=i+1) {
     mesh_extents[i] = get_extents()[i] * other.get_refinement_factors()[i] / other.get_coarsening_factors()[i];
-    mesh_strides[i] = get_strides()[i] * other.get_refinement_factors()[i] / other.get_coarsening_factors()[i];
+    // this needs to be at least 1!
+    // ceil(stride*ref/coarse)
+    mesh_strides[i] = ((get_strides()[i] * other.get_refinement_factors()[i]) - 1) / other.get_coarsening_factors()[i] + 1;
     mesh_origin[i] = get_origin()[i] * other.get_refinement_factors()[i] / other.get_coarsening_factors()[i];
   }  
   return {mesh_extents, mesh_strides, mesh_origin, 

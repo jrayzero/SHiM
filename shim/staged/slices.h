@@ -138,8 +138,8 @@ void gather_strides(Loc_T<Rank> &stride, Arg arg, Args...args) {
       gather_strides<Idx+1,Rank>(stride,args...);
     }
   } else {
-    // the start is just the value
-    stride[Idx] = arg;
+    // the stride is just 1
+    stride[Idx] = 1;
     if constexpr (Idx < Rank - 1) {
       gather_strides<Idx+1,Rank>(stride,args...);
     }
