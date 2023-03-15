@@ -78,12 +78,16 @@ void scale_quant(int quant[], int quality) {
 }
 
 int main(int argc, char **argv) {
-  if (argc != 3) {
-    cerr << "Usage: ./jpeg <ppm> <jpg>" << endl;
+  if (argc < 3) {
+    cerr << "Usage: ./jpeg <ppm> <jpg> [<quality>]" << endl;
     exit(-1);
   }
   std::cerr << "Running STAGED jpeg" << std::endl;
   std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
+  int quality = 75;
+  if (argc == 4) {
+    quality = atoi(argv[3]);
+  }
   // prep bits
   FILE *jpg = fopen(argv[2], "wb");
   Bits bits(jpg);
@@ -100,8 +104,8 @@ int main(int argc, char **argv) {
   fclose(ifd);
 
   // prep quant
-  scale_quant(luma_quant, 75);
-  scale_quant(chroma_quant, 75);
+  scale_quant(luma_quant, quality);
+  scale_quant(chroma_quant, quality);
 
   // write bitstream headers
   syntax_SOI(bits);
