@@ -45,6 +45,14 @@ int main() {
 //  std::cout << view2.dump() << std::endl;
 
   auto view3 = block2.partition(T{1,3,1}, T{0,3,1});
-//  std::cout << view3.dump() << std::endl;
-  std::cout << view3.read(A{0,0}) << std::endl;
+  std::cout << view3.dump() << std::endl;
+
+  auto view4 = block2.partition(T{1,3,1}, T{0,3,2});
+  std::cout << view4.dump() << std::endl;
+
+  auto view5 = view3.partition(T{0,2,1}, T{0,3,2});
+  std::cout << view5.dump() << std::endl;
+  view5.write(A{1,1}, 99);
+  std::cout << view5.dump() << std::endl;
+  std::cout << block2.dump() << std::endl;
 }
