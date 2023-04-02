@@ -3,6 +3,8 @@
 #include <sstream>
 #include <chrono>
 
+// clang++ -I../shim/unstaged -std=c++17 -I../shim/runtime/cpp -I../shim  -I. ../shim/unstaged/syntax.cpp ../shim/unstaged/bits.cpp ../shim/unstaged/huffman.cpp ../shim/unstaged/ujpeg.cpp -O3 -flto -o ujpeg
+
 #include "unite.h"
 
 #include "huffman.h"
@@ -13,7 +15,8 @@ using namespace std;
 using namespace shim;
 using namespace unstaged;
 
-void scale_quant(Block<int,2> quant, int quality) {
+template <typename Obj>
+void scale_quant(Obj &quant, int quality) {
   int scale = quality < 50 ? 5000 / quality : 200 - quality * 2;
   for (int i = 0; i < 8; i++) {
     for (int j = 0; j < 8; j++) {
@@ -45,7 +48,8 @@ void color(RGB_T &RGB, YCbCr_T &YCbCr) {
 // the external things to call for doing huffman
 // these are completely the wrong types but w/e
 
-void dct(View<int,3> obj) { 
+template <typename Obj>
+void dct(Obj &obj) { 
 #define descale(x,n) ((x + ((1 << (n-1)))) >> n)
   int FIX_0_298631336 = 2446;
   int FIX_0_390180644 = 3196;
@@ -144,7 +148,8 @@ void dct(View<int,3> obj) {
   }
 }
 
-void quant(View<int,3> obj, Block<int,2> quant) {
+template <typename In, typename Out>
+void quant(In &obj, Out &quant) {
   for (int i = 0; i < 8; i=i+1) {
     for (int j = 0; j < 8; j=j+1) {
       int v = obj.read(0,i,j);
@@ -172,14 +177,14 @@ void jpeg(uint8_t* input, int H, int W,
 	  Bits &bits) {
 
   // Tables (these are already scaled)
-  auto luma_quant = Block<int,2>(TensorBuilder<2>().with_extents(std::array{8,8}).to_tensor(),
-				 HeapArray<int>(luma_quant_arr));
-  auto chroma_quant = Block<int,2>(TensorBuilder<2>().with_extents(std::array{8,8}).to_tensor(),
-				   HeapArray<int>(chroma_quant_arr));
+  auto luma_quant = Block<int,2,int*>(TensorBuilder<2>().with_extents(std::array{8,8}).to_tensor(),
+				      luma_quant_arr);
+  auto chroma_quant = Block<int,2,int*>(TensorBuilder<2>().with_extents(std::array{8,8}).to_tensor(),
+					chroma_quant_arr);
     
   // start it up
-  auto RGB = Block<uint8_t,3>(TensorBuilder<3>().with_extents(std::array{H,W,3}).to_tensor(),
-			      HeapArray<uint8_t>(input));
+  auto RGB = Block<uint8_t,3,uint8_t*>(TensorBuilder<3>().with_extents(std::array{H,W,3}).to_tensor(),
+				       input);
   int last_Y = 0;
   int last_Cb = 0;
   int last_Cr = 0;

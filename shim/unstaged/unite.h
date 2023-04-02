@@ -5,17 +5,17 @@
 #include <array>
 #include <sstream>
 #include <iostream>
-#include "heaparray.h"
+//#include "heaparray.h"
 
 namespace shim {
 namespace unstaged {
 
 #define T std::tuple
 
-template <typename Elem, unsigned long Rank>
+template <typename Elem, unsigned long Rank, typename Dataholder>
 struct Block;
 
-template <typename Elem, unsigned long Rank>
+template <typename Elem, unsigned long Rank, typename Dataholder>
 struct View;
 
 template <unsigned long Rank>
@@ -322,9 +322,6 @@ struct TensorBuilder {
     return {bcsb.to_blocked_cs(), std::move(extents)};
   }
 
-  template <typename Elem>
-  Block<Elem,Rank> to_block() const; 
-
   std::string dump() const {
     std::stringstream ss;
     ss << bcsb.dump();
@@ -338,16 +335,16 @@ struct TensorBuilder {
 
 };
 
-template <typename Elem, unsigned long Rank>
+template <typename Elem, unsigned long Rank, typename Dataholder>
 struct Block {
 
   Block(Tensor<Rank> tensor) : 
     tensor(std::move(tensor)),
-    heaparr(this->tensor.length()) { }
+    dataholder(this->tensor.length()) { }
 
-  Block(Tensor<Rank> tensor, HeapArray<Elem> heaparr) : 
+  Block(Tensor<Rank> tensor, Dataholder dataholder) : 
     tensor(std::move(tensor)),
-    heaparr(std::move(heaparr)) { }
+    dataholder(std::move(dataholder)) { }
 
   std::string dump() const {
     std::stringstream ss;
@@ -383,21 +380,21 @@ struct Block {
   Elem read(Idxs...idxs) const {
     Property_T<Rank> t{idxs...};
     int idx = tensor.template linearize<0>(t);
-    return heaparr[idx];
+    return dataholder[idx];
   }
 
   Elem read(Property_T<Rank> idxs) const {
     int idx = tensor.template linearize<0>(idxs);
-    return heaparr[idx];
+    return dataholder[idx];
   }
 
   void write(Property_T<Rank> idxs, Elem elem) {
     int idx = tensor.template linearize<0>(idxs);
-    heaparr[idx] = elem;
+    dataholder[idx] = elem;
   }
 
   template <typename...PVals>
-  View<Elem,Rank> partition(std::tuple<int,int,int> pvals, PVals...p);
+  View<Elem,Rank,Dataholder> partition(std::tuple<int,int,int> pvals, PVals...p);
 
   template <int I, typename...PVals>
   void partition(Property_T<Rank> &starts,
@@ -412,34 +409,34 @@ struct Block {
     }
   };
 
-  View<Elem,Rank> view();
+  View<Elem,Rank,Dataholder> view();
     
   Tensor<Rank> tensor;
 
-  HeapArray<Elem> heaparr;
+  Dataholder dataholder;
 
 };
 
-template <typename Elem, unsigned long Rank>
+template <typename Elem, unsigned long Rank, typename Dataholder>
 struct View {
 
   View(Tensor<Rank> tensor, Tensor<Rank> btensor,
-       HeapArray<Elem> heaparr) :
+       Dataholder dataholder) :
     tensor(std::move(tensor)), btensor(std::move(btensor)),
-    heaparr(std::move(heaparr)) { }
+    dataholder(std::move(dataholder)) { }
 
   template <typename...Idxs>
   Elem read(Idxs...idxs) const {
     Property_T<Rank> pidxs{idxs...};
     auto coord = tensor.blocked_cs.point_mapping(btensor.blocked_cs, pidxs);    
     int idx = btensor.template linearize<0>(coord);
-    return heaparr[idx];
+    return dataholder[idx];
   }
-
+  
   void write(Property_T<Rank> idxs, Elem elem) {
     auto coord = tensor.blocked_cs.point_mapping(btensor.blocked_cs, idxs);
     int idx = btensor.template linearize<0>(coord);
-    heaparr[idx] = elem;
+    dataholder[idx] = elem;
   }
 
   template <int I, typename...PVals>
@@ -456,8 +453,8 @@ struct View {
   };
 
   template <typename...PVals>
-  View<Elem,Rank> partition(std::tuple<int,int,int> pvals,
-			    PVals...p) {
+  View<Elem,Rank,Dataholder> partition(std::tuple<int,int,int> pvals,
+				 PVals...p) {
     Property_T<Rank> starts;
     Property_T<Rank> stops;
     Property_T<Rank> strides;
@@ -480,9 +477,8 @@ struct View {
       with_refinement(this->tensor.blocked_cs.refinement).
       with_permutations(this->tensor.blocked_cs.permutations).
       with_origin(std::move(adj_origin)).to_tensor(), 
-      this->btensor, this->heaparr};
+      this->btensor, this->dataholder};
   }
-
 
   std::string dump() const {
     std::stringstream ss;
@@ -515,7 +511,7 @@ struct View {
   }
 
   template <typename Elem2=Elem>
-  Block<Elem2,Rank> ppermute(Property_T<Rank> pidxs) {
+  Block<Elem2,Rank,Elem2*> ppermute(Property_T<Rank> pidxs, Elem2 *dataholder) {
     auto extents = tensor.blocked_cs.permutation_mapping(this->tensor.blocked_cs.permutations, pidxs, tensor.extents);
     auto strides = tensor.blocked_cs.permutation_mapping(this->tensor.blocked_cs.permutations, pidxs, tensor.blocked_cs.strides);
     auto refinement = tensor.blocked_cs.permutation_mapping(this->tensor.blocked_cs.permutations, pidxs, tensor.blocked_cs.refinement);
@@ -525,55 +521,30 @@ struct View {
       with_strides(std::move(strides)).
       with_refinement(std::move(refinement)).
       with_permutations(std::move(permutations)).
-      with_origin(std::move(origin)).template to_block<Elem2>()};
+      with_origin(std::move(origin)).to_tensor(), dataholder};
   }
 
   template <typename Elem2=Elem>
-  Block<Elem2,Rank> ppermute(Property_T<Rank> pidxs, Elem2 *data) {
-    auto extents = tensor.blocked_cs.permutation_mapping(this->tensor.blocked_cs.permutations, pidxs, tensor.extents);
-    auto strides = tensor.blocked_cs.permutation_mapping(this->tensor.blocked_cs.permutations, pidxs, tensor.blocked_cs.strides);
-    auto refinement = tensor.blocked_cs.permutation_mapping(this->tensor.blocked_cs.permutations, pidxs, tensor.blocked_cs.refinement);
-    auto permutations = tensor.blocked_cs.permutation_mapping(this->tensor.blocked_cs.permutations, pidxs, tensor.blocked_cs.permutations);
-    auto origin = tensor.blocked_cs.permutation_mapping(this->tensor.blocked_cs.permutations, pidxs, tensor.blocked_cs.origin);
-    return {TensorBuilder<Rank>().with_extents(std::move(extents)).
-      with_strides(std::move(strides)).
-      with_refinement(std::move(refinement)).
-      with_permutations(std::move(permutations)).
-      with_origin(std::move(origin)).to_tensor(), HeapArray<Elem2>(data)};
+  Block<Elem2,Rank,Elem2*> to_block(Elem2 *d) {
+    return {tensor, d};
   }
   
-  template <typename Elem2=Elem>
-  Block<Elem2,Rank> to_block() {
-    return {tensor};
-  }
-
-  template <typename Elem2=Elem>
-  Block<Elem2,Rank> to_block(Elem2 *data) {
-    return {tensor, HeapArray<Elem2>(data)};
-  }
-
   // For the view
   Tensor<Rank> tensor;
   // For the backing block
   Tensor<Rank> btensor;
-  HeapArray<Elem> heaparr;
+  Dataholder dataholder;
 };
 
-template <unsigned long Rank>
-template <typename Elem>
-Block<Elem,Rank> TensorBuilder<Rank>::to_block() const {
-  return {this->to_tensor()};
+template <typename Elem, unsigned long Rank, typename Dataholder>
+View<Elem,Rank,Dataholder> Block<Elem,Rank,Dataholder>::view() {
+  return {tensor, tensor, dataholder};
 }
 
-template <typename Elem, unsigned long Rank>
-View<Elem,Rank> Block<Elem,Rank>::view() {
-  return {tensor, tensor, heaparr};
-}
-
-template <typename Elem, unsigned long Rank>
+template <typename Elem, unsigned long Rank, typename Dataholder>
 template <typename...PVals>
-View<Elem,Rank> Block<Elem,Rank>::partition(std::tuple<int,int,int> pvals,
-					    PVals...p) {
+View<Elem,Rank,Dataholder> Block<Elem,Rank,Dataholder>::partition(std::tuple<int,int,int> pvals,
+						      PVals...p) {
   Property_T<Rank> starts;
   Property_T<Rank> stops;
   Property_T<Rank> strides;
@@ -596,7 +567,7 @@ View<Elem,Rank> Block<Elem,Rank>::partition(std::tuple<int,int,int> pvals,
     with_refinement(this->tensor.blocked_cs.refinement).
     with_permutations(this->tensor.blocked_cs.permutations).
     with_origin(std::move(adj_origin)).to_tensor(), 
-    this->tensor, this->heaparr};
+    this->tensor, this->dataholder};
 }
 
 }
