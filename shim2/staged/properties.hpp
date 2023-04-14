@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include <array>
 #include "builder/dyn_var.h"
 #include "builder/array.h"
 #include "common/loop_type.hpp"
@@ -11,6 +12,7 @@
 using builder::dyn_var;
 using builder::dyn_arr;
 using builder::static_var;
+using namespace std;
 
 namespace shim {
 
@@ -29,7 +31,7 @@ private:
   dyn_var<loop_type> _stride;
 };
 
-template <unsigned long Rank, int...Permutations>
+template <unsigned long Rank>
 struct Properties {
 
   Properties() {
@@ -39,15 +41,19 @@ struct Properties {
       _strides[i] = 1;
       _refinement[i] = 1;
     }
+    for (int i = 0; i < Rank; i++) {
+      _permutations[i] = i;
+    }
   }
   
   Properties(Property<Rank> extents,
 	     Property<Rank> origin,
 	     Property<Rank> strides,
-	     Property<Rank> refinement) : 
+	     Property<Rank> refinement,
+	     array<int,Rank> permutations) : 
     _extents(extents), _origin(origin),
-    _strides(strides), _refinement(refinement) { 
-    static_assert(sizeof...(Permutations) == Rank);
+    _strides(strides), _refinement(refinement),
+    _permutations(permutations) { 
   }
   
   void dump();
@@ -56,79 +62,116 @@ struct Properties {
   Property<Rank> origin() { return _origin; }
   Property<Rank> strides() { return _strides; }
   Property<Rank> refinement() { return _refinement; }
+  array<int,Rank> permutations() { return _permutations; }
 
-  Properties<Rank, Permutations...> with_extents(Property<Rank> extents);
-  Properties<Rank, Permutations...> with_origin(Property<Rank> origin);
-  Properties<Rank, Permutations...> with_strides(Property<Rank> strides);
-  Properties<Rank, Permutations...> with_refinement(Property<Rank> refinement);
+  Properties<Rank> with_extents(Property<Rank> extents);
+  Properties<Rank> with_origin(Property<Rank> origin);
+  Properties<Rank> with_strides(Property<Rank> strides);
+  Properties<Rank> with_refinement(Property<Rank> refinement);
+  Properties<Rank> with_permutations(array<int,Rank> permutations);
 
-  template <int...NewPermutations>
-  Properties<Rank, NewPermutations...> permute();
+  template <typename...Vals>
+  Properties<Rank> with_extents(Vals...vals);
+  template <typename...Vals>
+  Properties<Rank> with_origin(Vals...vals);
+  template <typename...Vals>
+  Properties<Rank> with_strides(Vals...vals);
+  template <typename...Vals>
+  Properties<Rank> with_refinement(Vals...vals);
+  template <typename...Vals>
+  Properties<Rank> with_permutations(Vals...vals);
 
-  Properties<Rank, Permutations...> refine(Property<Rank> refinement);
+  Properties<Rank> permute(array<int,Rank> permutations);
+
+  Properties<Rank> refine(Property<Rank> refinement);
 
   template <typename...Ranges>
-  Properties<Rank, Permutations...> slice(Ranges...ranges);
+  Properties<Rank> slice(Ranges...ranges);
+
+  template <unsigned long Rank2>
+  Properties<Rank2> colocate(Properties<Rank2> other);
+
+  template <unsigned long Rank2>
+  Properties<Rank> hcolocate(Properties<Rank2> other);
+
+  template <unsigned long Rank2>
+  Property<Rank2> pointwise_mapping(Property<Rank> coordinate,
+				    Properties<Rank2> into);
+
+  template <unsigned long Rank2>
+  Property<Rank2> extent_mapping(Properties<Rank2> into);
 
   dyn_var<loop_type> linearize(Property<Rank> coordinate);
 
-  template <unsigned long Rank2, int...OtherPermutations>
-  Properties<Rank2, OtherPermutations...> colocate(Properties<Rank2, OtherPermutations...> other);
-
-  template <unsigned long Rank2, int...OtherPermutations>
-  Properties<Rank, Permutations...> hcolocate(Properties<Rank2, OtherPermutations...> other);
-
-  template <unsigned long Rank2, int...NewPermutations>
-  Property<Rank2> pointwise_mapping(Property<Rank> coordinate,
-				    Properties<Rank2, NewPermutations...> into);
-
-  template <unsigned long Rank2, int...NewPermutations>
-  Property<Rank2> extent_mapping(Properties<Rank2, NewPermutations...> into);
-
 private:
 
-  template <int Perm, int...ThesePermutations>
-  void print_permutations();
-  
   Property<Rank> _extents;
   Property<Rank> _origin;
   Property<Rank> _strides;
   Property<Rank> _refinement;
+  // This takes the place of static_arr, which isn't a thing.
+  // But I don't want to store this in the template signature
+  array<loop_type,Rank> _permutations;
 
 };
 
-template <unsigned long Rank, int...Permutations>
-Properties<Rank, Permutations...> Properties<Rank, Permutations...>::with_extents(Property<Rank> extents) {
-  return {extents, _origin, _strides, _refinement};
+template <unsigned long Rank>
+Properties<Rank> Properties<Rank>::with_extents(Property<Rank> extents) {
+  return {extents, _origin, _strides, _refinement, _permutations};
 }
 
-template <unsigned long Rank, int...Permutations>
-Properties<Rank, Permutations...> Properties<Rank, Permutations...>::with_origin(Property<Rank> origin) {
-  return {_extents, origin, _strides, _refinement};
+template <unsigned long Rank>
+Properties<Rank> Properties<Rank>::with_origin(Property<Rank> origin) {
+  return {_extents, origin, _strides, _refinement, _permutations};
 }
 
-template <unsigned long Rank, int...Permutations>
-Properties<Rank, Permutations...> Properties<Rank, Permutations...>::with_strides(Property<Rank> strides) {
-  return {_extents, _origin, strides, _refinement};
+template <unsigned long Rank>
+Properties<Rank> Properties<Rank>::with_strides(Property<Rank> strides) {
+  return {_extents, _origin, strides, _refinement, _permutations};
 }
 
-template <unsigned long Rank, int...Permutations>
-Properties<Rank, Permutations...> Properties<Rank, Permutations...>::with_refinement(Property<Rank> refinement) {
-  return {_extents, _origin, _strides, refinement};
+template <unsigned long Rank>
+Properties<Rank> Properties<Rank>::with_refinement(Property<Rank> refinement) {
+  return {_extents, _origin, _strides, refinement, _permutations};
 }
 
-template <unsigned long Rank, int...Permutations>
-template <int Perm, int...ThesePermutations>
-void Properties<Rank, Permutations...>::print_permutations() {
-  print(" ");
-  dispatch_print_elem<int>(Perm);
-  if constexpr (sizeof...(ThesePermutations) > 0) {
-    print_permutations<ThesePermutations...>();
-  }
+template <unsigned long Rank>
+Properties<Rank> Properties<Rank>::with_permutations(array<loop_type,Rank> properties) {
+  return {_extents, _origin, _strides, _refinement, properties};
 }
 
-template <unsigned long Rank, int...Permutations>
-void Properties<Rank, Permutations...>::dump() {
+template <unsigned long Rank>
+template <typename...Vals>
+Properties<Rank> Properties<Rank>::with_extents(Vals...vals) {  
+  return {Property<Rank>{vals...}, _origin, _strides, _refinement, _permutations};
+}
+
+template <unsigned long Rank>
+template <typename...Vals>
+Properties<Rank> Properties<Rank>::with_origin(Vals...vals) {
+  return {_extents, Property<Rank>{vals...}, _strides, _refinement, _permutations};
+}
+
+template <unsigned long Rank>
+template <typename...Vals>
+Properties<Rank> Properties<Rank>::with_strides(Vals...vals) {
+  return {_extents, _origin, Property<Rank>{vals...}, _refinement, _permutations};
+}
+
+template <unsigned long Rank>
+template <typename...Vals>
+Properties<Rank> Properties<Rank>::with_refinement(Vals...vals) {
+  return {_extents, _origin, _strides, Property<Rank>{vals...}, _permutations};
+}
+
+template <unsigned long Rank>
+template <typename...Vals>
+Properties<Rank> Properties<Rank>::with_permutations(Vals...vals) {
+  return {_extents, _origin, _strides, _refinement, array<loop_type,Rank>{vals...}};
+}
+
+template <unsigned long Rank>
+void Properties<Rank>::dump() {
   print("Properties");
   print_newline();
   std::string rank = std::to_string(Rank);
@@ -158,74 +201,55 @@ void Properties<Rank, Permutations...>::dump() {
     print(" ");
     dispatch_print_elem<int>(_refinement[r]);
   }  
+  // This probably will print out a little bit hacky cause if it's within a buildit region,
+  // then it might get replayed
   print_newline();
   print("  Permutations: ");
-  print_permutations<Permutations...>();
+  for (int r = 0; r < Rank; r=r+1) {
+    print(" ");
+    dispatch_print_elem<int>(_permutations[r]);
+  }  
   print_newline();
 }
 
-template <int...Perms>
-struct PermWrapper { 
-
-  template <int At>
-  static constexpr int get() {
-    static_assert(At < sizeof...(Perms));
-    return get<At,0,Perms...>();
-  }
-
-private:
-
-  template <int At, int I, int P, int...Ps> 
-  static constexpr int get() {
-    if constexpr (At == I) { 
-      return P; 
-    } else { 
-      static_assert(sizeof...(Ps) > 0);
-      return get<At,I+1,Ps...>(); 
-    }
-  }
-
-};
-
 // undoes the permutation associated with from
-template <unsigned long Rank, int I, typename From>
-void move_from_into_canonical_space(Property<Rank> &from, Property<Rank> &canon) {
+template <unsigned long Rank, int I>
+void move_from_into_canonical_space(Property<Rank> &from, Property<Rank> &canon, array<int,Rank> fromp) {
   if constexpr (I < Rank) {
-    canon[From::template get<I>()] = from[I];
-    move_from_into_canonical_space<Rank,I+1,From>(from, canon);
+    canon[fromp[I]] = from[I];
+    move_from_into_canonical_space<Rank,I+1>(from, canon, fromp);
   }
 }
 
 // moves the canonical space into the new permuted space
-template <unsigned long Rank, int I, typename To>
-void move_canonical_into_to_space(Property<Rank> &canon, Property<Rank> &to) {
+template <unsigned long Rank, int I>
+void move_canonical_into_to_space(Property<Rank> &canon, Property<Rank> &to, array<int,Rank> top) {
   if constexpr (I < Rank) {
-    to[I] = canon[To::template get<I>()];
-    move_canonical_into_to_space<Rank,I+1,To>(canon, to);
+    to[I] = canon[top[I]];
+    move_canonical_into_to_space<Rank,I+1>(canon, to, top);
   }
 }
 
 // Applies a full permutation, i.e. B_i -> B_j
-template <unsigned long Rank, int I, typename From, typename To>
-void apply_permutation(Property<Rank> &from, Property<Rank> &to) {
+template <unsigned long Rank, int I>
+void apply_permutation(Property<Rank> &from, Property<Rank> &to, array<int,Rank> fromp, array<int,Rank> top) {
   Property<Rank> canon;
-  move_from_into_canonical_space<Rank,0,From>(from, canon);
-  move_canonical_into_to_space<Rank,0,To>(canon, to);
+  move_from_into_canonical_space<Rank,0>(from, canon, fromp);
+  move_canonical_into_to_space<Rank,0>(canon, to, top);
 } 
 
-template <unsigned long Rank, int...Permutations>
-template <int...NewPermutations>
-Properties<Rank, NewPermutations...> Properties<Rank, Permutations...>::permute() {
+template <unsigned long Rank>
+Properties<Rank> Properties<Rank>::permute(array<int,Rank> permutations) {
   // need to reorder everything
   Property<Rank> new_extents;
   Property<Rank> new_origin;
   Property<Rank> new_strides;
   Property<Rank> new_refinement;
-  apply_permutation<Rank, 0, PermWrapper<Permutations...>, PermWrapper<NewPermutations...>>(_extents, new_extents);
-  apply_permutation<Rank, 0, PermWrapper<Permutations...>, PermWrapper<NewPermutations...>>(_origin, new_origin);
-  apply_permutation<Rank, 0, PermWrapper<Permutations...>, PermWrapper<NewPermutations...>>(_strides, new_strides);
-  apply_permutation<Rank, 0, PermWrapper<Permutations...>, PermWrapper<NewPermutations...>>(_refinement, new_refinement);
-  return {new_extents, new_origin, new_strides, new_refinement};
+  apply_permutation<Rank, 0>(_extents, new_extents, this->permutations(), permutations);
+  apply_permutation<Rank, 0>(_origin, new_origin, this->permutations(), permutations);
+  apply_permutation<Rank, 0>(_strides, new_strides, this->permutations(), permutations);
+  apply_permutation<Rank, 0>(_refinement, new_refinement, this->permutations(), permutations);
+  return {new_extents, new_origin, new_strides, new_refinement, permutations};
 }
 
 template <unsigned long Rank, int I, typename...Ranges>
@@ -240,9 +264,9 @@ void gather_one(Property<Rank> &rel_extents, Property<Rank> &rel_origin,
   }
 }
 
-template <unsigned long Rank, int...Permutations>
+template <unsigned long Rank>
 template <typename...Ranges>
-Properties<Rank, Permutations...> Properties<Rank, Permutations...>::slice(Ranges...ranges) {
+Properties<Rank> Properties<Rank>::slice(Ranges...ranges) {
   static_assert(sizeof...(Ranges) == Rank, "Not enough slice parameters specified");
   Property<Rank> new_extents;
   Property<Rank> new_origin;
@@ -252,11 +276,11 @@ Properties<Rank, Permutations...> Properties<Rank, Permutations...>::slice(Range
     new_origin[i] = new_strides[i] * new_origin[i] + this->_origin[i];
     new_strides[i] = new_strides[i] * this->_strides[i];
   }
-  return {new_extents, new_origin, new_strides, this->_refinement};
+  return {new_extents, new_origin, new_strides, this->_refinement, this->_permutations};
 }
 
-template <unsigned long Rank, int...Permutations>
-Properties<Rank, Permutations...> Properties<Rank, Permutations...>::refine(Property<Rank> refinement) {
+template <unsigned long Rank>
+Properties<Rank> Properties<Rank>::refine(Property<Rank> refinement) {
   Property<Rank> new_extents;
   Property<Rank> new_origin;
   Property<Rank> new_refinement;
@@ -265,7 +289,7 @@ Properties<Rank, Permutations...> Properties<Rank, Permutations...>::refine(Prop
     new_origin[i] = _origin[i] * refinement[i];
     new_refinement[i] = _refinement[i] * refinement[i];
   }
-  return {new_extents, new_origin, _strides, new_refinement};
+  return {new_extents, new_origin, _strides, new_refinement, this->_permutations};
 }
 
 template <int I, unsigned long Rank>
@@ -278,16 +302,16 @@ dyn_var<loop_type> do_linearize(const Property<Rank> &extents, const Property<Ra
   }
 }
 
-template <unsigned long Rank, int...Permutations>
-dyn_var<loop_type> Properties<Rank, Permutations...>::linearize(Property<Rank> coordinate) {
+template <unsigned long Rank>
+dyn_var<loop_type> Properties<Rank>::linearize(Property<Rank> coordinate) {
   return do_linearize<0, Rank>(_extents, coordinate);
 }
 
-template <unsigned long Rank, int...Permutations>
-template <unsigned long Rank2, int...NewPermutations>
+template <unsigned long Rank>
+template <unsigned long Rank2>
 Property<Rank2>
-Properties<Rank, Permutations...>::pointwise_mapping(Property<Rank> coordinate,
-						     Properties<Rank2, NewPermutations...> into) {
+Properties<Rank>::pointwise_mapping(Property<Rank> coordinate,
+						     Properties<Rank2> into) {
   // B_i = this, B_j = into
   // move into the refined canonical space of B_i
   // also apply part of the transform into the canonical space where we remove the refinement
@@ -297,7 +321,7 @@ Properties<Rank, Permutations...>::pointwise_mapping(Property<Rank> coordinate,
   }
   // move into the canonical space of B_i
   Property<Rank> i_canon_coordinate;
-  move_from_into_canonical_space<Rank,0,PermWrapper<Permutations...>>(ri_canon_coordinate, i_canon_coordinate);
+  move_from_into_canonical_space<Rank,0>(ri_canon_coordinate, i_canon_coordinate, this->_permutations);
   // move into the canonical space of B_j
   Property<Rank2> j_canon_coordinate;
   if constexpr (Rank2 >= Rank) {
@@ -316,7 +340,7 @@ Properties<Rank, Permutations...>::pointwise_mapping(Property<Rank> coordinate,
   }
   // move into the refinement space of B_j (permutations first, then refinement)
   Property<Rank2> j_rcanon_coordinate;
-  move_canonical_into_to_space<Rank2,0,PermWrapper<NewPermutations...>>(j_canon_coordinate, j_rcanon_coordinate);
+  move_canonical_into_to_space<Rank2,0>(j_canon_coordinate, j_rcanon_coordinate, into.permutations());
   for (static_var<int> i = 0; i < Rank2; i=i+1) {
     j_rcanon_coordinate[i] = j_rcanon_coordinate[i] * into.refinement()[i];
   }
@@ -328,17 +352,17 @@ Properties<Rank, Permutations...>::pointwise_mapping(Property<Rank> coordinate,
   return j_coordinate;
 }
 
-template <unsigned long Rank, int...Permutations>
-template <unsigned long Rank2, int...OtherPermutations>
-Properties<Rank2, OtherPermutations...> 
-Properties<Rank,Permutations...>::colocate(Properties<Rank2, OtherPermutations...> other) {
-  return {other.extents(), other.origin(), other.strides(), other.refinement()};
+template <unsigned long Rank>
+template <unsigned long Rank2>
+Properties<Rank2> 
+Properties<Rank>::colocate(Properties<Rank2> other) {
+  return {other.extents(), other.origin(), other.strides(), other.refinement(), other.permutations()};
 }
 
-template <unsigned long Rank, int...Permutations>
-template <unsigned long Rank2, int...OtherPermutations>
-Properties<Rank, Permutations...> 
-Properties<Rank, Permutations...>::hcolocate(Properties<Rank2, OtherPermutations...> other) {
+template <unsigned long Rank>
+template <unsigned long Rank2>
+Properties<Rank> 
+Properties<Rank>::hcolocate(Properties<Rank2> other) {
   Property<Rank2> zero_origin;
   for (static_var<int> i = 0; i < Rank2; i=i+1) {
     zero_origin[i] = 0;
@@ -348,20 +372,20 @@ Properties<Rank, Permutations...>::hcolocate(Properties<Rank2, OtherPermutations
     mapped_origin[i] = mapped_origin[i] * this->strides()[i] + this->origin()[i];
   }
   Property<Rank> mapped_extents = other.extent_mapping(*this);
-  return {mapped_extents, mapped_origin, this->strides(), this->refinement()};
+  return {mapped_extents, mapped_origin, this->strides(), this->refinement(), this->permutations()};
 }
 
-template <unsigned long Rank, int...Permutations>
-template <unsigned long Rank2, int...NewPermutations>
+template <unsigned long Rank>
+template <unsigned long Rank2>
 Property<Rank2>
-Properties<Rank, Permutations...>::extent_mapping(Properties<Rank2, NewPermutations...> into) {
+Properties<Rank>::extent_mapping(Properties<Rank2> into) {
   Property<Rank> ri_canon_coordinate;
   for (static_var<int> i = 0; i < Rank; i=i+1) {
     ri_canon_coordinate[i] = _extents[i] * this->_strides[i] / this->_refinement[i];
   }
   // move into the canonical space of B_i
   Property<Rank> i_canon_coordinate;
-  move_from_into_canonical_space<Rank,0,PermWrapper<Permutations...>>(ri_canon_coordinate, i_canon_coordinate);
+  move_from_into_canonical_space<Rank,0>(ri_canon_coordinate, i_canon_coordinate, this->_permutations);
   // move into the canonical space of B_j
   Property<Rank2> j_canon_coordinate;
   if constexpr (Rank2 >= Rank) {
@@ -380,7 +404,7 @@ Properties<Rank, Permutations...>::extent_mapping(Properties<Rank2, NewPermutati
   }
   // move into the refinement space of B_j (permutations first, then refinement)
   Property<Rank2> j_rcanon_coordinate;
-  move_canonical_into_to_space<Rank2,0,PermWrapper<NewPermutations...>>(j_canon_coordinate, j_rcanon_coordinate);
+  move_canonical_into_to_space<Rank2,0>(j_canon_coordinate, j_rcanon_coordinate, into.permutations());
   for (static_var<int> i = 0; i < Rank2; i=i+1) {
     j_rcanon_coordinate[i] = j_rcanon_coordinate[i] * into.refinement()[i];
   }
@@ -392,26 +416,5 @@ Properties<Rank, Permutations...>::extent_mapping(Properties<Rank2, NewPermutati
   }
   return j_coordinate;
 }
-
-// Need for colocation
-/*
-  // move into the refined canonical space of B_i
-  Property<Rank> ri_canon_extents;
-  Property<Rank> ri_canon_origin;
-  Property<Rank> ri_canon_strides;
-  Property<Rank> ri_canon_refinement;
-  for (static_var<int> i = 0; i < Rank; i=i+1) {
-    
-  }
-  // move into the canonical space of B_i
-  Property<Rank> canon_extents;
-  Property<Rank> canon_origin;
-  Property<Rank> canon_strides;
-  Property<Rank> canon_refinement;
-  move_from_into_canonical_space<Rank,0,PermWrapper<Permutations...>>(ri_canon_extents, canon_extents);
-  move_from_into_canonical_space<Rank,0,PermWrapper<Permutations...>>(ri_canon_origin, canon_origin);
-  move_from_into_canonical_space<Rank,0,PermWrapper<Permutations...>>(ri_canon_strides, canon_strides);
-  move_from_into_canonical_space<Rank,0,PermWrapper<Permutations...>>(ri_canon_refinement, canon_refinement);
-*/
 
 }

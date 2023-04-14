@@ -42,5 +42,25 @@ void dispatch_print_elem(Val val) {
   DispatchPrintElem<Elem>()(val);
 }
 
+/// Return the physical layout of the underlying data based on whether MultiDimPtr==true 
+/// (return Rank) or false (return 1)
+template <unsigned long Rank, bool MultiDimPtr>
+constexpr int physical() {
+  if constexpr (MultiDimPtr) {
+    return Rank;
+  } else {
+    return 1;
+  }
+}
+
+template <typename Elem>
+struct Peel { constexpr int operator()() { return 0; } };
+template <typename Elem>
+struct Peel<Elem*> { constexpr int operator()() { return 1 + Peel<Elem>()(); } };
+
+template <typename Elem>
+constexpr int peel() {
+  return Peel<Elem>()();
+}
 
 }

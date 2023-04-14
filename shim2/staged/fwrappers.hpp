@@ -13,6 +13,52 @@
 // to write these is other than manually enumerating them.
 namespace shim {
 
+// Definitions for the HeapArray type
+constexpr char uint8_t_name[] = "shim::HeapArray<uint8_t>";
+constexpr char uint16_t_name[] = "shim::HeapArray<uint16_t>";
+constexpr char uint32_t_name[] = "shim::HeapArray<uint32_t>";
+constexpr char uint64_t_name[] = "shim::HeapArray<uint64_t>";
+constexpr char char_name[] = "shim::HeapArray<char>";
+constexpr char int8_t_name[] = "shim::HeapArray<int8_t>";
+constexpr char int16_t_name[] = "shim::HeapArray<int16_t>";
+constexpr char int32_t_name[] = "shim::HeapArray<int32_t>";
+constexpr char int64_t_name[] = "shim::HeapArray<int64_t>";
+constexpr char float_name[] = "shim::HeapArray<float>";
+constexpr char double_name[] = "shim::HeapArray<double>";
+
+#define CONSTEXPR_HEAP_NAME(dtype)		\
+  template <>					\
+  struct BuildHeapName<dtype> {			\
+    constexpr auto operator()() {		\
+      return dtype##_name;			\
+    }						\
+  }
+
+template <typename Elem>
+struct BuildHeapName { };
+
+CONSTEXPR_HEAP_NAME(uint8_t);
+CONSTEXPR_HEAP_NAME(uint16_t);
+CONSTEXPR_HEAP_NAME(uint32_t);
+CONSTEXPR_HEAP_NAME(uint64_t);
+CONSTEXPR_HEAP_NAME(char);
+CONSTEXPR_HEAP_NAME(int8_t);
+CONSTEXPR_HEAP_NAME(int16_t);
+CONSTEXPR_HEAP_NAME(int32_t);
+CONSTEXPR_HEAP_NAME(int64_t);
+CONSTEXPR_HEAP_NAME(float);
+CONSTEXPR_HEAP_NAME(double);
+
+// Based on Elem, return the appropriate constexpr char name for HeapArray
+template <typename Elem>
+constexpr auto build_heap_name() {
+  return BuildHeapName<Elem>()();
+}
+
+// Register the name of HeapArray<Elem> in buildit
+template <typename Elem>
+using HEAP_T = typename builder::name<build_heap_name<Elem>()>;
+
 builder::dyn_var<void(int)> hexit = builder::as_global("exit");
 builder::dyn_var<loop_type(loop_type)> hfloor = builder::as_global("floor");
 builder::dyn_var<void(void)> print_newline = builder::as_global("print_newline");
@@ -48,7 +94,7 @@ builder::dyn_var<void(int64_t*,int64_t,loop_type)> memset_int64_t = builder::as_
 builder::dyn_var<void(float*,float,loop_type)> memset_float = builder::as_global("shim::hmemset<float>");
 builder::dyn_var<void(double*,double,loop_type)> memset_double = builder::as_global("shim::hmemset<double>");
 
-/*builder::dyn_var<void(HEAP_T<uint8_t>,uint8_t,loop_type)> memset_heaparr_uint8_t = builder::as_global("shim::hmemset<uint8_t>");
+builder::dyn_var<void(HEAP_T<uint8_t>,uint8_t,loop_type)> memset_heaparr_uint8_t = builder::as_global("shim::hmemset<uint8_t>");
 builder::dyn_var<void(HEAP_T<uint16_t>,uint16_t,loop_type)> memset_heaparr_uint16_t = builder::as_global("shim::hmemset<uint16_t>");
 builder::dyn_var<void(HEAP_T<uint32_t>,uint32_t,loop_type)> memset_heaparr_uint32_t = builder::as_global("shim::hmemset<uint32_t>");
 builder::dyn_var<void(HEAP_T<uint64_t>,uint64_t,loop_type)> memset_heaparr_uint64_t = builder::as_global("shim::hmemset<uint64_t>");
@@ -70,7 +116,7 @@ builder::dyn_var<HEAP_T<int32_t>(loop_type)> build_heaparr_int32_t = builder::as
 builder::dyn_var<HEAP_T<int64_t>(loop_type)> build_heaparr_int64_t = builder::as_global("shim::build_heaparr<int64_t>");
 builder::dyn_var<HEAP_T<float>(loop_type)> build_heaparr_float = builder::as_global("shim::build_heaparr<float>");
 builder::dyn_var<HEAP_T<double>(loop_type)> build_heaparr_double = builder::as_global("shim::build_heaparr<double>");
-*/
+
 builder::dyn_var<uint8_t*(loop_type)> build_stackarr_uint8_t = builder::as_global("SHIM_BUILD_STACK_UINT8_T");
 builder::dyn_var<uint16_t*(loop_type)> build_stackarr_uint16_t = builder::as_global("SHIM_BUILD_STACK_UINT16_T");
 builder::dyn_var<uint32_t*(loop_type)> build_stackarr_uint32_t = builder::as_global("SHIM_BUILD_STACK_UINT32_T");
