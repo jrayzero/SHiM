@@ -14,6 +14,21 @@ using builder::static_var;
 
 namespace shim {
 
+struct Range {
+  
+  Range(dyn_var<loop_type> start, dyn_var<loop_type> stop, dyn_var<loop_type> stride) :
+    _start(start), _stop(stop), _stride(stride) { }
+
+  dyn_var<loop_type> start() { return _start; }
+  dyn_var<loop_type> stop() { return _stop; }
+  dyn_var<loop_type> stride() { return _stride; }
+
+private:
+  dyn_var<loop_type> _start;
+  dyn_var<loop_type> _stop;
+  dyn_var<loop_type> _stride;
+};
+
 template <unsigned long Rank, int...Permutations>
 struct Properties {
 
@@ -52,11 +67,23 @@ struct Properties {
 
   Properties<Rank, Permutations...> refine(Property<Rank> refinement);
 
+  template <typename...Ranges>
+  Properties<Rank, Permutations...> slice(Ranges...ranges);
+
   dyn_var<loop_type> linearize(Property<Rank> coordinate);
+
+  template <unsigned long Rank2, int...OtherPermutations>
+  Properties<Rank2, OtherPermutations...> colocate(Properties<Rank2, OtherPermutations...> other);
+
+  template <unsigned long Rank2, int...OtherPermutations>
+  Properties<Rank, Permutations...> hcolocate(Properties<Rank2, OtherPermutations...> other);
 
   template <unsigned long Rank2, int...NewPermutations>
   Property<Rank2> pointwise_mapping(Property<Rank> coordinate,
 				    Properties<Rank2, NewPermutations...> into);
+
+  template <unsigned long Rank2, int...NewPermutations>
+  Property<Rank2> extent_mapping(Properties<Rank2, NewPermutations...> into);
 
 private:
 
@@ -102,6 +129,8 @@ void Properties<Rank, Permutations...>::print_permutations() {
 
 template <unsigned long Rank, int...Permutations>
 void Properties<Rank, Permutations...>::dump() {
+  print("Properties");
+  print_newline();
   std::string rank = std::to_string(Rank);
   print("  Rank: ");
   print(rank);
@@ -199,6 +228,33 @@ Properties<Rank, NewPermutations...> Properties<Rank, Permutations...>::permute(
   return {new_extents, new_origin, new_strides, new_refinement};
 }
 
+template <unsigned long Rank, int I, typename...Ranges>
+void gather_one(Property<Rank> &rel_extents, Property<Rank> &rel_origin,
+		Property<Rank> &rel_strides, Range range, Ranges...ranges) {
+  rel_origin[I] = range.start();
+  rel_strides[I] = range.stride();
+  dyn_var<loop_type> x = (range.stop()-range.start()-1)/range.stride();
+  rel_extents[I] = x + 1;
+  if constexpr (sizeof...(Ranges) > 0) {
+    gather_one<Rank, I+1>(rel_extents, rel_origin, rel_strides, ranges...);
+  }
+}
+
+template <unsigned long Rank, int...Permutations>
+template <typename...Ranges>
+Properties<Rank, Permutations...> Properties<Rank, Permutations...>::slice(Ranges...ranges) {
+  static_assert(sizeof...(Ranges) == Rank, "Not enough slice parameters specified");
+  Property<Rank> new_extents;
+  Property<Rank> new_origin;
+  Property<Rank> new_strides;
+  gather_one<Rank,0>(new_extents, new_origin, new_strides, ranges...);
+  for (static_var<int> i = 0; i < Rank; i=i+1) {
+    new_origin[i] = new_strides[i] * new_origin[i] + this->_origin[i];
+    new_strides[i] = new_strides[i] * this->_strides[i];
+  }
+  return {new_extents, new_origin, new_strides, this->_refinement};
+}
+
 template <unsigned long Rank, int...Permutations>
 Properties<Rank, Permutations...> Properties<Rank, Permutations...>::refine(Property<Rank> refinement) {
   Property<Rank> new_extents;
@@ -268,6 +324,71 @@ Properties<Rank, Permutations...>::pointwise_mapping(Property<Rank> coordinate,
   Property<Rank2> j_coordinate;
   for (static_var<int> i = 0; i < Rank2; i=i+1) {
     j_coordinate[i] = (j_rcanon_coordinate[i] - into.origin()[i]) / into.strides()[i];
+  }
+  return j_coordinate;
+}
+
+template <unsigned long Rank, int...Permutations>
+template <unsigned long Rank2, int...OtherPermutations>
+Properties<Rank2, OtherPermutations...> 
+Properties<Rank,Permutations...>::colocate(Properties<Rank2, OtherPermutations...> other) {
+  return {other.extents(), other.origin(), other.strides(), other.refinement()};
+}
+
+template <unsigned long Rank, int...Permutations>
+template <unsigned long Rank2, int...OtherPermutations>
+Properties<Rank, Permutations...> 
+Properties<Rank, Permutations...>::hcolocate(Properties<Rank2, OtherPermutations...> other) {
+  Property<Rank2> zero_origin;
+  for (static_var<int> i = 0; i < Rank2; i=i+1) {
+    zero_origin[i] = 0;
+  }
+  Property<Rank> mapped_origin = other.pointwise_mapping(zero_origin, *this);
+  for (static_var<int> i = 0; i < Rank; i=i+1) {  
+    mapped_origin[i] = mapped_origin[i] * this->strides()[i] + this->origin()[i];
+  }
+  Property<Rank> mapped_extents = other.extent_mapping(*this);
+  return {mapped_extents, mapped_origin, this->strides(), this->refinement()};
+}
+
+template <unsigned long Rank, int...Permutations>
+template <unsigned long Rank2, int...NewPermutations>
+Property<Rank2>
+Properties<Rank, Permutations...>::extent_mapping(Properties<Rank2, NewPermutations...> into) {
+  Property<Rank> ri_canon_coordinate;
+  for (static_var<int> i = 0; i < Rank; i=i+1) {
+    ri_canon_coordinate[i] = _extents[i] * this->_strides[i] / this->_refinement[i];
+  }
+  // move into the canonical space of B_i
+  Property<Rank> i_canon_coordinate;
+  move_from_into_canonical_space<Rank,0,PermWrapper<Permutations...>>(ri_canon_coordinate, i_canon_coordinate);
+  // move into the canonical space of B_j
+  Property<Rank2> j_canon_coordinate;
+  if constexpr (Rank2 >= Rank) {
+    // add padding
+    for (static_var<int> i = 0; i < Rank2-Rank; i=i+1) {
+      j_canon_coordinate[i] = 0;
+    }
+    for (static_var<int> i = Rank2-Rank; i < Rank2; i=i+1) {
+      j_canon_coordinate[i] = i_canon_coordinate[i-(Rank2-Rank)];
+    }
+  } else if (Rank2 < Rank) {
+    // drop dimensions
+    for (static_var<int> i = Rank-Rank2; i < Rank; i=i+1) {
+      j_canon_coordinate[i-(Rank-Rank2)] = i_canon_coordinate[i];
+    }
+  }
+  // move into the refinement space of B_j (permutations first, then refinement)
+  Property<Rank2> j_rcanon_coordinate;
+  move_canonical_into_to_space<Rank2,0,PermWrapper<NewPermutations...>>(j_canon_coordinate, j_rcanon_coordinate);
+  for (static_var<int> i = 0; i < Rank2; i=i+1) {
+    j_rcanon_coordinate[i] = j_rcanon_coordinate[i] * into.refinement()[i];
+  }
+  // subtract twiddle factor and divide by stride, then add back twiddle
+  Property<Rank2> j_coordinate;
+  for (static_var<int> i = 0; i < Rank2; i=i+1) {
+    j_coordinate[i] = (j_rcanon_coordinate[i] - 1) / into.strides()[i];
+    j_coordinate[i] = j_coordinate[i] + 1;
   }
   return j_coordinate;
 }

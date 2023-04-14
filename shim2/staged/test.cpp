@@ -96,6 +96,36 @@ void my_func() {
   ASSERT(compare_arrays(prop13.pointwise_mapping({24,16}, prop12),{1,1}));
   ASSERT(compare_arrays(prop13.pointwise_mapping({24,24}, prop12),{1,1}));
 
+  auto prop14 = prop12.slice(Range(0,4,1), Range(2,10,2));
+  ASSERT(compare_arrays(prop14.extents(), {4,4}));
+  ASSERT(compare_arrays(prop14.strides(), {2,4}));
+  ASSERT(compare_arrays(prop14.refinement(), {1,1}));
+  ASSERT(compare_arrays(prop14.origin(), {2,5}));
+
+  auto res4 = prop12.hcolocate(prop13.permute<1,0>());
+  auto res5 = prop12.colocate(prop13);
+  auto res6 = prop13.colocate(prop12);
+  auto res7 = prop13.hcolocate(prop12);
+  ASSERT(compare_arrays(res4.extents(), prop12.extents()));
+  ASSERT(compare_arrays(res4.strides(), prop12.strides()));
+  ASSERT(compare_arrays(res4.refinement(), prop12.refinement()));
+  ASSERT(compare_arrays(res4.origin(), prop12.origin()));
+
+  ASSERT(compare_arrays(res5.extents(), prop13.extents()));
+  ASSERT(compare_arrays(res5.strides(), prop13.strides()));
+  ASSERT(compare_arrays(res5.refinement(), prop13.refinement()));
+  ASSERT(compare_arrays(res5.origin(), prop13.origin()));
+
+  ASSERT(compare_arrays(res6.extents(), prop12.extents()));
+  ASSERT(compare_arrays(res6.strides(), prop12.strides()));
+  ASSERT(compare_arrays(res6.refinement(), prop12.refinement()));
+  ASSERT(compare_arrays(res6.origin(), prop12.origin()));
+
+  ASSERT(compare_arrays(res7.extents(), prop13.extents()));
+  ASSERT(compare_arrays(res7.strides(), prop13.strides()));
+  ASSERT(compare_arrays(res7.refinement(), prop13.refinement()));
+  ASSERT(compare_arrays(res7.origin(), prop13.origin()));
+  
 }
 
 int main() {
