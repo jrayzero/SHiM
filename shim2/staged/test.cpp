@@ -153,12 +153,24 @@ void my_func() {
   ASSERT(compare_arrays(res7.origin(), prop13.origin()));
   ASSERT(compare_arrays(wrap2(res7.permutations()), wrap2(prop13.permutations())));
 
-  auto block = heap<float>(Properties<2>().with_extents(2,2));
+  auto block = heap<int>(Properties<2>().with_extents(2,2));
   block.dump();
-  block.write(Property<2>{0,0},0);
+  block.write(Property<2>{0,0},97);
   block.write(Property<2>{0,1},1);
   block.write(Property<2>{1,0},2);
   block.write(Property<2>{1,1},3);
+  ASSERT(block(0,0) == 97);
+  ASSERT(block(0,1) == 1);
+  ASSERT(block(1,0) == 2);
+  ASSERT(block(1,1) == 3);
+  
+  Iter<'i'> i;
+  Iter<'j'> j;
+  block[i][j] = i*2+j+4;
+  ASSERT(block(0,0) == 4);
+  ASSERT(block(0,1) == 5);
+  ASSERT(block(1,0) == 6);
+  ASSERT(block(1,1) == 7);
   
 }
 

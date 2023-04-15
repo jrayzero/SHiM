@@ -162,8 +162,9 @@ void stage(Func func, std::string name, std::string fn_prefix, std::string pre_h
     src << "#include <cstdio>" << std::endl;
   } 
   // Plain C does not support the HeapArray and things like that!
-  if (CompileOptions::isCPP)
+  if (CompileOptions::isCPP) {
     src << "#include \"runtime/cpp/runtime.hpp\"" << std::endl;
+  }
   if (!CompileOptions::isCPP) {
     src << "#define lshift(a,b) ((a) << (b))" << std::endl;
     src << "#define rshift(a,b) ((a) >> (b))" << std::endl;

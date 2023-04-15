@@ -10,6 +10,9 @@
 #include "properties.hpp"
 #include "allocators.hpp"
 #include "functors.hpp"
+#include "expr.hpp"
+#include "fwddecls.hpp"
+#include "ref.hpp"
 
 using builder::dyn_var;
 using builder::dyn_arr;
@@ -21,11 +24,15 @@ namespace shim {
 template <typename Elem, int PhysicalRank>
 using Allocation_T = std::shared_ptr<Allocation<Elem,PhysicalRank>>;
 
-template <typename Elem, unsigned long Rank, bool MultiDimRepr=false>
-struct View;
-
-template <typename Elem, unsigned long Rank, bool MultiDimRepr=false>
+template <typename Elem, unsigned long Rank, bool MultiDimRepr>
 struct Block {
+
+  template <typename BlockLike, typename Idxs>
+  friend struct Ref;
+
+  using Elem_T = Elem;
+  static constexpr bool IsBlock_T = true;
+  static constexpr unsigned long Rank_T = Rank;
 
   static Block<Elem,Rank,false> heap(Properties<Rank> location) { return Block<Elem,Rank,MultiDimRepr>(location); }
 
@@ -88,9 +95,15 @@ struct Block {
   template <unsigned long Rank2>
   void write(Property<Rank2> idxs, dyn_var<Elem> val);
 
+  template <typename Idx>
+  Ref<Block<Elem,Rank,MultiDimRepr>,std::tuple<typename RefIdxType<Idx>::type>> operator[](Idx idx);
+
   View<Elem,Rank> view();
 
   void dump();
+
+  template <typename T=Elem>
+  void dump_data();
 
 private:
   
@@ -117,6 +130,13 @@ Block<Elem,Rank,peel<External>()!=1> external(Properties<Rank> prop, External ex
 
 template <typename Elem, unsigned long Rank, bool MultiDimRepr>
 struct View {
+
+  template <typename BlockLike, typename Idxs>
+  friend struct Ref;
+
+  using Elem_T = Elem;
+  static constexpr bool IsBlock_T = false;
+  static constexpr unsigned long Rank_T = Rank;
 
   View(Properties<Rank> vlocation, Properties<Rank> blocation,
        Allocation_T<Elem,physical<Rank,MultiDimRepr>()> allocator) : 
@@ -150,11 +170,17 @@ struct View {
 
   template <unsigned long Rank2>
   void write(Property<Rank2> idxs, dyn_var<Elem> val);
+
+  template <typename Idx>
+  auto operator[](Idx idx);
   
   template <typename Elem2=Elem>
   Block<Elem2,Rank> block();
 
   void dump();
+
+  template <typename T=Elem>
+  void dump_data();
 
 private:
   
@@ -267,6 +293,18 @@ void Block<Elem,Rank,MultiDimRepr>::write(Property<Rank2> idxs, dyn_var<Elem> va
 }
 
 template <typename Elem, unsigned long Rank, bool MultiDimRepr>
+template <typename Idx>
+Ref<Block<Elem,Rank,MultiDimRepr>,std::tuple<typename RefIdxType<Idx>::type>> Block<Elem,Rank,MultiDimRepr>::operator[](Idx idx) {
+  if constexpr (is_dyn_like<Idx>::value) {
+    // potentially slice builder::builder to dyn_var 
+    dyn_var<loop_type> didx = idx;
+    return Ref<Block<Elem,Rank,MultiDimRepr>,std::tuple<decltype(didx)>>(*this, std::tuple{didx});
+  } else {
+    return Ref<Block<Elem,Rank,MultiDimRepr>,std::tuple<Idx>>(*this, std::tuple{idx});
+  }
+}
+
+template <typename Elem, unsigned long Rank, bool MultiDimRepr>
 View<Elem,Rank> Block<Elem,Rank,MultiDimRepr>::view() {
   return {this->location(), this->location()};
 }
@@ -276,6 +314,36 @@ void Block<Elem,Rank,MultiDimRepr>::dump() {
   print("Block");
   print_newline();
   location().dump();
+}
+
+template <typename Elem, unsigned long Rank, bool MultiDimRepr>
+template <typename T>
+void Block<Elem,Rank,MultiDimRepr>::dump_data() {
+  // TODO format nicely with the max string length thing
+  static_assert(Rank<=3, "dump_data only supports ranks 1, 2, and 3");
+  if constexpr (Rank == 1) {
+    for (dyn_var<loop_type> i = 0; i < location().extents()[0]; i=i+1) {
+      dispatch_print_elem<T>(cast<T>(this->operator()(i)));
+    }
+  } else if constexpr (Rank == 2) {
+    for (dyn_var<loop_type> i = 0; i < location().extents()[0]; i=i+1) {
+      for (dyn_var<loop_type> j = 0; j < location().extents()[1]; j=j+1) {
+	dispatch_print_elem<T>(cast<T>(this->operator()(i,j)));
+      }
+      print_newline();
+    }
+  } else {
+    for (dyn_var<loop_type> i = 0; i < location().extents()[0]; i=i+1) {
+      for (dyn_var<loop_type> j = 0; j < location().extents()[1]; j=j+1) {
+	for (dyn_var<loop_type> k = 0; k < location().extents()[2]; k=k+1) {
+	  dispatch_print_elem<T>(cast<T>(this->operator()(i,j,k)));
+	}
+	print_newline();
+      }
+      print_newline();
+      print_newline();
+    }
+  }
 }
 
 ////////////////
@@ -388,6 +456,21 @@ void View<Elem,Rank,MultiDimRepr>::write(Property<Rank2> idxs, dyn_var<Elem> val
 }
 
 template <typename Elem, unsigned long Rank, bool MultiDimRepr>
+template <typename Idx>
+auto View<Elem,Rank,MultiDimRepr>::operator[](Idx idx) {
+  if constexpr (is_dyn_like<Idx>::value) {
+    // potentially slice builder::builder to dyn_var 
+    dyn_var<loop_type> didx = idx;
+    // include any frozen dims here 
+    return Ref<View<Elem,Rank,MultiDimRepr>,std::tuple<decltype(didx)>>(*this, std::tuple{didx});
+  } else {
+    // include any frozen dims here
+    return Ref<View<Elem,Rank,MultiDimRepr>,std::tuple<decltype(idx)>>(*this, std::tuple{idx});
+  }
+}
+
+
+template <typename Elem, unsigned long Rank, bool MultiDimRepr>
 template <typename Elem2>
 Block<Elem2,Rank> View<Elem,Rank,MultiDimRepr>::block() {
   return {this->vlocation()};
@@ -399,6 +482,37 @@ void View<Elem,Rank,MultiDimRepr>::dump() {
   print_newline();
   vlocation().dump();
   blocation().dump();
+}
+
+template <typename Elem, unsigned long Rank, bool MultiDimRepr>
+template <typename T>
+void View<Elem,Rank,MultiDimRepr>::dump_data() {
+  // TODO format nicely with the max string length thing
+  static_assert(Rank<=3, "dump_data only supports up to 3 rank dimensions for printing.");
+  if constexpr (Rank == 1) {
+    for (dyn_var<loop_type> i = 0; i < vlocation().extents()[0]; i=i+1) {
+      dispatch_print_elem<T>(cast<T>(this->operator()(i)));
+    }
+  } else if constexpr (Rank == 2) {
+    for (dyn_var<loop_type> i = 0; i < vlocation().extents()[0]; i=i+1) {
+      for (dyn_var<loop_type> j = 0; j < vlocation().extents()[1]; j=j+1) {
+	dispatch_print_elem<T>(cast<T>(this->operator()(i,j)));
+      }
+      print_newline();
+    }
+  } else {
+    for (dyn_var<loop_type> i = 0; i < vlocation().extents()[0]; i=i+1) {
+      for (dyn_var<loop_type> j = 0; j < vlocation().extents()[1]; j=j+1) {
+	for (dyn_var<loop_type> k = 0; k < vlocation().extents()[2]; k=k+1) {
+	  dispatch_print_elem<T>(cast<T>(this->operator()(i,j,k)));
+	}
+	print_newline();
+      }
+      print_newline();
+      print_newline();
+
+    }
+  }
 }
 
 }
