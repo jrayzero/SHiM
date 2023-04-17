@@ -2,10 +2,10 @@
 
 namespace shim {
 
-template <typename Elem, unsigned long Rank, bool MultiDimRepr=false>
+template <typename Elem, unsigned long Rank, bool MultiDimRepr=false, bool NonStandardAlloc=false>
 struct Block;
 
-template <typename Elem, unsigned long Rank, bool MultiDimRepr=false>
+template <typename Elem, unsigned long Rank, bool MultiDimRepr=false, bool NonStandardAlloc=false>
 struct View;
 
 template <typename BlockLike, typename Idxs> 

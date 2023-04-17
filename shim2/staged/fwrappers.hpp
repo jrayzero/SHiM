@@ -82,29 +82,6 @@ builder::dyn_var<int64_t(int64_t)> cast_int64_t = builder::as_global("SHIM_CAST_
 builder::dyn_var<float(float)> cast_float = builder::as_global("SHIM_CAST_FLOAT");
 builder::dyn_var<double(double)> cast_double = builder::as_global("SHIM_CAST_DOUBLE");
 
-builder::dyn_var<void(uint8_t*,uint8_t,loop_type)> memset_uint8_t = builder::as_global("shim::hmemset<uint8_t>");
-builder::dyn_var<void(uint16_t*,uint16_t,loop_type)> memset_uint16_t = builder::as_global("shim::hmemset<uint16_t>");
-builder::dyn_var<void(uint32_t*,uint32_t,loop_type)> memset_uint32_t = builder::as_global("shim::hmemset<uint32_t>");
-builder::dyn_var<void(uint64_t*,uint64_t,loop_type)> memset_uint64_t = builder::as_global("shim::hmemset<uint64_t>");
-builder::dyn_var<void(char*,char,loop_type)> memset_char = builder::as_global("shim::hmemset<char>");
-builder::dyn_var<void(int8_t*,int8_t,loop_type)> memset_int8_t = builder::as_global("shim::hmemset<int8_t>");
-builder::dyn_var<void(int16_t*,int16_t,loop_type)> memset_int16_t = builder::as_global("shim::hmemset<int16_t>");
-builder::dyn_var<void(int32_t*,int32_t,loop_type)> memset_int32_t = builder::as_global("shim::hmemset<int32_t>");
-builder::dyn_var<void(int64_t*,int64_t,loop_type)> memset_int64_t = builder::as_global("shim::hmemset<int64_t>");
-builder::dyn_var<void(float*,float,loop_type)> memset_float = builder::as_global("shim::hmemset<float>");
-builder::dyn_var<void(double*,double,loop_type)> memset_double = builder::as_global("shim::hmemset<double>");
-
-builder::dyn_var<void(HEAP_T<uint8_t>,uint8_t,loop_type)> memset_heaparr_uint8_t = builder::as_global("shim::hmemset<uint8_t>");
-builder::dyn_var<void(HEAP_T<uint16_t>,uint16_t,loop_type)> memset_heaparr_uint16_t = builder::as_global("shim::hmemset<uint16_t>");
-builder::dyn_var<void(HEAP_T<uint32_t>,uint32_t,loop_type)> memset_heaparr_uint32_t = builder::as_global("shim::hmemset<uint32_t>");
-builder::dyn_var<void(HEAP_T<uint64_t>,uint64_t,loop_type)> memset_heaparr_uint64_t = builder::as_global("shim::hmemset<uint64_t>");
-builder::dyn_var<void(HEAP_T<char>,char,loop_type)> memset_heaparr_char = builder::as_global("shim::hmemset<char>");
-builder::dyn_var<void(HEAP_T<int8_t>,int8_t,loop_type)> memset_heaparr_int8_t = builder::as_global("shim::hmemset<int8_t>");
-builder::dyn_var<void(HEAP_T<int32_t>,int32_t,loop_type)> memset_heaparr_int32_t = builder::as_global("shim::hmemset<int32_t>");
-builder::dyn_var<void(HEAP_T<int64_t>,int64_t,loop_type)> memset_heaparr_int64_t = builder::as_global("shim::hmemset<int64_t>");
-builder::dyn_var<void(HEAP_T<float>,float,loop_type)> memset_heaparr_float = builder::as_global("shim::hmemset<float>");
-builder::dyn_var<void(HEAP_T<double>,double,loop_type)> memset_heaparr_double = builder::as_global("shim::hmemset<double>");
-
 builder::dyn_var<HEAP_T<uint8_t>(loop_type)> build_heaparr_uint8_t = builder::as_global("shim::build_heaparr<uint8_t>");
 builder::dyn_var<HEAP_T<uint16_t>(loop_type)> build_heaparr_uint16_t = builder::as_global("shim::build_heaparr<uint16_t>");
 builder::dyn_var<HEAP_T<uint32_t>(loop_type)> build_heaparr_uint32_t = builder::as_global("shim::build_heaparr<uint32_t>");
@@ -141,5 +118,44 @@ builder::dyn_var<void(int32_t)> print_elem_int32_t = builder::as_global("shim::p
 builder::dyn_var<void(int64_t)> print_elem_int64_t = builder::as_global("shim::print_elem<int64_t>");
 builder::dyn_var<void(float)> print_elem_float = builder::as_global("shim::print_elem<float>");
 builder::dyn_var<void(double)> print_elem_double = builder::as_global("shim::print_elem<double>");
+
+builder::dyn_var<void*(void*)> read_nonstandard_uint8_t = builder::as_global("shim::read_nonstandard");
+builder::dyn_var<void*(void*)> read_nonstandard_uint16_t = builder::as_global("shim::read_nonstandard");
+builder::dyn_var<void*(void*)> read_nonstandard_uint32_t = builder::as_global("shim::read_nonstandard");
+builder::dyn_var<void*(void*)> read_nonstandard_unsigned = builder::as_global("shim::read_nonstandard");
+builder::dyn_var<void*(void*)> read_nonstandard_uint64_t = builder::as_global("shim::read_nonstandard");
+builder::dyn_var<void*(void*)> read_nonstandard_char = builder::as_global("shim::read_nonstandard");
+builder::dyn_var<void*(void*)> read_nonstandard_int8_t = builder::as_global("shim::read_nonstandard");
+builder::dyn_var<void*(void*)> read_nonstandard_int16_t = builder::as_global("shim::read_nonstandard");
+builder::dyn_var<void*(void*)> read_nonstandard_int32_t = builder::as_global("shim::read_nonstandard");
+builder::dyn_var<void*(void*)> read_nonstandard_int64_t = builder::as_global("shim::read_nonstandard");
+builder::dyn_var<void*(void*)> read_nonstandard_float = builder::as_global("shim::read_nonstandard");
+builder::dyn_var<void*(void*)> read_nonstandard_double = builder::as_global("shim::read_nonstandard");
+
+builder::dyn_var<void*(void*)> write_nonstandard_uint8_t = builder::as_global("shim::write_nonstandard");
+builder::dyn_var<void*(void*)> write_nonstandard_uint16_t = builder::as_global("shim::write_nonstandard");
+builder::dyn_var<void*(void*)> write_nonstandard_uint32_t = builder::as_global("shim::write_nonstandard");
+builder::dyn_var<void*(void*)> write_nonstandard_unsigned = builder::as_global("shim::write_nonstandard");
+builder::dyn_var<void*(void*)> write_nonstandard_uint64_t = builder::as_global("shim::write_nonstandard");
+builder::dyn_var<void*(void*)> write_nonstandard_char = builder::as_global("shim::write_nonstandard");
+builder::dyn_var<void*(void*)> write_nonstandard_int8_t = builder::as_global("shim::write_nonstandard");
+builder::dyn_var<void*(void*)> write_nonstandard_int16_t = builder::as_global("shim::write_nonstandard");
+builder::dyn_var<void*(void*)> write_nonstandard_int32_t = builder::as_global("shim::write_nonstandard");
+builder::dyn_var<void*(void*)> write_nonstandard_int64_t = builder::as_global("shim::write_nonstandard");
+builder::dyn_var<void*(void*)> write_nonstandard_float = builder::as_global("shim::write_nonstandard");
+builder::dyn_var<void*(void*)> write_nonstandard_double = builder::as_global("shim::write_nonstandard");
+
+builder::dyn_var<void*(void*)> copy_region_nonstandard_uint8_t = builder::as_global("shim::copy_region_nonstandard");
+builder::dyn_var<void*(void*)> copy_region_nonstandard_uint16_t = builder::as_global("shim::copy_region_nonstandard");
+builder::dyn_var<void*(void*)> copy_region_nonstandard_uint32_t = builder::as_global("shim::copy_region_nonstandard");
+builder::dyn_var<void*(void*)> copy_region_nonstandard_unsigned = builder::as_global("shim::copy_region_nonstandard");
+builder::dyn_var<void*(void*)> copy_region_nonstandard_uint64_t = builder::as_global("shim::copy_region_nonstandard");
+builder::dyn_var<void*(void*)> copy_region_nonstandard_char = builder::as_global("shim::copy_region_nonstandard");
+builder::dyn_var<void*(void*)> copy_region_nonstandard_int8_t = builder::as_global("shim::copy_region_nonstandard");
+builder::dyn_var<void*(void*)> copy_region_nonstandard_int16_t = builder::as_global("shim::copy_region_nonstandard");
+builder::dyn_var<void*(void*)> copy_region_nonstandard_int32_t = builder::as_global("shim::copy_region_nonstandard");
+builder::dyn_var<void*(void*)> copy_region_nonstandard_int64_t = builder::as_global("shim::copy_region_nonstandard");
+builder::dyn_var<void*(void*)> copy_region_nonstandard_float = builder::as_global("shim::copy_region_nonstandard");
+builder::dyn_var<void*(void*)> copy_region_nonstandard_double = builder::as_global("shim::copy_region_nonstandard");
 
 }

@@ -29,7 +29,7 @@ dyn_arr<int,2> wrap2(array<int,2> arr) {
   return da;
 }
 
-void my_func() {
+void my_func(dyn_var<int*> external_rle) {
   Properties<3> prop1;
 
   ASSERT(compare_arrays(prop1.extents(), {1,1,1}));			
@@ -171,7 +171,11 @@ void my_func() {
   ASSERT(block(0,1) == 5);
   ASSERT(block(1,0) == 6);
   ASSERT(block(1,1) == 7);
-  
+
+  auto ns_block = non_standard(Properties<2>().with_extents(4,5), 
+			       external_rle, 
+			       Property<1>{10});
+  print("%d\\n", ns_block(0,0));
 }
 
 int main() {

@@ -45,7 +45,7 @@ void dispatch_print_elem(Val val) {
 /// Return the physical layout of the underlying data based on whether MultiDimPtr==true 
 /// (return Rank) or false (return 1)
 template <unsigned long Rank, bool MultiDimPtr>
-constexpr int physical() {
+constexpr unsigned long physical() {
   if constexpr (MultiDimPtr) {
     return Rank;
   } else {
@@ -54,12 +54,12 @@ constexpr int physical() {
 }
 
 template <typename Elem>
-struct Peel { constexpr int operator()() { return 0; } };
+struct Peel { constexpr unsigned long operator()() { return 0; } };
 template <typename Elem>
-struct Peel<Elem*> { constexpr int operator()() { return 1 + Peel<Elem>()(); } };
+struct Peel<Elem*> { constexpr unsigned long operator()() { return 1 + Peel<Elem>()(); } };
 
 template <typename Elem>
-constexpr int peel() {
+constexpr unsigned long peel() {
   return Peel<Elem>()();
 }
 

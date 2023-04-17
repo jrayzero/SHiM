@@ -24,7 +24,7 @@ namespace shim {
 template <typename Elem, int PhysicalRank>
 using Allocation_T = std::shared_ptr<Allocation<Elem,PhysicalRank>>;
 
-template <typename Elem, unsigned long Rank, bool MultiDimRepr>
+template <typename Elem, unsigned long Rank, bool MultiDimRepr, bool NonStandardAlloc>
 struct Block {
 
   template <typename BlockLike, typename Idxs>
@@ -34,23 +34,38 @@ struct Block {
   static constexpr bool IsBlock_T = true;
   static constexpr unsigned long Rank_T = Rank;
 
-  static Block<Elem,Rank,false> heap(Properties<Rank> location) { return Block<Elem,Rank,MultiDimRepr>(location); }
+  static Block<Elem,Rank,false,false> heap(Properties<Rank> location) { return Block<Elem,Rank,MultiDimRepr,NonStandardAlloc>(location); }
 
-  static Block<Elem,Rank,false> stack(Properties<Rank> location) { 
+  static Block<Elem,Rank,false,false> stack(Properties<Rank> location) { 
 //    return Block<Elem,Rank,MultiDimRepr>(location); 
   }
   
   template <typename External>
-  static Block<Elem,Rank,peel<External>()!=1> external(Properties<Rank> location, External external) {
+  static Block<Elem,Rank,MultiDimRepr,false> external(Properties<Rank> location, dyn_var<External> external) {
     constexpr int nlevels = peel<External>();
     static_assert(nlevels == 1 || nlevels == Rank);
     constexpr bool is_multi = nlevels == Rank;
     if constexpr (is_multi) {
       auto allocator = std::make_shared<UserAllocation<Elem,External,Rank>>(external);
-      return Block<Elem,Rank,MultiDimRepr>(location, allocator);
+      return Block<Elem,Rank,MultiDimRepr,NonStandardAlloc>(location, allocator);
     } else {
       auto allocator = std::make_shared<UserAllocation<Elem,Elem*,1>>(external);
-      return Block<Elem,Rank,MultiDimRepr>(location, std::move(allocator));
+      return Block<Elem,Rank,MultiDimRepr,NonStandardAlloc>(location, std::move(allocator));
+    }
+  }
+
+  template <typename External>
+  static Block<Elem,Rank,MultiDimRepr,true> non_standard(Properties<Rank> location, dyn_var<External> external, 
+							   Property<physical<Rank,peel<External>()>()> non_standard_extents) {
+    constexpr int nlevels = peel<External>();
+    static_assert(nlevels == 1 || nlevels == Rank);
+    constexpr bool is_multi = nlevels == Rank;
+    if constexpr (is_multi) {
+      auto allocator = std::make_shared<NonStandardAllocation<Elem,External,Rank>>(external);
+      return Block<Elem,Rank,MultiDimRepr,NonStandardAlloc>(location, allocator, non_standard_extents);
+    } else {
+      auto allocator = std::make_shared<NonStandardAllocation<Elem,Elem*,1>>(external);
+      return Block<Elem,Rank,MultiDimRepr,NonStandardAlloc>(location, std::move(allocator), non_standard_extents);
     }
   }
 
@@ -58,8 +73,7 @@ struct Block {
 	Allocation_T<Elem,physical<Rank,MultiDimRepr>()> allocator) : 
     _location(location), _allocator(allocator) { }
 
-  Block(Properties<Rank> location) : 
-    _location(location) { 
+  Block(Properties<Rank> location) : _location(location) { 
     dyn_var<loop_type> sz = 1;
     for (static_var<int> i = 0; i < Rank; i=i+1) {
       sz *= location.extents()[i];
@@ -67,27 +81,38 @@ struct Block {
     this->_allocator = std::make_shared<HeapAllocation<Elem>>(sz);
   }
 
+  Block(Properties<Rank> location,
+	Allocation_T<Elem,physical<Rank,MultiDimRepr>()> allocator,
+	Property<physical<Rank,MultiDimRepr>()> non_standard_extents) : 
+    _location(location), _allocator(allocator),
+    _non_standard_extents(non_standard_extents) { }
+
   Properties<Rank> location() { return _location; }
+
   Allocation_T<Elem,physical<Rank,MultiDimRepr>()> allocator() { return _allocator; }
 
   template <typename...Ranges>
-  View<Elem,Rank> slice(Ranges...ranges);
+  View<Elem,Rank,MultiDimRepr,NonStandardAlloc> slice(Ranges...ranges);
 
-  template <unsigned long Rank2, typename Elem2>
-  View<Elem,Rank2> colocate(Block<Elem2,Rank2> &idx);
-  template <unsigned long Rank2, typename Elem2>
-  View<Elem,Rank2> colocate(View<Elem2,Rank2> &idx);
+  template <unsigned long Rank2, typename Elem2, bool MultiDimRepr2, bool NonStandardAlloc2>
+  View<Elem,Rank2,MultiDimRepr,NonStandardAlloc> colocate(Block<Elem2,Rank2,MultiDimRepr2,NonStandardAlloc2> &idx);
 
-  template <unsigned long Rank2, typename Elem2>
-  View<Elem,Rank> hcolocate(Block<Elem2,Rank2> &idx);
-  template <unsigned long Rank2, typename Elem2>
-  View<Elem,Rank> hcolocate(View<Elem2,Rank2> &idx);
+  template <unsigned long Rank2, typename Elem2, bool MultiDimRepr2, bool NonStandardAlloc2>
+  View<Elem,Rank2,MultiDimRepr,NonStandardAlloc> colocate(View<Elem2,Rank2,MultiDimRepr2,NonStandardAlloc2> &idx);
 
-  Block<Elem,Rank> ppermute(array<loop_type,Rank> perms);
-  View<Elem,Rank> vpermute(array<loop_type,Rank> perms);
+  template <unsigned long Rank2, typename Elem2, bool MultiDimRepr2, bool NonStandardAlloc2>
+  View<Elem,Rank,MultiDimRepr,NonStandardAlloc> hcolocate(Block<Elem2,Rank2,MultiDimRepr2,NonStandardAlloc2> &idx);
 
-  Block<Elem,Rank> prefine(Property<Rank> refine);
-  View<Elem,Rank> vrefine(Property<Rank> refine);
+  template <unsigned long Rank2, typename Elem2, bool MultiDimRepr2, bool NonStandardAlloc2>
+  View<Elem,Rank,MultiDimRepr,NonStandardAlloc> hcolocate(View<Elem2,Rank2,MultiDimRepr2,NonStandardAlloc2> &idx);
+
+  Block<Elem,Rank,MultiDimRepr,NonStandardAlloc> ppermute(array<loop_type,Rank> perms);
+
+  View<Elem,Rank,MultiDimRepr,NonStandardAlloc> vpermute(array<loop_type,Rank> perms);
+
+  Block<Elem,Rank,MultiDimRepr,NonStandardAlloc> prefine(Property<Rank> refine);
+
+  View<Elem,Rank,MultiDimRepr,NonStandardAlloc> vrefine(Property<Rank> refine);
 
   template <typename...Idxs>
   dyn_var<Elem> operator()(Idxs...idxs);
@@ -96,9 +121,9 @@ struct Block {
   void write(Property<Rank2> idxs, dyn_var<Elem> val);
 
   template <typename Idx>
-  Ref<Block<Elem,Rank,MultiDimRepr>,std::tuple<typename RefIdxType<Idx>::type>> operator[](Idx idx);
+  Ref<Block<Elem,Rank,MultiDimRepr,NonStandardAlloc>,std::tuple<typename RefIdxType<Idx>::type>> operator[](Idx idx);
 
-  View<Elem,Rank> view();
+  View<Elem,Rank,MultiDimRepr,NonStandardAlloc> view();
 
   void dump();
 
@@ -108,27 +133,37 @@ struct Block {
 private:
   
   Properties<Rank> _location;
+
   Allocation_T<Elem,physical<Rank,MultiDimRepr>()> _allocator;
+
+  Property<physical<Rank,MultiDimRepr>()> _non_standard_extents;
 
 };
 
 template <typename Elem, unsigned long Rank>
-Block<Elem,Rank,false> heap(Properties<Rank> prop) {
-  return Block<Elem,Rank,false>::heap(prop);
+Block<Elem,Rank,false,false> heap(Properties<Rank> prop) {
+  return Block<Elem,Rank,false,false>::heap(prop);
 }
 
 template <typename Elem, unsigned long Rank>
-Block<Elem,Rank,false> stack(Properties<Rank> prop) {
+Block<Elem,Rank,false,false> stack(Properties<Rank> prop) {
 
 }
 
-template <typename Elem, unsigned long Rank, typename External>
-Block<Elem,Rank,peel<External>()!=1> external(Properties<Rank> prop, External external) {
-  return Block<Elem,Rank,peel<External>()!=1>::external(prop, external);
+template <unsigned long Rank, typename External>
+Block<typename GetCoreT<External>::Core_T,Rank,peel<External>()!=1,false> external(Properties<Rank> prop, 
+										   dyn_var<External> external) {
+  return Block<typename GetCoreT<External>::Core_T,Rank,peel<External>()!=1,false>::external(prop, external);
 }
 
+template <unsigned long Rank, typename External>
+Block<typename GetCoreT<External>::Core_T,Rank,peel<External>()!=1,true> 
+non_standard(Properties<Rank> prop, dyn_var<External> external, 
+	     Property<physical<Rank,peel<External>()>()> non_standard_extents) {
+  return Block<typename GetCoreT<External>::Core_T,Rank,peel<External>()!=1,true>::non_standard(prop, external, non_standard_extents);
+}
 
-template <typename Elem, unsigned long Rank, bool MultiDimRepr>
+template <typename Elem, unsigned long Rank, bool MultiDimRepr, bool NonStandardAlloc>
 struct View {
 
   template <typename BlockLike, typename Idxs>
@@ -143,27 +178,32 @@ struct View {
     _vlocation(vlocation), _blocation(blocation), _allocator(allocator) { }
 
   Properties<Rank> vlocation() { return _vlocation; }
+
   Properties<Rank> blocation() { return _blocation; }
+
   Allocation_T<Elem,physical<Rank,MultiDimRepr>()> allocator() { return _allocator; }
 
   template <typename...Ranges>
-  View<Elem,Rank> slice(Ranges...ranges);
+  View<Elem,Rank,MultiDimRepr,NonStandardAlloc> slice(Ranges...ranges);
 
-  template <unsigned long Rank2, typename Elem2>
-  View<Elem,Rank2> colocate(Block<Elem2,Rank2> &idx);
-  template <unsigned long Rank2, typename Elem2>
-  View<Elem,Rank2> colocate(View<Elem2,Rank2> &idx);
+  template <unsigned long Rank2, typename Elem2, bool MultiDimRepr2, bool NonStandardAlloc2>
+  View<Elem,Rank2,MultiDimRepr,NonStandardAlloc> colocate(Block<Elem2,Rank2,MultiDimRepr2,NonStandardAlloc2> &idx);
 
-  template <unsigned long Rank2, typename Elem2>
-  View<Elem,Rank> hcolocate(Block<Elem2,Rank2> &idx);
-  template <unsigned long Rank2, typename Elem2>
-  View<Elem,Rank> hcolocate(View<Elem2,Rank2> &idx);
+  template <unsigned long Rank2, typename Elem2, bool MultiDimRepr2, bool NonStandardAlloc2>
+  View<Elem,Rank2,MultiDimRepr,NonStandardAlloc> colocate(View<Elem2,Rank2,MultiDimRepr2,NonStandardAlloc2> &idx);
 
-  Block<Elem,Rank> ppermute(array<loop_type,Rank> perms);
-  View<Elem,Rank> vpermute(array<loop_type,Rank> perms);
+  template <unsigned long Rank2, typename Elem2, bool MultiDimRepr2, bool NonStandardAlloc2>
+  View<Elem,Rank,MultiDimRepr,NonStandardAlloc> hcolocate(Block<Elem2,Rank2,MultiDimRepr2,NonStandardAlloc2> &idx);
 
-  Block<Elem,Rank> prefine(Property<Rank> refine);
-  View<Elem,Rank> vrefine(Property<Rank> refine);
+  template <unsigned long Rank2, typename Elem2, bool MultiDimRepr2, bool NonStandardAlloc2>
+  View<Elem,Rank,MultiDimRepr,NonStandardAlloc> hcolocate(View<Elem2,Rank2,MultiDimRepr2,NonStandardAlloc2> &idx);
+
+  Block<Elem,Rank,MultiDimRepr,NonStandardAlloc> ppermute(array<loop_type,Rank> perms);
+
+  View<Elem,Rank,MultiDimRepr,NonStandardAlloc> vpermute(array<loop_type,Rank> perms);
+
+  Block<Elem,Rank,MultiDimRepr,NonStandardAlloc> prefine(Property<Rank> refine);
+  View<Elem,Rank,MultiDimRepr,NonStandardAlloc> vrefine(Property<Rank> refine);
 
   template <typename...Idxs>
   dyn_var<Elem> operator()(Idxs...idxs);
@@ -175,7 +215,7 @@ struct View {
   auto operator[](Idx idx);
   
   template <typename Elem2=Elem>
-  Block<Elem2,Rank> block();
+  Block<Elem2,Rank,false,false> heap();
 
   void dump();
 
@@ -194,59 +234,63 @@ private:
 // BLOCK
 ////////////////
 
-template <typename Elem, unsigned long Rank, bool MultiDimRepr>
+template <typename Elem, unsigned long Rank, bool MultiDimRepr, bool NonStandardAlloc>
 template <typename...Ranges>
-View<Elem,Rank> Block<Elem,Rank,MultiDimRepr>::slice(Ranges...ranges) {
+View<Elem,Rank,MultiDimRepr,NonStandardAlloc> Block<Elem,Rank,MultiDimRepr,NonStandardAlloc>::slice(Ranges...ranges) {
   return {this->location().slice(ranges...), this->location(), this->allocator()};
 }
 
-template <typename Elem, unsigned long Rank, bool MultiDimRepr>
-template <unsigned long Rank2, typename Elem2>
-View<Elem,Rank2> Block<Elem,Rank,MultiDimRepr>::colocate(Block<Elem2,Rank2> &idx) {
+template <typename Elem, unsigned long Rank, bool MultiDimRepr, bool NonStandardAlloc>
+template <unsigned long Rank2, typename Elem2, bool MultiDimRepr2, bool NonStandardAlloc2>
+View<Elem,Rank2,MultiDimRepr,NonStandardAlloc> 
+Block<Elem,Rank,MultiDimRepr,NonStandardAlloc>::colocate(Block<Elem2,Rank2,MultiDimRepr2,NonStandardAlloc2> &idx) {
   return {this->location().colocate(idx.location()), this->location(), this->allocator()};
 }
 
-template <typename Elem, unsigned long Rank, bool MultiDimRepr>
-template <unsigned long Rank2, typename Elem2>
-View<Elem,Rank2> Block<Elem,Rank,MultiDimRepr>::colocate(View<Elem2,Rank2> &idx) {
+template <typename Elem, unsigned long Rank, bool MultiDimRepr, bool NonStandardAlloc>
+template <unsigned long Rank2, typename Elem2, bool MultiDimRepr2, bool NonStandardAlloc2>
+View<Elem,Rank2,MultiDimRepr,NonStandardAlloc> 
+Block<Elem,Rank,MultiDimRepr,NonStandardAlloc>::colocate(View<Elem2,Rank2,MultiDimRepr2,NonStandardAlloc2> &idx) {
   return {this->location().colocate(idx.vlocation()), this->location(), this->allocator()};
 }
 
-template <typename Elem, unsigned long Rank, bool MultiDimRepr>
-template <unsigned long Rank2, typename Elem2>
-View<Elem,Rank> Block<Elem,Rank,MultiDimRepr>::hcolocate(Block<Elem2,Rank2> &idx) {
+template <typename Elem, unsigned long Rank, bool MultiDimRepr, bool NonStandardAlloc>
+template <unsigned long Rank2, typename Elem2, bool MultiDimRepr2, bool NonStandardAlloc2>
+View<Elem,Rank,MultiDimRepr,NonStandardAlloc> 
+Block<Elem,Rank,MultiDimRepr,NonStandardAlloc>::hcolocate(Block<Elem2,Rank2,MultiDimRepr2,NonStandardAlloc2> &idx) {
   return {this->location().hcolocate(idx.location()), this->location(), this->allocator()};
 }
 
-template <typename Elem, unsigned long Rank, bool MultiDimRepr>
-template <unsigned long Rank2, typename Elem2>
-View<Elem,Rank> Block<Elem,Rank,MultiDimRepr>::hcolocate(View<Elem2,Rank2> &idx) {
+template <typename Elem, unsigned long Rank, bool MultiDimRepr, bool NonStandardAlloc>
+template <unsigned long Rank2, typename Elem2, bool MultiDimRepr2, bool NonStandardAlloc2>
+View<Elem,Rank,MultiDimRepr,NonStandardAlloc> 
+Block<Elem,Rank,MultiDimRepr,NonStandardAlloc>::hcolocate(View<Elem2,Rank2,MultiDimRepr2,NonStandardAlloc2> &idx) {
   return {this->location().hcolocate(idx.vlocation()), this->location(), this->allocator()};
 }
 
-template <typename Elem, unsigned long Rank, bool MultiDimRepr>
-Block<Elem,Rank> Block<Elem,Rank,MultiDimRepr>::ppermute(array<loop_type,Rank> perms) {
+template <typename Elem, unsigned long Rank, bool MultiDimRepr, bool NonStandardAlloc>
+Block<Elem,Rank,MultiDimRepr,NonStandardAlloc> Block<Elem,Rank,MultiDimRepr,NonStandardAlloc>::ppermute(array<loop_type,Rank> perms) {
   return {this->location().permute(perms)};
 }
 
-template <typename Elem, unsigned long Rank, bool MultiDimRepr>
-View<Elem,Rank> Block<Elem,Rank,MultiDimRepr>::vpermute(array<loop_type,Rank> perms) {
+template <typename Elem, unsigned long Rank, bool MultiDimRepr, bool NonStandardAlloc>
+View<Elem,Rank,MultiDimRepr,NonStandardAlloc> Block<Elem,Rank,MultiDimRepr,NonStandardAlloc>::vpermute(array<loop_type,Rank> perms) {
   return {this->location().permute(perms), this->location(), this->allocator()};
 }
 
-template <typename Elem, unsigned long Rank, bool MultiDimRepr>
-Block<Elem,Rank> Block<Elem,Rank,MultiDimRepr>::prefine(Property<Rank> refine) {
+template <typename Elem, unsigned long Rank, bool MultiDimRepr, bool NonStandardAlloc>
+Block<Elem,Rank,MultiDimRepr,NonStandardAlloc> Block<Elem,Rank,MultiDimRepr,NonStandardAlloc>::prefine(Property<Rank> refine) {
   return {this->location().refine(refine)};
 }
 
-template <typename Elem, unsigned long Rank, bool MultiDimRepr>
-View<Elem,Rank> Block<Elem,Rank,MultiDimRepr>::vrefine(Property<Rank> refine) {
+template <typename Elem, unsigned long Rank, bool MultiDimRepr, bool NonStandardAlloc>
+View<Elem,Rank,MultiDimRepr,NonStandardAlloc> Block<Elem,Rank,MultiDimRepr,NonStandardAlloc>::vrefine(Property<Rank> refine) {
   return {this->location().refine(refine), this->location(), this->allocator()};
 }
 
-template <typename Elem, unsigned long Rank, bool MultiDimRepr>
+template <typename Elem, unsigned long Rank, bool MultiDimRepr, bool NonStandardAlloc>
 template <typename...Idxs>
-dyn_var<Elem> Block<Elem,Rank,MultiDimRepr>::operator()(Idxs...idxs) {
+dyn_var<Elem> Block<Elem,Rank,MultiDimRepr,NonStandardAlloc>::operator()(Idxs...idxs) {
   constexpr unsigned long s = sizeof...(Idxs);
   static_assert(s <= Rank, "Too many indices specified for read!"); // I can remove this if I drop dimensions. Just too lazy right now.
   Property<s> tmp_idxs{idxs...};
@@ -268,9 +312,9 @@ dyn_var<Elem> Block<Elem,Rank,MultiDimRepr>::operator()(Idxs...idxs) {
   }
 }
 
-template <typename Elem, unsigned long Rank, bool MultiDimRepr>
+template <typename Elem, unsigned long Rank, bool MultiDimRepr, bool NonStandardAlloc>
 template <unsigned long Rank2>
-void Block<Elem,Rank,MultiDimRepr>::write(Property<Rank2> idxs, dyn_var<Elem> val) {
+void Block<Elem,Rank,MultiDimRepr,NonStandardAlloc>::write(Property<Rank2> idxs, dyn_var<Elem> val) {
   constexpr unsigned long s = Rank2;
   static_assert(s <= Rank, "Too many indices specified for write!"); // I can remove this if I drop dimensions. Just too lazy right now.
   Property<Rank> padded;
@@ -292,33 +336,34 @@ void Block<Elem,Rank,MultiDimRepr>::write(Property<Rank2> idxs, dyn_var<Elem> va
   } 
 }
 
-template <typename Elem, unsigned long Rank, bool MultiDimRepr>
+template <typename Elem, unsigned long Rank, bool MultiDimRepr, bool NonStandardAlloc>
 template <typename Idx>
-Ref<Block<Elem,Rank,MultiDimRepr>,std::tuple<typename RefIdxType<Idx>::type>> Block<Elem,Rank,MultiDimRepr>::operator[](Idx idx) {
+Ref<Block<Elem,Rank,MultiDimRepr,NonStandardAlloc>,std::tuple<typename RefIdxType<Idx>::type>> 
+Block<Elem,Rank,MultiDimRepr,NonStandardAlloc>::operator[](Idx idx) {
   if constexpr (is_dyn_like<Idx>::value) {
     // potentially slice builder::builder to dyn_var 
     dyn_var<loop_type> didx = idx;
-    return Ref<Block<Elem,Rank,MultiDimRepr>,std::tuple<decltype(didx)>>(*this, std::tuple{didx});
+    return Ref<Block<Elem,Rank,MultiDimRepr,NonStandardAlloc>,std::tuple<decltype(didx)>>(*this, std::tuple{didx});
   } else {
-    return Ref<Block<Elem,Rank,MultiDimRepr>,std::tuple<Idx>>(*this, std::tuple{idx});
+    return Ref<Block<Elem,Rank,MultiDimRepr,NonStandardAlloc>,std::tuple<Idx>>(*this, std::tuple{idx});
   }
 }
 
-template <typename Elem, unsigned long Rank, bool MultiDimRepr>
-View<Elem,Rank> Block<Elem,Rank,MultiDimRepr>::view() {
+template <typename Elem, unsigned long Rank, bool MultiDimRepr, bool NonStandardAlloc>
+View<Elem,Rank,MultiDimRepr,NonStandardAlloc> Block<Elem,Rank,MultiDimRepr,NonStandardAlloc>::view() {
   return {this->location(), this->location()};
 }
 
-template <typename Elem, unsigned long Rank, bool MultiDimRepr>
-void Block<Elem,Rank,MultiDimRepr>::dump() {
+template <typename Elem, unsigned long Rank, bool MultiDimRepr, bool NonStandardAlloc>
+void Block<Elem,Rank,MultiDimRepr,NonStandardAlloc>::dump() {
   print("Block");
   print_newline();
   location().dump();
 }
 
-template <typename Elem, unsigned long Rank, bool MultiDimRepr>
+template <typename Elem, unsigned long Rank, bool MultiDimRepr, bool NonStandardAlloc>
 template <typename T>
-void Block<Elem,Rank,MultiDimRepr>::dump_data() {
+void Block<Elem,Rank,MultiDimRepr,NonStandardAlloc>::dump_data() {
   // TODO format nicely with the max string length thing
   static_assert(Rank<=3, "dump_data only supports ranks 1, 2, and 3");
   if constexpr (Rank == 1) {
@@ -350,59 +395,63 @@ void Block<Elem,Rank,MultiDimRepr>::dump_data() {
 // VIEW
 ////////////////
 
-template <typename Elem, unsigned long Rank, bool MultiDimRepr>
+template <typename Elem, unsigned long Rank, bool MultiDimRepr, bool NonStandardAlloc>
 template <typename...Ranges>
-View<Elem,Rank> View<Elem,Rank,MultiDimRepr>::slice(Ranges...ranges) {
+View<Elem,Rank,MultiDimRepr,NonStandardAlloc> View<Elem,Rank,MultiDimRepr,NonStandardAlloc>::slice(Ranges...ranges) {
   return {this->vlocation().slice(ranges...), this->blocation(), this->allocator()};
 }
 
-template <typename Elem, unsigned long Rank, bool MultiDimRepr>
-template <unsigned long Rank2, typename Elem2>
-View<Elem,Rank2> View<Elem,Rank,MultiDimRepr>::colocate(Block<Elem2,Rank2> &idx) {
+template <typename Elem, unsigned long Rank, bool MultiDimRepr, bool NonStandardAlloc>
+template <unsigned long Rank2, typename Elem2, bool MultiDimRepr2, bool NonStandardAlloc2>
+View<Elem,Rank2,MultiDimRepr,NonStandardAlloc> 
+View<Elem,Rank,MultiDimRepr,NonStandardAlloc>::colocate(Block<Elem2,Rank2,MultiDimRepr2,NonStandardAlloc2> &idx) {
   return {this->vlocation().colocate(idx.location()), this->blocation(), this->allocator()};
 }
 
-template <typename Elem, unsigned long Rank, bool MultiDimRepr>
-template <unsigned long Rank2, typename Elem2>
-View<Elem,Rank2> View<Elem,Rank,MultiDimRepr>::colocate(View<Elem2,Rank2> &idx) {
+template <typename Elem, unsigned long Rank, bool MultiDimRepr, bool NonStandardAlloc>
+template <unsigned long Rank2, typename Elem2, bool MultiDimRepr2, bool NonStandardAlloc2>
+View<Elem,Rank2,MultiDimRepr,NonStandardAlloc> 
+View<Elem,Rank,MultiDimRepr,NonStandardAlloc>::colocate(View<Elem2,Rank2,MultiDimRepr2,NonStandardAlloc2> &idx) {
   return {this->vlocation().colocate(idx.vlocation()), this->blocation(), this->allocator()};
 }
 
-template <typename Elem, unsigned long Rank, bool MultiDimRepr>
-template <unsigned long Rank2, typename Elem2>
-View<Elem,Rank> View<Elem,Rank,MultiDimRepr>::hcolocate(Block<Elem2,Rank2> &idx) {
+template <typename Elem, unsigned long Rank, bool MultiDimRepr, bool NonStandardAlloc>
+template <unsigned long Rank2, typename Elem2, bool MultiDimRepr2, bool NonStandardAlloc2>
+View<Elem,Rank,MultiDimRepr,NonStandardAlloc> 
+View<Elem,Rank,MultiDimRepr,NonStandardAlloc>::hcolocate(Block<Elem2,Rank2,MultiDimRepr2,NonStandardAlloc2> &idx) {
   return {this->vlocation().hcolocate(idx.location()), this->blocation(), this->allocator()};
 }
 
-template <typename Elem, unsigned long Rank, bool MultiDimRepr>
-template <unsigned long Rank2, typename Elem2>
-View<Elem,Rank> View<Elem,Rank,MultiDimRepr>::hcolocate(View<Elem2,Rank2> &idx) {
+template <typename Elem, unsigned long Rank, bool MultiDimRepr, bool NonStandardAlloc>
+template <unsigned long Rank2, typename Elem2, bool MultiDimRepr2, bool NonStandardAlloc2>
+View<Elem,Rank,MultiDimRepr,NonStandardAlloc> 
+View<Elem,Rank,MultiDimRepr,NonStandardAlloc>::hcolocate(View<Elem2,Rank2,MultiDimRepr2,NonStandardAlloc2> &idx) {
   return {this->vlocation().hcolocate(idx.vlocation()), this->blocation(), this->allocator()};
 }
 
-template <typename Elem, unsigned long Rank, bool MultiDimRepr>
-Block<Elem,Rank> View<Elem,Rank,MultiDimRepr>::ppermute(array<loop_type,Rank> perms) {
+template <typename Elem, unsigned long Rank, bool MultiDimRepr, bool NonStandardAlloc>
+Block<Elem,Rank,MultiDimRepr,NonStandardAlloc> View<Elem,Rank,MultiDimRepr,NonStandardAlloc>::ppermute(array<loop_type,Rank> perms) {
   return {this->vlocation().permute(perms)};
 }
 
-template <typename Elem, unsigned long Rank, bool MultiDimRepr>
-View<Elem,Rank> View<Elem,Rank,MultiDimRepr>::vpermute(array<loop_type,Rank> perms) {
+template <typename Elem, unsigned long Rank, bool MultiDimRepr, bool NonStandardAlloc>
+View<Elem,Rank,MultiDimRepr,NonStandardAlloc> View<Elem,Rank,MultiDimRepr,NonStandardAlloc>::vpermute(array<loop_type,Rank> perms) {
   return {this->vlocation().permute(perms), this->blocation(), this->allocator()};
 }
 
-template <typename Elem, unsigned long Rank, bool MultiDimRepr>
-Block<Elem,Rank> View<Elem,Rank,MultiDimRepr>::prefine(Property<Rank> refine) {
+template <typename Elem, unsigned long Rank, bool MultiDimRepr, bool NonStandardAlloc>
+Block<Elem,Rank,MultiDimRepr,NonStandardAlloc> View<Elem,Rank,MultiDimRepr,NonStandardAlloc>::prefine(Property<Rank> refine) {
   return {this->vlocation().refine(refine)};
 }
 
-template <typename Elem, unsigned long Rank, bool MultiDimRepr>
-View<Elem,Rank> View<Elem,Rank,MultiDimRepr>::vrefine(Property<Rank> refine) {
+template <typename Elem, unsigned long Rank, bool MultiDimRepr, bool NonStandardAlloc>
+View<Elem,Rank,MultiDimRepr,NonStandardAlloc> View<Elem,Rank,MultiDimRepr,NonStandardAlloc>::vrefine(Property<Rank> refine) {
   return {this->vlocation().refine(refine), this->blocation(), this->allocator()};
 }
 
-template <typename Elem, unsigned long Rank, bool MultiDimRepr>
+template <typename Elem, unsigned long Rank, bool MultiDimRepr, bool NonStandardAlloc>
 template <typename...Idxs>
-dyn_var<Elem> View<Elem,Rank,MultiDimRepr>::operator()(Idxs...idxs) {
+dyn_var<Elem> View<Elem,Rank,MultiDimRepr,NonStandardAlloc>::operator()(Idxs...idxs) {
   constexpr unsigned long s = sizeof...(Idxs);
   static_assert(s <= Rank, "Too many indices specified for read!"); // I can remove this if I drop dimensions. Just too lazy right now.
   Property<s> tmp_idxs{idxs...};
@@ -428,9 +477,9 @@ dyn_var<Elem> View<Elem,Rank,MultiDimRepr>::operator()(Idxs...idxs) {
   }  
 }
 
-template <typename Elem, unsigned long Rank, bool MultiDimRepr>
+template <typename Elem, unsigned long Rank, bool MultiDimRepr, bool NonStandardAlloc>
 template <unsigned long Rank2>
-void View<Elem,Rank,MultiDimRepr>::write(Property<Rank2> idxs, dyn_var<Elem> val) {
+void View<Elem,Rank,MultiDimRepr,NonStandardAlloc>::write(Property<Rank2> idxs, dyn_var<Elem> val) {
   constexpr unsigned long s = Rank2;
   static_assert(s <= Rank, "Too many indices specified for write!"); // I can remove this if I drop dimensions. Just too lazy right now.
   Property<Rank> padded;
@@ -455,9 +504,9 @@ void View<Elem,Rank,MultiDimRepr>::write(Property<Rank2> idxs, dyn_var<Elem> val
   }  
 }
 
-template <typename Elem, unsigned long Rank, bool MultiDimRepr>
+template <typename Elem, unsigned long Rank, bool MultiDimRepr, bool NonStandardAlloc>
 template <typename Idx>
-auto View<Elem,Rank,MultiDimRepr>::operator[](Idx idx) {
+auto View<Elem,Rank,MultiDimRepr,NonStandardAlloc>::operator[](Idx idx) {
   if constexpr (is_dyn_like<Idx>::value) {
     // potentially slice builder::builder to dyn_var 
     dyn_var<loop_type> didx = idx;
@@ -470,23 +519,23 @@ auto View<Elem,Rank,MultiDimRepr>::operator[](Idx idx) {
 }
 
 
-template <typename Elem, unsigned long Rank, bool MultiDimRepr>
+template <typename Elem, unsigned long Rank, bool MultiDimRepr, bool NonStandardAlloc>
 template <typename Elem2>
-Block<Elem2,Rank> View<Elem,Rank,MultiDimRepr>::block() {
+Block<Elem2,Rank,false,false> View<Elem,Rank,MultiDimRepr,NonStandardAlloc>::heap() {
   return {this->vlocation()};
 }
 
-template <typename Elem, unsigned long Rank, bool MultiDimRepr>
-void View<Elem,Rank,MultiDimRepr>::dump() {
+template <typename Elem, unsigned long Rank, bool MultiDimRepr, bool NonStandardAlloc>
+void View<Elem,Rank,MultiDimRepr,NonStandardAlloc>::dump() {
   print("View");
   print_newline();
   vlocation().dump();
   blocation().dump();
 }
 
-template <typename Elem, unsigned long Rank, bool MultiDimRepr>
+template <typename Elem, unsigned long Rank, bool MultiDimRepr, bool NonStandardAlloc>
 template <typename T>
-void View<Elem,Rank,MultiDimRepr>::dump_data() {
+void View<Elem,Rank,MultiDimRepr,NonStandardAlloc>::dump_data() {
   // TODO format nicely with the max string length thing
   static_assert(Rank<=3, "dump_data only supports up to 3 rank dimensions for printing.");
   if constexpr (Rank == 1) {
