@@ -63,4 +63,40 @@ constexpr int peel() {
   return Peel<Elem>()();
 }
 
+template <typename A, typename B>
+struct TupleTypeCat { };
+
+template <typename Idx, typename...Idxs>
+struct TupleTypeCat<Idx, std::tuple<Idxs...>> {
+  using type = std::tuple<Idxs...,Idx>;
+};
+
+template <typename Idx>
+struct RefIdxType { 
+  using type = Idx;
+};
+
+template <>
+struct RefIdxType<builder::builder> {
+  using type = dyn_var<loop_type>;
+};
+
+template <>
+struct RefIdxType<dyn_var<loop_type>> {
+  using type = dyn_var<loop_type>;
+};
+
+template <int N, int Depth, unsigned long Sz, typename Elem>
+auto dyn_arr_to_tuple(const dyn_arr<Elem,Sz> &arr) {
+  if constexpr (Depth == N - 1) {
+    return std::tuple{arr[Depth]};
+  } else if constexpr (Depth < N - 1) {
+    return std::tuple_cat(std::tuple{arr[Depth]}, dyn_arr_to_tuple<N,Depth+1,Sz,Elem>(arr));
+  } else {
+    return std::tuple{};
+  }
+}
+
+
+
 }
